@@ -1,0 +1,68 @@
+---
+description: Project architecture — module layout, naming conventions, and agent-first code style
+alwaysApply: true
+---
+
+# Architecture
+
+## Module Layout
+
+```
+src/
+├── engine/          # Core loop, registry, entity primitives
+├── math/            # vec3, quat, mat4 — no deps, no classes
+├── input/           # createInput — keyboard, mouse, pointer lock
+├── collision/       # Pure AABB/OBB math helpers (no GL, no registry)
+├── components/      # Shared data-only component types + factories
+│   ├── transform    # position, yaw, scale, world matrix
+│   ├── renderable   # mesh + material + optional model matrix
+│   ├── collider     # AABB / ObbY — static or dynamic
+│   ├── skin         # skinning palette for skeletal meshes
+│   └── animation    # clip sampling, retargeting
+├── assets/gltf/     # GLB/glTF loader, runtime scene, materials builder
+├── render/          # WebGL2 device, passes, pipeline installer
+│   ├── gl/          # device, mesh, shader, texture, framebuffers
+│   ├── passes/      # ShadowPass, ForwardPass, PostProcessPass, AsciiPostProcessPass
+│   ├── shaders/     # GLSL source split by concern (shadow, lit, ground, post, ascii)
+│   └── pipeline.ts  # installRenderPipeline → RenderPipeline
+├── systems/         # Registry system installers (character, camera, animation, …)
+├── player/          # Player entity assembly + player-specific components
+│   ├── components/  # characterController, cameraFollow
+│   └── player.ts    # createPlayer — entity assembly + asset loading
+├── world/           # World geometry helpers
+│   ├── ground.ts    # createGroundMesh
+│   └── staticProps.ts # instantiateStaticProp
+└── startup/
+    └── bootstrap.ts # Composition root — wire systems, load assets, game.start()
+```
+
+## Naming Conventions
+
+| Pattern | Example | Use for |
+|---------|---------|---------|
+| `createX()` | `createTransform()` | Data factory — returns a plain object |
+| `installXSystem()` | `installCharacterSystem()` | System installer — registers actions on registry |
+| `useX()` | `useRegistry()` | Engine primitive — creates and owns internal state |
+| `buildX()` | `buildGltfMaterials()` | Pure transform/builder — no side effects |
+
+## Code Style
+
+- Arrow functions everywhere; `function` keyword only in module-level helpers inside `.ts` files
+- No `class` in game logic; `class` is acceptable only in render passes where constructor injection is cleaner
+- Factory functions return plain typed objects — never extend or subclass them
+- Every public-facing factory/installer exports its return type explicitly
+- Guard throws at entry: `if (!canvas) throw new Error('Missing #game canvas')`
+- **Never** add barrel `index.ts` files — import directly from the concrete module (e.g. `../engine/registry.ts`, not `../engine` or `../engine/index.ts`)
+
+## Adding New Features
+
+Follow the manaburn-barcrawl pattern — add a feature folder:
+```
+src/enemies/spider/
+  spider.ts           # createSpiderEntity
+  components/
+    spiderAI.ts
+  systems/
+    spiderSystem.ts   # installSpiderSystem
+```
+Register in `bootstrap.ts` with a call to `installSpiderSystem(registry, staticColliders)`.

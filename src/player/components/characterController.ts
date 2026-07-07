@@ -8,7 +8,7 @@ export type CharacterController = {
   jumpSpeed: number;
   gravity: number;
   onGround: boolean;
-  halfExtents: Vec3; // AABB half-size
+  halfExtents: Vec3;
   jumpPhase: JumpPhase;
   jumpClipTime: number;
   jumpStartDuration: number;
@@ -20,22 +20,20 @@ export type CharacterController = {
   locomotionBlend: number;
 };
 
-export function createCharacterController(): CharacterController {
-  return {
-    velocity: v3(),
-    moveSpeed: 5.2,
-    jumpSpeed: 10.0,
-    gravity: 24.0,
-    onGround: false,
-    halfExtents: v3(0.28, 0.55, 0.28),
-    jumpPhase: 'none',
-    jumpClipTime: 0,
-    jumpStartDuration: 0.3,
-    jumpLandDuration: 0.3,
-    jumpStartSpeed: 4,
-    jumpLandSpeed: 2,
-    locomotionAnimTime: 0,
-    moveAnimSpeed: 1.5,
-    locomotionBlend: 1,
-  };
-}
+export const createCharacterController = (): CharacterController => ({
+  velocity: v3(),
+  moveSpeed: 5.2,
+  jumpSpeed: 10.0,
+  gravity: 24.0,
+  onGround: false,
+  halfExtents: v3(0.28, 0.55, 0.28),
+  jumpPhase: 'none',
+  jumpClipTime: 0,
+  jumpStartDuration: 0.3,
+  jumpLandDuration: 0.3,
+  jumpStartSpeed: 4,
+  jumpLandSpeed: 2,
+  locomotionAnimTime: 0,
+  moveAnimSpeed: 1.5,
+  locomotionBlend: 1,
+});

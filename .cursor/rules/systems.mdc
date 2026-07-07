@@ -1,0 +1,85 @@
+---
+description: Registry, systems, and component query patterns
+globs: src/engine/**,src/player/**,src/world/**
+alwaysApply: false
+---
+
+# Registry & Systems
+
+## Three-Phase Loop
+
+```
+update (order 0–19)   → input, AI, physics, animation
+draw   (order 0)      → render pipeline (shadow + forward + post)
+commit (order 0–100)  → flush input frame, record dt for FPS
+```
+
+Lower `order` runs first within a phase. Reserve bands:
+
+| Band | Phase | Use |
+|------|-------|-----|
+| 0 | update | input toggles, debug |
+| 5 | update | camera orbit / pivot |
+| 10 | update | character physics |
+| 20 | update | animation sampling |
+| 0 | draw | render pipeline |
+| 0 | commit | input.commitFrame() |
+| 100 | commit | dt capture |
+
+## Component Queries — Always use `registry.view()`
+
+```typescript
+// ✅ GOOD — cached, only entities with this component
+for (const e of registry.view('character')) { ... }
+
+// ❌ BAD — iterates all entities every frame
+for (const e of registry.all()) {
+  const c = e.components['character'];
+  if (!c) continue;
+  ...
+}
+```
+
+`view(key)` returns a cached `ReadonlyArray<Entity>` invalidated only on create/deregister.
+Call `registry.invalidateView()` if you add a component to an existing entity mid-frame.
+
+## Static Colliders
+
+Pass static colliders explicitly to `installCharacterSystem` and `installCameraSystem` — do not query them per frame.
+
+```typescript
+const staticColliders: Collider[] = [];
+const c = await instantiateStaticProp(...);
+if (c) staticColliders.push(c);
+
+installCharacterSystem(registry, input, staticColliders);
+installCameraSystem(registry, pipeline, input, staticColliders);
+```
+
+Static colliders never move — building the list once during bootstrap is correct.
+
+## System Installer Pattern
+
+Every system is a standalone `install*System(registry, ...deps)` function:
+
+```typescript
+export const installSpiderSystem = (registry: Registry, staticColliders: Collider[]) => {
+  registry.addAction('update', (ctx) => {
+    for (const e of registry.view('spiderAI')) {
+      // ...
+    }
+  }, 15); // order between camera (5) and animation (20)
+};
+```
+
+## Entity Composition
+
+Entities are plain objects; components are direct property assignments:
+
+```typescript
+const e = registry.create();
+e.components['transform'] = createTransform();
+e.components['spiderAI'] = createSpiderAI();
+```
+
+Components are data-only. Behaviour lives exclusively in system installers.

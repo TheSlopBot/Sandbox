@@ -1,0 +1,138 @@
+import { type Registry } from '../engine/registry.ts';
+import { type Collider } from '../components/collider.ts';
+import { type Material } from '../render/types.ts';
+import { createTransform } from '../components/transform.ts';
+import { createInterleavedMesh } from '../render/gl/mesh.ts';
+import { TextureCache } from '../render/gl/texture.ts';
+import { loadGltf } from '../assets/gltf/loader.ts';
+import { buildRuntimeModel } from '../assets/gltf/buildRuntime.ts';
+import { buildGltfMaterials } from '../assets/gltf/materials.ts';
+import { aabb } from '../components/collider.ts';
+
+type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
+
+const expandBoundsFromInterleaved = (
+  min: [number, number, number],
+  max: [number, number, number],
+  vertices: Float32Array,
+) => {
+  for (let i = 0; i < vertices.length; i += 8) {
+    const x = vertices[i]!, y = vertices[i + 1]!, z = vertices[i + 2]!;
+    if (x < min[0]) min[0] = x;
+    if (y < min[1]) min[1] = y;
+    if (z < min[2]) min[2] = z;
+    if (x > max[0]) max[0] = x;
+    if (y > max[1]) max[1] = y;
+    if (z > max[2]) max[2] = z;
+  }
+};
+
+const worldAabbFromLocal = (
+  localMin: [number, number, number],
+  localMax: [number, number, number],
+  pos: [number, number, number],
+  scale: number,
+  yaw: number,
+): ReturnType<typeof aabb> => {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const corners: [number, number, number][] = [
+    [localMin[0], localMin[1], localMin[2]], [localMin[0], localMin[1], localMax[2]],
+    [localMin[0], localMax[1], localMin[2]], [localMin[0], localMax[1], localMax[2]],
+    [localMax[0], localMin[1], localMin[2]], [localMax[0], localMin[1], localMax[2]],
+    [localMax[0], localMax[1], localMin[2]], [localMax[0], localMax[1], localMax[2]],
+  ];
+  let wMinX = Infinity, wMinY = Infinity, wMinZ = Infinity;
+  let wMaxX = -Infinity, wMaxY = -Infinity, wMaxZ = -Infinity;
+  for (const [lx0, ly0, lz0] of corners) {
+    const lx = lx0 * scale, ly = ly0 * scale, lz = lz0 * scale;
+    const wx = (lx * c + lz * s) + pos[0];
+    const wy = ly + pos[1];
+    const wz = (-lx * s + lz * c) + pos[2];
+    if (wx < wMinX) wMinX = wx; if (wx > wMaxX) wMaxX = wx;
+    if (wy < wMinY) wMinY = wy; if (wy > wMaxY) wMaxY = wy;
+    if (wz < wMinZ) wMinZ = wz; if (wz > wMaxZ) wMaxZ = wz;
+  }
+  return aabb(wMinX, wMinY, wMinZ, wMaxX, wMaxY, wMaxZ);
+};
+
+const worldObbFromLocal = (
+  localMin: [number, number, number],
+  localMax: [number, number, number],
+  pos: [number, number, number],
+  scale: number,
+  yaw: number,
+) => {
+  const cxL = (localMin[0] + localMax[0]) * 0.5 * scale;
+  const cyL = (localMin[1] + localMax[1]) * 0.5 * scale;
+  const czL = (localMin[2] + localMax[2]) * 0.5 * scale;
+  const hx = (localMax[0] - localMin[0]) * 0.5 * scale;
+  const hy = (localMax[1] - localMin[1]) * 0.5 * scale;
+  const hz = (localMax[2] - localMin[2]) * 0.5 * scale;
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const rcx = cxL * c + czL * s;
+  const rcz = -cxL * s + czL * c;
+  return {
+    center: new Float32Array([rcx + pos[0], cyL + pos[1], rcz + pos[2]]),
+    halfExtents: new Float32Array([hx, hy, hz]),
+    yaw,
+  };
+};
+
+export const instantiateStaticProp = async (
+  gl: WebGL2RenderingContext,
+  registry: Registry,
+  textures: TextureCache,
+  gltfUrl: string,
+  materialPrefix: string,
+  opts: PropOpts = {},
+): Promise<Collider | null> => {
+  const loaded = await loadGltf(gltfUrl);
+  const runtimeMeshes = buildRuntimeModel(loaded);
+  const mats = buildGltfMaterials(loaded, materialPrefix, textures);
+
+  const t = createTransform();
+  t.position[0] = opts.x ?? 0;
+  t.position[1] = opts.y ?? 0;
+  t.position[2] = opts.z ?? 0;
+  const s = opts.scale ?? 1;
+  t.scale[0] = t.scale[1] = t.scale[2] = s;
+  t.yaw = opts.yaw ?? 0;
+  t.dirty = true;
+
+  const localMin: [number, number, number] = [Infinity, Infinity, Infinity];
+  const localMax: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+
+  for (const rm of runtimeMeshes) {
+    for (const prim of rm.primitives) {
+      const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+      const material: Material = prim.materialIndex >= 0 && prim.materialIndex < mats.length
+        ? mats[prim.materialIndex]
+        : mats[0];
+
+      expandBoundsFromInterleaved(localMin, localMax, prim.vertices);
+
+      const e = registry.create();
+      e.components['transform'] = t;
+      e.components['renderable'] = { mesh, material };
+    }
+  }
+
+  if (!Number.isFinite(localMin[0])) return null;
+
+  if (opts.y === undefined) {
+    t.position[1] = -localMin[1] * s;
+    t.dirty = true;
+  }
+
+  const pos: [number, number, number] = [t.position[0], t.position[1], t.position[2]];
+  const collider: Collider = {
+    aabb: worldAabbFromLocal(localMin, localMax, pos, s, t.yaw),
+    isStatic: true,
+    obbY: worldObbFromLocal(localMin, localMax, pos, s, t.yaw),
+  };
+
+  const ce = registry.create();
+  ce.components['collider'] = collider;
+
+  return collider;
+};

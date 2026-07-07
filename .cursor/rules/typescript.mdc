@@ -21,6 +21,7 @@ alwaysApply: false
 - No `class` — factories return plain objects.
 - No `any` — use `unknown` and narrow when shape is uncertain.
 - No comments in agent-generated code.
+- No barrel `index.ts` files — import from the concrete module path (e.g. `./registry.ts`, not `./index.ts` or the folder alone).
 
 ## Types
 

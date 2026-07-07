@@ -17,9 +17,9 @@ export class AsciiPostProcessPass {
     this.vao = vao;
   }
 
-  draw(sceneTex: WebGLTexture, width: number, height: number) {
+  draw(sceneTex: WebGLTexture, width: number, height: number, targetFramebuffer: WebGLFramebuffer | null = null) {
     const gl = this.gl;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
     gl.viewport(0, 0, width, height);
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
