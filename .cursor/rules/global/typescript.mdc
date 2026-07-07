@@ -1,0 +1,70 @@
+---
+description: TypeScript coding conventions and type policy
+globs: **/*.{ts,tsx}
+alwaysApply: false
+---
+
+# TypeScript
+
+**Agent:** Write arrow-only TS — `const name = ... =>`; follow `AGENTS.md` naming, whitespace, and control flow.
+
+## Why types
+
+- **Agent discoverability:** Exported interfaces and type aliases form a crawlable contract graph (props, store shapes, API payloads) without inferring behavior from runtime code alone.
+- **Code quality:** Strong, named types replace implicit `any` and loose objects; export types on public module boundaries.
+- **Validation:** All code must pass `tsc --noEmit`; do not introduce compile errors.
+
+## Never do
+
+- No `.js` or `.jsx` — use `.ts` / `.tsx` only; migrate or delete legacy JS if encountered.
+- No `function` keyword — including nested handlers in components and `useEffect`.
+- No `class` — factories return plain objects.
+- No `any` — use `unknown` and narrow when shape is uncertain.
+- No comments in agent-generated code.
+
+## Types
+
+| Area | Rule |
+|------|------|
+| Object shapes | `interface`; `type` for unions/intersections |
+| Props / config | Named types; export when reused across features |
+| Hooks / factories | Explicit parameter and return types on exports |
+| Type-only imports | `import type { ... }` |
+| Tests | Runtime tests in `*.test.ts` / `*.test.tsx`; type validation = `tsc --noEmit` |
+
+## Arrow functions
+
+- Single expression → one-line, no block body.
+- Multi-statement block → whitespace per `AGENTS.md` (blank line only between logical steps).
+
+## Modules and factories
+
+| Rule | Pattern |
+|------|---------|
+| `use*` prefix | React hooks in `src/features/` only — `react.mdc` |
+| Pure helpers | Verb/noun names, no `use` |
+| Exports | `export const` default; `export default` for components and static config only |
+| Factory guard | `if (!dep) throw new Error('dep is not defined')` at entry |
+| Factory args | Destructured config + `= {}` outer fallback |
+
+```typescript
+export const createStore = ({ initialState = {} }: CreateStoreConfig = {}): Store => {
+
+    if (!initialState) throw new Error('initialState is not defined');
+
+    return { state: initialState };
+};
+```
+
+## Idioms
+
+| Rule | Pattern |
+|------|---------|
+| Optional callbacks | `onClose?.()` |
+| Nullish / lazy init | `??`, `\|\|=` |
+| Strings | Single quotes |
+| Multiline literals | Trailing commas |
+| Destructure | Rename for clarity: `{ id: userId }` |
+| Chained calls | One per line, indented |
+
+Prefer early returns — `AGENTS.md`.

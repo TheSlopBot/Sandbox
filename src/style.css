@@ -1,0 +1,47 @@
+:root {
+  color-scheme: dark;
+  font: 14px/1.35 system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0c0f14;
+  overflow: hidden;
+}
+
+#game {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+#hud {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.86);
+  user-select: none;
+  pointer-events: none;
+}
+
+#hud .row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+#hud .k {
+  color: rgba(255, 255, 255, 0.6);
+  width: 58px;
+  display: inline-block;
+}
+

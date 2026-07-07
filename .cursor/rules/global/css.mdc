@@ -1,0 +1,27 @@
+---
+description: Modern CSS design system — tokens, surfaces, motion, component polish
+globs: **/*.css
+alwaysApply: false
+---
+
+# CSS
+
+**Agent:** Master theme owns tokens; feature CSS uses variables only — modern glass surfaces, soft gradients, layered depth, and shared motion. No hardcoded colors, fonts, or radii in feature files.
+
+## File ownership
+
+| Location | Owns |
+|----------|------|
+| Master CSS (`src/index.css` / theme entry) | Tokens, reset, scrollbars, `color-scheme`, global typography |
+| Feature CSS (colocated) | BEM layout and component modifiers — **tokens only** |
+| TSX inline `style` | Dynamic values only (bar width, position) — camelCase keys |
+
+Scrollbar theming → master CSS only. No cross-feature class references.
+
+## Never do
+
+- Hardcoded hex/rgb/hsl/rgba in feature CSS when a token exists — **including every `linear-gradient` stop**
+- Retheme one component while leaving stale literals in sibling feature CSS
+- Instant state jumps — always transition interactive properties
+- Heavy borders without matching shadow (feels flat)
+- Theme fonts outside token stacks
