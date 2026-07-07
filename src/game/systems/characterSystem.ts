@@ -81,6 +81,30 @@ function hasHorizontalSupport(s: Collider, posX: number, posZ: number, hx: numbe
   return aabbOverlapsAabbXZ(s.aabb, posX, posZ, hx, hz);
 }
 
+const SURFACE_EPS = 0.02;
+
+function getSupportSurfaceY(
+  t: Transform,
+  statics: Collider[],
+  hx: number,
+  hy: number,
+  hz: number,
+): number | null {
+  const footY = t.position[1] - hy;
+  if (footY <= SURFACE_EPS) return 0;
+
+  let bestTop = -Infinity;
+  for (const s of statics) {
+    if (!hasHorizontalSupport(s, t.position[0], t.position[2], hx, hz)) continue;
+    const top = s.obbY ? s.obbY.center[1] + s.obbY.halfExtents[1] : s.aabb.max[1];
+    if (top > bestTop) bestTop = top;
+  }
+
+  if (bestTop === -Infinity) return null;
+  if (footY >= bestTop - SURFACE_EPS && footY <= bestTop + SURFACE_EPS) return bestTop;
+  return null;
+}
+
 function resolveAabbVsObbHorizontal(posX: number, posZ: number, hx: number, hz: number, obb: ObbY): { x: number; z: number } {
   // Compute minimal push-out in XZ against a yaw-only OBB by working in OBB local space.
   const relX = posX - obb.center[0];
@@ -234,6 +258,14 @@ export function installCharacterSystem(registry: Registry, input: Input) {
               min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
               max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
             };
+          }
+
+          const surfaceY = getSupportSurfaceY(t, statics, hx, hy, hz);
+          if (surfaceY !== null && cc.velocity[1] <= 0) {
+            cc.velocity[1] = 0;
+            t.position[1] = surfaceY + hy;
+            cc.onGround = true;
+            continue;
           }
 
           cc.velocity[1] -= cc.gravity * step;
