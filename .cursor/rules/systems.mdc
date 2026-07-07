@@ -73,6 +73,18 @@ Never call `register` before components are attached — `registry.create()` is 
 
 Components are data-only. Behaviour lives exclusively in system installers.
 
+## Scene manager
+
+`installSceneManager` in `sandbox/src/startup/sceneManager.ts` owns level transitions:
+
+```typescript
+await sceneManager.switchTo('test');
+```
+
+Sequence: unload previous → `gltfCache.preload(urls)` → `useLevelScene` → `game.setActiveScene` → `await scene.load()`.
+
+Install on the **game registry**. Scene systems install on each ephemeral scene registry inside `createPlayableScene`.
+
 ## Nav grid system
 
 `installNavGridSystem(registry)` runs at update order **4** — before robot AI (6) and movement (8).
@@ -99,10 +111,9 @@ Call `markNavGridDirty(registry)` after any change to static scene colliders:
 | Trigger | Example |
 |---------|---------|
 | Collider added | `instantiateStaticProp` after `registry.register` |
-| Colliders bulk-removed | `playableScene.unload()` after deregistering level entities |
-| Future runtime changes | Destructible props, doors, placed blocks |
+| Colliders removed at runtime | Destructible props, doors (future) |
 
-Multiple calls before the next update coalesce into a single rebuild.
+`unload()` destroys the nav grid entity — no `markNavGridDirty` needed on teardown.
 
 ### AI pathfinding
 

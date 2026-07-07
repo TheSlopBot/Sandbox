@@ -1,13 +1,14 @@
 ﻿import {
   useGame,
   createInput,
+  createGltfCache,
   installRenderPipeline,
   TextureCache,
   createAsciiPostProcessStage,
 } from 'viberanium';
-import { useTestScene } from '../scenes/testScene.ts';
-import { useTestSceneAlt } from '../scenes/testSceneAlt.ts';
-import { installSceneChangerSystem } from './sceneChangerSystem.ts';
+import { LEVEL_CATALOG } from '../levels/catalog.ts';
+import { installSceneManager } from './sceneManager.ts';
+import { createLevelLoadingGate } from './levelLoadingGate.ts';
 
 export const bootstrap = async () => {
   const canvas = document.querySelector<HTMLCanvasElement>('#game');
@@ -23,6 +24,8 @@ export const bootstrap = async () => {
   });
   const gl = pipeline.device.gl;
   const textures = new TextureCache(gl);
+  const gltfCache = createGltfCache();
+  const loadingGate = createLevelLoadingGate();
 
   const asciiStage = createAsciiPostProcessStage(gl);
   pipeline.addPostProcess(asciiStage);
@@ -31,21 +34,19 @@ export const bootstrap = async () => {
     if (input.pressed('KeyT')) asciiStage.enabled = !asciiStage.enabled;
   }, 0);
 
-  const sceneDeps = { gl, input, pipeline, textures };
-  const testScene = useTestScene(sceneDeps);
-  const testSceneAlt = useTestSceneAlt(sceneDeps);
-
-  const sceneChanger = installSceneChangerSystem(game.registry, {
+  const sceneManager = installSceneManager(game.registry, {
     game,
     input,
-    scenes: { test: testScene, alt: testSceneAlt },
+    pipeline,
+    textures,
+    gltfCache,
+    gl,
+    catalog: LEVEL_CATALOG,
     setActiveSceneRegistry: (registry) => { activeSceneRegistry = registry; },
+    loadingGate,
   });
 
-  game.setActiveScene(testScene);
-  activeSceneRegistry = testScene.registry;
-  sceneChanger.setCurrent(testScene);
-  await testScene.load();
+  await sceneManager.switchTo('test');
 
   game.registry.addAction('commit', () => { input.commitFrame(); }, 0);
 

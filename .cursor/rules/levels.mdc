@@ -1,0 +1,106 @@
+---
+description: Level catalog, asset caching, and ephemeral scene load/unload lifecycle
+globs: sandbox/src/levels/**,sandbox/src/startup/**,sandbox/src/scenes/**,viberanium/src/assets/**
+alwaysApply: false
+---
+
+# Levels & Asset Loading
+
+## Principles
+
+- **Catalog is cheap; scenes are ephemeral** — level metadata stays in memory; `Scene` objects are created on entry and discarded on exit
+- **Only the active level owns runtime state** — one scene registry, one nav grid, one set of entities at a time
+- **Parsed assets are cached; GL meshes are not** — `GltfCache` dedupes fetch/parse by URL across level visits; each spawn still builds its own GPU meshes
+- **Transitions are async** — preload assets, then `load()`; gate input with `switching` and optional loading UI
+
+## Layout
+
+```
+sandbox/src/levels/
+  assets.ts       # shared model/animation URL constants
+  catalog.ts      # LevelDefinition entries + collectLevelAssetUrls()
+  useLevelScene.ts  # catalog entry → createPlayableScene()
+
+sandbox/src/startup/
+  bootstrap.ts         # game + pipeline + session caches; delegates to scene manager
+  sceneManager.ts      # switchTo(levelId) — unload, preload, create scene, load
+  levelLoadingGate.ts  # body.is-loading toggle during transitions
+
+sandbox/src/scenes/
+  playableScene.ts  # generic factory: systems, load/unload lifecycle
+```
+
+## Level catalog
+
+Levels are **data**, not one TypeScript file per level:
+
+```typescript
+export type LevelDefinition = {
+  id: string;
+  displayName: string;
+  navGrid: LevelNavGridConfig;
+  props: LevelPropSpawn[];
+  robots?: LevelRobotSpawn[];
+};
+```
+
+Add entries to `LEVEL_CATALOG` in `catalog.ts`. `collectLevelAssetUrls(definition)` gathers all glTF URLs needed for preload (props, robots, player body, shared animation rigs).
+
+Custom scripted levels can still call `createPlayableScene` directly; catalog-driven levels use `useLevelScene(deps, definition)`.
+
+## Session asset caches (bootstrap)
+
+Created once in `bootstrap.ts`, shared across all levels:
+
+| Cache | Location | Caches |
+|-------|----------|--------|
+| `GltfCache` | `viberanium/assets/gltf/cache.ts` | Parsed `LoadedGltf` by URL |
+| `TextureCache` | `viberanium/render/gl/texture.ts` | GPU textures by image URI |
+
+Pass both through `SceneDeps`. Load glTF via `gltfCache.getOrLoad(url)` — never bare `loadGltf()` in game code.
+
+## Scene transition flow
+
+```
+switchTo(levelId)
+  → loadingGate.show()
+  → game.setActiveScene(null)        // sync unload; drop previous Scene
+  → gltfCache.preload(urls)          // fetch/parse; hits cache on revisit
+  → scene = useLevelScene(deps, def) // new registry + systems
+  → game.setActiveScene(scene)
+  → setActiveSceneRegistry(scene.registry)
+  → await scene.load()               // nav grid, ground, props, NPCs, player
+  → loadingGate.hide()
+```
+
+`installSceneManager` owns transition policy. Bootstrap wires caches and calls `switchTo` for the initial level before `game.start()`.
+
+## load() / unload() contract
+
+`createPlayableScene` installs systems once per scene instance. Level content is created in `load()` and destroyed in `unload()`:
+
+| Phase | Creates / destroys |
+|-------|-------------------|
+| `load()` | nav grid entity, ground mesh, props, colliders, NPCs, player |
+| `unload()` | deregisters **all** entities (including nav grid), `pipeline.clearGround()` |
+
+Nav grid is **not** persistent across load/unload cycles. `markNavGridDirty(registry)` is called when colliders change during an active level; `unload()` destroys the grid entirely.
+
+## Adding a new level
+
+1. Add prop/robot layout to `catalog.ts` as a `LevelDefinition`
+2. Register in `LEVEL_CATALOG`
+3. Wire entry point in `sceneManager` (keyboard, level picker, portal, etc.)
+4. No new scene TypeScript file required unless the level needs custom spawn logic
+
+## GL cleanup on unload
+
+Static prop render entities register `onDeregister` handlers that call `destroyMesh(gl, mesh)`. Extend this pattern for skinned entities when adding new spawn paths.
+
+## Forbidden
+
+- Creating all level scenes at bootstrap — use `switchTo` + ephemeral `useLevelScene`
+- Bare `loadGltf()` in sandbox spawn code — use `gltfCache.getOrLoad`
+- Caching GPU meshes in `GltfCache` — cache parsed glTF only
+- Keeping nav grid entities across `unload()` — grid is level content
+- Blocking the main thread with sync fetch — preload before `scene.load()`

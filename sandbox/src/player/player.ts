@@ -6,6 +6,7 @@ import {
   createMovementIntent,
   createSkeletalRig,
   TextureCache,
+  type GltfCache,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { assembleSkeletalCharacter, type CharacterAnimAssets } from '../character/assembleCharacter.ts';
@@ -17,6 +18,7 @@ export const createPlayer = async (
   registry: Registry,
   gl: WebGL2RenderingContext,
   textures: TextureCache,
+  gltfCache: GltfCache,
   assets: PlayerAssets,
 ) => {
   const charT = createTransform();
@@ -31,7 +33,7 @@ export const createPlayer = async (
   entity.components[COMPONENT_KEYS.cameraFollow] = createCameraFollow();
 
   const { bodyScene, characterParts, renderEntityIds, clips } = await assembleSkeletalCharacter(
-    registry, gl, textures, charT, assets,
+    registry, gl, textures, gltfCache, charT, assets,
   );
 
   const cc = entity.components[COMPONENT_KEYS.character] as ReturnType<typeof createCharacterController>;

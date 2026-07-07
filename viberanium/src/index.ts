@@ -42,7 +42,8 @@ export {
   type CharacterPart,
 } from './components/skeletalRig.ts';
 
-export { loadGltf } from './assets/gltf/loader.ts';
+export { loadGltf, type LoadedGltf } from './assets/gltf/loader.ts';
+export { createGltfCache, type GltfCache } from './assets/gltf/cache.ts';
 export {
   buildRuntimeScene,
   computeSkinPalette,
@@ -71,7 +72,7 @@ export {
   type PipelineOptions,
 } from './render/pipeline.ts';
 export { TextureCache } from './render/gl/texture.ts';
-export { createInterleavedMesh, createSkinnedMesh } from './render/gl/mesh.ts';
+export { createInterleavedMesh, createSkinnedMesh, destroyMesh } from './render/gl/mesh.ts';
 export { type Material, type DrawItem, type Camera, DIRECTIONAL_LIGHT } from './render/types.ts';
 export {
   createLoadingScreen,

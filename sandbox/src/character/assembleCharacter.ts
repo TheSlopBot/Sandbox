@@ -10,7 +10,7 @@ import {
   createInterleavedMesh,
   createSkinnedMesh,
   TextureCache,
-  loadGltf,
+  type GltfCache,
   buildRuntimeScene,
   buildGltfMaterials,
   m4,
@@ -104,13 +104,14 @@ export const assembleSkeletalCharacter = async (
   registry: Registry,
   gl: WebGL2RenderingContext,
   textures: TextureCache,
+  gltfCache: GltfCache,
   charT: Transform,
   assets: CharacterAnimAssets,
 ): Promise<{ bodyScene: ReturnType<typeof buildRuntimeScene>; characterParts: CharacterPart[]; renderEntityIds: number[]; clips: AnimClips }> => {
   const [bodyLoaded, idleLoaded, moveLoaded] = await Promise.all([
-    loadGltf(assets.bodyGlb),
-    loadGltf(assets.animGeneralGlb),
-    loadGltf(assets.animMovementGlb),
+    gltfCache.getOrLoad(assets.bodyGlb),
+    gltfCache.getOrLoad(assets.animGeneralGlb),
+    gltfCache.getOrLoad(assets.animMovementGlb),
   ]);
 
   const bodyScene = buildRuntimeScene(bodyLoaded);

@@ -3,6 +3,10 @@ export type Mesh = {
   indexCount: number;
 };
 
+export const destroyMesh = (gl: WebGL2RenderingContext, mesh: Mesh): void => {
+  gl.deleteVertexArray(mesh.vao);
+};
+
 export function createInterleavedMesh(
   gl: WebGL2RenderingContext,
   vertices: Float32Array,

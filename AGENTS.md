@@ -63,18 +63,24 @@ viberanium/src/
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/
+  levels/       catalog, assets, useLevelScene
+  startup/      bootstrap, sceneManager, levelLoadingGate
+  scenes/       createPlayableScene (generic load/unload factory)
   player/       feature slice: player.ts
   robot/        feature slice: robot.ts, robot AI system
-  world/        ground, staticProps (calls markNavGridDirty on collider add)
-  startup/      bootstrap (composition root only)
-  scenes/       scene registry, nav grid entity, load/unload
+  world/        ground, staticProps (gltfCache + markNavGridDirty)
 ```
 
 Feature code lives in its own slice folder under the game package. Do not add logic to `startup/bootstrap.ts` beyond composition wiring.
 
-### Scene nav grid
+### Levels & assets
 
-Each playable scene owns one `navGrid` entity on its registry. `installNavGridSystem` rebuilds `blocked` cells only when `navGrid.dirty` is true. Call `markNavGridDirty(registry)` after adding or removing static colliders — never rebuild the grid every frame from AI systems.
+- Add levels as `LevelDefinition` entries in `sandbox/src/levels/catalog.ts`
+- `installSceneManager` creates ephemeral scenes via `useLevelScene` — do not pre-create scenes at bootstrap
+- Session caches (`createGltfCache`, `TextureCache`) live in bootstrap; use `gltfCache.getOrLoad(url)` in all spawn code
+- `scene.load()` creates nav grid + level content; `scene.unload()` destroys everything on the scene registry
+
+See `.cursor/rules/levels.mdc` for the full pattern.
 
 ---
 
