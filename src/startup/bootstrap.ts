@@ -484,24 +484,24 @@ export async function bootstrap() {
         cc.locomotionBlend = Math.min(1, cc.locomotionBlend + ctx.dt * blendSpeed);
       }
 
+      cc.locomotionAnimTime += ctx.dt;
+
       const jumpW = 1 - cc.locomotionBlend;
       const locoW = cc.locomotionBlend;
 
       if (jumpW > 0) {
         let jumpClip = jumpIdleClip;
-        let jumpTime = cc.jumpAnimTime;
+        let jumpTime = cc.jumpClipTime;
         let jumpLoop = true;
 
         if (cc.jumpPhase === 'start') {
           jumpClip = jumpStartClip;
-          jumpTime = cc.jumpAnimTime * cc.jumpStartSpeed;
           jumpLoop = false;
         } else if (cc.jumpPhase === 'air') {
           jumpClip = jumpIdleClip;
           jumpLoop = true;
         } else if (cc.jumpPhase === 'land') {
           jumpClip = jumpLandClip;
-          jumpTime = cc.jumpAnimTime * cc.jumpLandSpeed;
           jumpLoop = false;
         } else {
           jumpClip = jumpLandClip;
@@ -512,8 +512,8 @@ export async function bootstrap() {
         sampleClipToNodes(jumpClip, bodyScene.nodes, jumpTime, jumpW, jumpLoop);
       }
 
-      sampleClipToNodes(idleClip, bodyScene.nodes, ctx.time, locoW);
-      sampleClipToNodes(moveClip, bodyScene.nodes, ctx.time * cc.moveAnimSpeed, locoW * moveW);
+      sampleClipToNodes(idleClip, bodyScene.nodes, cc.locomotionAnimTime, locoW);
+      sampleClipToNodes(moveClip, bodyScene.nodes, cc.locomotionAnimTime * cc.moveAnimSpeed, locoW * moveW);
 
       // Recompute node world matrices from animated locals
       updateWorldFromLocals(bodyScene.nodes);

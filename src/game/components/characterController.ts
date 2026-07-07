@@ -10,13 +10,14 @@ export type CharacterController = {
   onGround: boolean;
   halfExtents: Vec3; // AABB half-size
   jumpPhase: JumpPhase;
-  jumpAnimTime: number;
+  jumpClipTime: number;
   jumpStartDuration: number;
   jumpLandDuration: number;
   jumpStartSpeed: number;
   jumpLandSpeed: number;
+  locomotionAnimTime: number;
   moveAnimSpeed: number;
-  locomotionBlend: number; // 0 = jump anim only, 1 = full idle/move blend
+  locomotionBlend: number;
 };
 
 export function createCharacterController(): CharacterController {
@@ -28,11 +29,12 @@ export function createCharacterController(): CharacterController {
     onGround: false,
     halfExtents: v3(0.28, 0.55, 0.28),
     jumpPhase: 'none',
-    jumpAnimTime: 0,
+    jumpClipTime: 0,
     jumpStartDuration: 0.3,
     jumpLandDuration: 0.3,
     jumpStartSpeed: 4,
     jumpLandSpeed: 2,
+    locomotionAnimTime: 0,
     moveAnimSpeed: 1.5,
     locomotionBlend: 1,
   };

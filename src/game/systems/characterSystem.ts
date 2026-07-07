@@ -79,6 +79,25 @@ function hasHorizontalSupport(s: Collider, posX: number, posZ: number, hx: numbe
   return aabbOverlapsAabbXZ(s.aabb, posX, posZ, hx, hz);
 }
 
+function isFeetSupported(
+  t: Transform,
+  statics: Collider[],
+  hx: number,
+  hy: number,
+  hz: number,
+): boolean {
+  const footY = t.position[1] - hy;
+  if (footY <= 1e-4) return true;
+
+  for (const s of statics) {
+    if (!hasHorizontalSupport(s, t.position[0], t.position[2], hx, hz)) continue;
+    const top = s.obbY ? s.obbY.center[1] + s.obbY.halfExtents[1] : s.aabb.max[1];
+    if (Math.abs(footY - top) < 1e-3) return true;
+  }
+
+  return false;
+}
+
 function resolveAabbVsObbHorizontal(posX: number, posZ: number, hx: number, hz: number, obb: ObbY): { x: number; z: number } {
   // Compute minimal push-out in XZ against a yaw-only OBB by working in OBB local space.
   const relX = posX - obb.center[0];
@@ -147,7 +166,8 @@ export function installCharacterSystem(registry: Registry, input: Input) {
           cc.velocity[0] = cc.velocity[1] = cc.velocity[2] = 0;
           cc.onGround = false;
           cc.jumpPhase = 'none';
-          cc.jumpAnimTime = 0;
+          cc.jumpClipTime = 0;
+          cc.locomotionAnimTime = 0;
           cc.locomotionBlend = 1;
           t.dirty = true;
         }
@@ -186,11 +206,9 @@ export function installCharacterSystem(registry: Registry, input: Input) {
           cc.velocity[1] = cc.jumpSpeed;
           cc.onGround = false;
           cc.jumpPhase = 'start';
-          cc.jumpAnimTime = 0;
+          cc.jumpClipTime = 0;
           cc.locomotionBlend = 0;
         }
-
-        cc.velocity[1] -= cc.gravity * ctx.dt;
 
         const hx = cc.halfExtents[0];
         const hy = cc.halfExtents[1];
@@ -230,6 +248,13 @@ export function installCharacterSystem(registry: Registry, input: Input) {
             min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
             max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
           };
+        }
+
+        const supported = isFeetSupported(t, statics, hx, hy, hz);
+        if (!supported) {
+          cc.velocity[1] -= cc.gravity * ctx.dt;
+        } else if (cc.velocity[1] < 0) {
+          cc.velocity[1] = 0;
         }
 
         // Vertical Y
@@ -282,27 +307,31 @@ export function installCharacterSystem(registry: Registry, input: Input) {
             cc.locomotionBlend = 1;
           } else {
             cc.jumpPhase = 'land';
-            cc.jumpAnimTime = 0;
+            cc.jumpClipTime = 0;
           }
         } else if (!cc.onGround && wasOnGround && cc.jumpPhase === 'none') {
           cc.jumpPhase = 'air';
-          cc.jumpAnimTime = 0;
+          cc.jumpClipTime = 0;
           cc.locomotionBlend = 0;
-        } else if (cc.jumpPhase === 'start' && cc.jumpAnimTime >= cc.jumpStartDuration / cc.jumpStartSpeed) {
+        } else if (cc.jumpPhase === 'start' && cc.jumpClipTime >= cc.jumpStartDuration) {
           cc.jumpPhase = 'air';
-          cc.jumpAnimTime = 0;
+          cc.jumpClipTime = 0;
         } else if (cc.jumpPhase === 'land') {
           const moving = cc.velocity[0] * cc.velocity[0] + cc.velocity[2] * cc.velocity[2] > 0.05 * 0.05;
           if (moving) {
             cc.jumpPhase = 'none';
             cc.locomotionBlend = 1;
-          } else if (cc.jumpAnimTime >= cc.jumpLandDuration / cc.jumpLandSpeed) {
+          } else if (cc.jumpClipTime >= cc.jumpLandDuration) {
             cc.jumpPhase = 'none';
           }
         }
 
-        if (cc.jumpPhase !== 'none') {
-          cc.jumpAnimTime += ctx.dt;
+        if (cc.jumpPhase === 'start') {
+          cc.jumpClipTime += ctx.dt * cc.jumpStartSpeed;
+        } else if (cc.jumpPhase === 'air') {
+          cc.jumpClipTime += ctx.dt;
+        } else if (cc.jumpPhase === 'land') {
+          cc.jumpClipTime += ctx.dt * cc.jumpLandSpeed;
         }
 
         // Face movement direction (ignore vertical velocity)

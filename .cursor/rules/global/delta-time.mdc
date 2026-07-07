@@ -1,0 +1,56 @@
+---
+description: Enforce strict delta-time usage in frame-bound engine and game logic
+globs: src/{engine,game}/**/*.ts
+alwaysApply: false
+---
+
+# Delta time (frame-bound engine)
+
+The game loop is driven by `requestAnimationFrame`. Anything that changes over time — motion, gravity, forces, animation clocks, timers, smoothing — **must** scale by frame delta time. Never assume a fixed frame rate.
+
+## Source of truth
+
+| Project | API | Unit | Notes |
+|---------|-----|------|-------|
+| Sandbox | `ctx.dt` from `ActionContext` | seconds | Clamped `[0, 0.05]`; computed in `src/engine/game.ts` before `update` / `draw` / `commit` |
+| Sandbox | `ctx.time` | seconds | Simulation time (`sum of ctx.dt`); not wall clock |
+| Titanium | `deltaTime()` | seconds | Clamped max `0.05`; read during `act()` reflects **previous** frame |
+| Titanium | `lerp(a, b, smoothing)` | — | Frame-rate-independent exponential ease |
+
+Register game logic via `registry.addAction('update', ctx => …)` — no `setInterval`, `setTimeout`, or standalone rAF loops for simulation.
+
+## Must do
+
+- Multiply **per-second** rates by `ctx.dt` (Sandbox) or `deltaTime()` (Titanium):
+
+```typescript
+if (!supported) velocity[1] -= gravity * ctx.dt;
+position[0] += velocity[0] * ctx.dt;
+animClock += ctx.dt * playbackSpeed;
+```
+
+- Advance animation clip timelines with `ctx.dt`, scaled by playback speed — never wall clock or `ctx.time` directly for sampling.
+- Use exponential smoothing for frame-rate-independent lerp:
+
+```typescript
+const k = 1 - Math.exp(-smooth * ctx.dt);
+value += (target - value) * k;
+```
+
+- Treat speeds, accelerations, gravity, turn rates, blend speeds, and playback speeds as **units per second**.
+- Apply gravity only when airborne; zero downward velocity when supported on ground.
+
+## Must not do
+
+- No per-frame `+= constant` for motion, timers, animation clocks, or rates without `* ctx.dt` / `* deltaTime()`.
+- No wall-clock animation (`performance.now()`, `Date.now()`, raw rAF timestamp) for clip playback.
+- No fixed-FPS assumptions: `/ 60`, `* 60`, `16.67`, `1/60`.
+- No `frameIndex()` for timing (Titanium tie-breaking only).
+
+## Titanium motion reference
+
+`useMotion` already integrates with `deltaTime()` — prefer `accelerateX` / `apply` over hand-rolled velocity. Drag uses exponential decay: `velocity *= (1 - drag * deltaTime())`; keep `drag <= 20` with the 0.05 s clamp.
+
+## Review checklist
+
+When adding or changing `update` / `commit` actions, ask: does any value accumulate, move, decay, blend, or advance an animation? If yes, it must involve `ctx.dt` or `deltaTime()`.
