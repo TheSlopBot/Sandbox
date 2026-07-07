@@ -1,6 +1,6 @@
 ---
 description: Enforce strict delta-time usage in frame-bound engine and game logic
-globs: src/{engine,game}/**/*.ts
+globs: viberanium/src/engine/**,viberanium/src/starter/**,sandbox/src/**
 alwaysApply: false
 ---
 
@@ -12,7 +12,7 @@ The game loop is driven by `requestAnimationFrame`. Anything that changes over t
 
 | Project | API | Unit | Notes |
 |---------|-----|------|-------|
-| Sandbox | `ctx.dt` from `ActionContext` | seconds | Clamped `[0, 0.05]`; computed in `src/engine/game.ts` before `update` / `draw` / `commit` |
+| Viberanium / Sandbox | `ctx.dt` from `ActionContext` | seconds | Clamped `[0, 0.05]`; computed in `viberanium/src/engine/game.ts` before `update` / `draw` / `commit` |
 | Sandbox | `ctx.time` | seconds | Simulation time (`sum of ctx.dt`); not wall clock |
 | Titanium | `deltaTime()` | seconds | Clamped max `0.05`; read during `act()` reflects **previous** frame |
 | Titanium | `lerp(a, b, smoothing)` | — | Frame-rate-independent exponential ease |

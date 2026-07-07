@@ -1,6 +1,6 @@
 ---
 description: Rendering pipeline — passes, post-process stages, and extension points
-globs: src/render/**
+globs: viberanium/src/render/**
 alwaysApply: false
 ---
 
@@ -29,15 +29,17 @@ const myStage: PostProcessStage = {
 pipeline.addPostProcess(myStage);
 ```
 
-Built-in stages (in order):
+Built-in engine stage:
 1. `tone-color` — ACES tone-map + warm grade + cheap bloom (always on)
-2. `ascii` — ASCII art overlay (toggle with T)
+
+Optional stages (registered by the game):
+- `ascii` — via `createAsciiPostProcessStage(gl)`; game owns toggle input
 
 ## Adding a New Pass
 
-- Create `src/render/passes/myPass.ts` — a small class with a `draw(...)` method matching the `PostProcessStage` interface.
-- Create shaders in `src/render/shaders/my.ts` and import them directly in `pipeline.ts` (no barrel `index.ts`).
-- Instantiate in `pipeline.ts` and register with `addPostProcess`.
+- Create `viberanium/src/render/passes/myPass.ts` — a small class with a `draw(...)` method matching the `PostProcessStage` interface.
+- Create shaders in `viberanium/src/render/shaders/my.ts` and wire via a factory or `pipeline.addPostProcess`.
+- Games register optional stages from `bootstrap.ts`.
 
 ## Shader Conventions
 

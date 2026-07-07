@@ -1,12 +1,15 @@
 {
-  "name": "sandbox",
+  "name": "sandbox-monorepo",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "workspaces": [
+    "sandbox",
+    "viberanium"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "dev": "npm run dev -w sandbox",
+    "build": "npm run build -w sandbox",
+    "preview": "npm run preview -w sandbox",
+    "typecheck": "npm run typecheck -w viberanium && npm run typecheck -w sandbox"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

@@ -1,15 +1,18 @@
-﻿import { useRegistry } from '../engine/registry.ts';
-import { useGame } from '../engine/game.ts';
-import { createInput } from '../input/input.ts';
-import { installRenderPipeline } from '../render/pipeline.ts';
-import { TextureCache } from '../render/gl/texture.ts';
+﻿import {
+  type Collider,
+  useRegistry,
+  useGame,
+  createInput,
+  installRenderPipeline,
+  TextureCache,
+  installCharacterSystem,
+  installCameraSystem,
+  installAnimationSystem,
+  createAsciiPostProcessStage,
+} from 'viberanium';
 import { createGroundMesh } from '../world/ground.ts';
 import { instantiateStaticProp } from '../world/staticProps.ts';
 import { createPlayer } from '../player/player.ts';
-import { installCharacterSystem } from '../systems/characterSystem.ts';
-import { installCameraSystem } from '../systems/cameraSystem.ts';
-import { installAnimationSystem } from '../systems/animationSystem.ts';
-import { type Collider } from '../components/collider.ts';
 
 const KAYKIT = `${import.meta.env.BASE_URL}assets/kaykit`;
 const CUBE_SMALL = `${KAYKIT}/prototype-bits/Cube_Prototype_Small.gltf`;
@@ -28,9 +31,16 @@ export const bootstrap = async () => {
   const game = useGame(registry);
   const input = createInput(window, canvas);
 
-  const pipeline = installRenderPipeline(registry, canvas, input);
+  const pipeline = installRenderPipeline(registry, canvas);
   const gl = pipeline.device.gl;
   const textures = new TextureCache(gl);
+
+  const asciiStage = createAsciiPostProcessStage(gl);
+  pipeline.addPostProcess(asciiStage);
+
+  registry.addAction('update', () => {
+    if (input.pressed('KeyT')) asciiStage.enabled = !asciiStage.enabled;
+  }, 0);
 
   pipeline.setGround(createGroundMesh(gl));
 

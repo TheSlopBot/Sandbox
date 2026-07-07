@@ -1,13 +1,15 @@
-import { type Registry } from '../engine/registry.ts';
-import { type Collider } from '../components/collider.ts';
-import { type Material } from '../render/types.ts';
-import { createTransform } from '../components/transform.ts';
-import { createInterleavedMesh } from '../render/gl/mesh.ts';
-import { TextureCache } from '../render/gl/texture.ts';
-import { loadGltf } from '../assets/gltf/loader.ts';
-import { buildRuntimeModel } from '../assets/gltf/buildRuntime.ts';
-import { buildGltfMaterials } from '../assets/gltf/materials.ts';
-import { aabb } from '../components/collider.ts';
+import {
+  type Registry,
+  type Collider,
+  type Material,
+  createTransform,
+  createInterleavedMesh,
+  TextureCache,
+  loadGltf,
+  buildRuntimeModel,
+  buildGltfMaterials,
+  aabb,
+} from 'viberanium';
 
 type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
 

@@ -5,22 +5,29 @@ import { loadingBokehFS, loadingBokehVS } from './loadingBokehShaders.ts';
 const MAX_DPR = 2;
 const FADE_MS = 420;
 
-// Game palette: navy, cyan, burnt orange, vibrant orange, light grey.
-const COLORS = {
-  bgDeep: [18 / 255, 40 / 255, 56 / 255] as const,
-  textMuted: [204 / 255, 204 / 255, 204 / 255] as const,
-  accentCyan: [85 / 255, 178 / 255, 208 / 255] as const,
-  accentBlue: [22 / 255, 48 / 255, 72 / 255] as const,
-  accentPrimary: [74 / 255, 158 / 255, 192 / 255] as const,
-  accentPurple: [189 / 255, 115 / 255, 38 / 255] as const,
-  accentOrange: [235 / 255, 132 / 255, 23 / 255] as const,
+export type LoadingScreenColors = {
+  bgDeep: readonly [number, number, number];
+  textMuted: readonly [number, number, number];
+  accentCyan: readonly [number, number, number];
+  accentBlue: readonly [number, number, number];
+  accentPrimary: readonly [number, number, number];
+  accentPurple: readonly [number, number, number];
+  accentOrange: readonly [number, number, number];
+};
+
+export type LoadingScreenOptions = {
+  colors: LoadingScreenColors;
 };
 
 export type LoadingScreen = {
   destroy: () => void;
 };
 
-export function createLoadingScreen(canvas: HTMLCanvasElement): LoadingScreen {
+export const createLoadingScreen = (
+  canvas: HTMLCanvasElement,
+  options: LoadingScreenOptions,
+): LoadingScreen => {
+  const { colors } = options;
   const glCtx = canvas.getContext('webgl2', {
     alpha: false,
     antialias: false,
@@ -47,7 +54,7 @@ export function createLoadingScreen(canvas: HTMLCanvasElement): LoadingScreen {
   const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   let reducedMotion = motionQuery.matches;
 
-  function resize() {
+  const resize = () => {
     const { width, height } = canvas.getBoundingClientRect();
     if (width === 0 || height === 0) return;
 
@@ -57,27 +64,27 @@ export function createLoadingScreen(canvas: HTMLCanvasElement): LoadingScreen {
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
     gl.viewport(0, 0, canvas.width, canvas.height);
-  }
+  };
 
-  function draw(time: number) {
+  const draw = (time: number) => {
     if (!running || cssWidth === 0 || cssHeight === 0) return;
 
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
-    gl.clearColor(COLORS.bgDeep[0] * 0.92, COLORS.bgDeep[1] * 0.92, COLORS.bgDeep[2] * 0.92, 1);
+    gl.clearColor(colors.bgDeep[0] * 0.92, colors.bgDeep[1] * 0.92, colors.bgDeep[2] * 0.92, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     program.use();
     gl.uniform1f(program.u('u_time'), reducedMotion ? 0 : time);
     gl.uniform2f(program.u('u_resolution'), cssWidth, cssHeight);
     gl.uniform1f(program.u('u_glyphCount'), ASCII_DENSITY.length);
-    gl.uniform3f(program.u('u_bgDeep'), COLORS.bgDeep[0], COLORS.bgDeep[1], COLORS.bgDeep[2]);
-    gl.uniform3f(program.u('u_textMuted'), COLORS.textMuted[0], COLORS.textMuted[1], COLORS.textMuted[2]);
-    gl.uniform3f(program.u('u_accentCyan'), COLORS.accentCyan[0], COLORS.accentCyan[1], COLORS.accentCyan[2]);
-    gl.uniform3f(program.u('u_accentBlue'), COLORS.accentBlue[0], COLORS.accentBlue[1], COLORS.accentBlue[2]);
-    gl.uniform3f(program.u('u_accentPrimary'), COLORS.accentPrimary[0], COLORS.accentPrimary[1], COLORS.accentPrimary[2]);
-    gl.uniform3f(program.u('u_accentPurple'), COLORS.accentPurple[0], COLORS.accentPurple[1], COLORS.accentPurple[2]);
-    gl.uniform3f(program.u('u_accentOrange'), COLORS.accentOrange[0], COLORS.accentOrange[1], COLORS.accentOrange[2]);
+    gl.uniform3f(program.u('u_bgDeep'), colors.bgDeep[0], colors.bgDeep[1], colors.bgDeep[2]);
+    gl.uniform3f(program.u('u_textMuted'), colors.textMuted[0], colors.textMuted[1], colors.textMuted[2]);
+    gl.uniform3f(program.u('u_accentCyan'), colors.accentCyan[0], colors.accentCyan[1], colors.accentCyan[2]);
+    gl.uniform3f(program.u('u_accentBlue'), colors.accentBlue[0], colors.accentBlue[1], colors.accentBlue[2]);
+    gl.uniform3f(program.u('u_accentPrimary'), colors.accentPrimary[0], colors.accentPrimary[1], colors.accentPrimary[2]);
+    gl.uniform3f(program.u('u_accentPurple'), colors.accentPurple[0], colors.accentPurple[1], colors.accentPurple[2]);
+    gl.uniform3f(program.u('u_accentOrange'), colors.accentOrange[0], colors.accentOrange[1], colors.accentOrange[2]);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, glyphTex);
@@ -86,16 +93,16 @@ export function createLoadingScreen(canvas: HTMLCanvasElement): LoadingScreen {
     gl.bindVertexArray(vao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.bindVertexArray(null);
-  }
+  };
 
-  function loop(now: number) {
+  const loop = (now: number) => {
     if (!running) return;
     draw((now - start) / 1000);
     if (!reducedMotion) frameId = requestAnimationFrame(loop);
     else animating = false;
-  }
+  };
 
-  function startLoop() {
+  const startLoop = () => {
     if (!running || animating) return;
     if (reducedMotion) {
       draw(0);
@@ -104,12 +111,12 @@ export function createLoadingScreen(canvas: HTMLCanvasElement): LoadingScreen {
     animating = true;
     start = performance.now();
     frameId = requestAnimationFrame(loop);
-  }
+  };
 
-  function stopLoop() {
+  const stopLoop = () => {
     animating = false;
     cancelAnimationFrame(frameId);
-  }
+  };
 
   const onVisibility = () => {
     if (document.hidden) stopLoop();
@@ -142,9 +149,9 @@ export function createLoadingScreen(canvas: HTMLCanvasElement): LoadingScreen {
       gl.deleteProgram(program.program);
     },
   };
-}
+};
 
-export function fadeOutLoadingScreen(overlay: HTMLElement): Promise<void> {
+export const fadeOutLoadingScreen = (overlay: HTMLElement): Promise<void> => {
   overlay.classList.add('loading-screen--fade-out');
   return new Promise((resolve) => {
     const done = () => {
@@ -155,4 +162,4 @@ export function fadeOutLoadingScreen(overlay: HTMLElement): Promise<void> {
     overlay.addEventListener('transitionend', done);
     window.setTimeout(done, FADE_MS + 80);
   });
-}
+};

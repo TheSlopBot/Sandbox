@@ -1,6 +1,4 @@
-import { type Mat4 } from '../math/mat4.ts';
-import { createInterleavedMesh } from '../render/gl/mesh.ts';
-import { createTransform } from '../components/transform.ts';
+import { type Mat4, createInterleavedMesh, createTransform } from 'viberanium';
 
 export const createGroundMesh = (
   gl: WebGL2RenderingContext,

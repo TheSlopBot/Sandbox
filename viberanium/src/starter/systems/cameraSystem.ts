@@ -1,12 +1,12 @@
-import { type Registry } from '../engine/registry.ts';
-import { type Input } from '../input/input.ts';
-import { type Transform } from '../components/transform.ts';
-import { type Collider } from '../components/collider.ts';
-import { type CameraFollow } from '../player/components/cameraFollow.ts';
-import { type RenderPipeline } from '../render/pipeline.ts';
-import { aabbIntersects, makeAabb } from '../collision/aabb.ts';
-import { obbIntersectsAabb } from '../collision/obb.ts';
-import { v3Set } from '../math/vec3.ts';
+import { type Registry } from '../../engine/registry.ts';
+import { type Input } from '../../input/input.ts';
+import { type Transform } from '../../components/transform.ts';
+import { type Collider } from '../../components/collider.ts';
+import { type CameraFollow } from '../components/cameraFollow.ts';
+import { type RenderPipeline } from '../../render/pipeline.ts';
+import { aabbIntersects, makeAabb } from '../../collision/aabb.ts';
+import { obbIntersectsAabb } from '../../collision/obb.ts';
+import { v3Set } from '../../math/vec3.ts';
 
 const MIN_DIST = 1.0;
 const GROUND_Y = 0;

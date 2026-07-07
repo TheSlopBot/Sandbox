@@ -1,12 +1,9 @@
 import { type Registry } from '../engine/registry.ts';
-import { type Input } from '../input/input.ts';
-import { createGlyphAtlasTexture } from './ascii/glyphAtlas.ts';
 import { createDevice, type GLDevice } from './gl/device.ts';
 import { createColorFramebuffer, type ColorFramebuffer } from './gl/colorFramebuffer.ts';
 import { createSceneFramebuffer } from './gl/framebuffer.ts';
 import { createShadowFramebuffer } from './gl/shadowFramebuffer.ts';
 import { ShaderProgram } from './gl/shader.ts';
-import { AsciiPostProcessPass } from './passes/asciiPostProcessPass.ts';
 import { ForwardPass } from './passes/forwardPass.ts';
 import { PostProcessPass } from './passes/postProcessPass.ts';
 import { ShadowPass } from './passes/shadowPass.ts';
@@ -14,7 +11,6 @@ import { shadowDepthVS, shadowDepthSkinnedVS, shadowDepthFS } from './shaders/sh
 import { litTexturedVS, litSkinnedVS, litTexturedFS } from './shaders/lit.ts';
 import { groundVS, groundFS } from './shaders/ground.ts';
 import { fullscreenVS, toneColorFS } from './shaders/post.ts';
-import { asciiFS } from './shaders/ascii.ts';
 import { DIRECTIONAL_LIGHT, type Camera, type DrawItem } from './types.ts';
 import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type Renderable } from '../components/renderable.ts';
@@ -66,7 +62,6 @@ const computeLightViewProj = (center: Vec3): Mat4 => {
 export const installRenderPipeline = (
   registry: Registry,
   canvas: HTMLCanvasElement,
-  input: Input,
 ): RenderPipeline => {
   const device = createDevice(canvas);
   const gl = device.gl;
@@ -83,8 +78,6 @@ export const installRenderPipeline = (
     new ShaderProgram(gl, shadowDepthSkinnedVS, shadowDepthFS),
   );
   const tonePass = new PostProcessPass(gl, new ShaderProgram(gl, fullscreenVS, toneColorFS));
-  const glyphTex = createGlyphAtlasTexture(gl);
-  const asciiPass = new AsciiPostProcessPass(gl, new ShaderProgram(gl, fullscreenVS, asciiFS), glyphTex);
 
   const sceneFbo = createSceneFramebuffer(gl);
   const shadowFbo = createShadowFramebuffer(gl, 2048);
@@ -98,12 +91,7 @@ export const installRenderPipeline = (
     enabled: true,
     draw: (inputTex, w, h, outputFbo) => tonePass.draw(inputTex, w, h, outputFbo),
   };
-  const asciiStage: PostProcessStage = {
-    name: 'ascii',
-    enabled: false,
-    draw: (inputTex, w, h, outputFbo) => asciiPass.draw(inputTex, w, h, outputFbo),
-  };
-  const postStages: PostProcessStage[] = [toneStage, asciiStage];
+  const postStages: PostProcessStage[] = [toneStage];
 
   const cameraPos: Vec3 = v3(0, 9, 9);
   const target: Vec3 = v3(0, 1, 0);
@@ -119,10 +107,6 @@ export const installRenderPipeline = (
       sortZ: 0,
     };
   };
-
-  registry.addAction('update', () => {
-    if (input.pressed('KeyT')) asciiStage.enabled = !asciiStage.enabled;
-  }, 0);
 
   let lastDt = 1 / 60;
   registry.addAction('draw', () => {

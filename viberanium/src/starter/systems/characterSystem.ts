@@ -1,16 +1,16 @@
-import { type Registry } from '../engine/registry.ts';
-import { type Input } from '../input/input.ts';
-import { type Transform } from '../components/transform.ts';
-import { type Collider, type Aabb } from '../components/collider.ts';
-import { type CharacterController } from '../player/components/characterController.ts';
-import { type CameraFollow } from '../player/components/cameraFollow.ts';
-import { aabbIntersects, aabbOverlapsYStrict, makeAabb } from '../collision/aabb.ts';
+import { type Registry } from '../../engine/registry.ts';
+import { type Input } from '../../input/input.ts';
+import { type Transform } from '../../components/transform.ts';
+import { type Collider, type Aabb } from '../../components/collider.ts';
+import { type CharacterController } from '../components/characterController.ts';
+import { type CameraFollow } from '../components/cameraFollow.ts';
+import { aabbIntersects, aabbOverlapsYStrict, makeAabb } from '../../collision/aabb.ts';
 import {
   obbIntersectsAabb,
   hasHorizontalSupport,
   resolveAabbVsObbHorizontal,
   getSupportSurfaceY,
-} from '../collision/obb.ts';
+} from '../../collision/obb.ts';
 
 const PHYSICS_STEP_SEC = 1 / 144;
 

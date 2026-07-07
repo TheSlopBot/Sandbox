@@ -5,36 +5,30 @@ alwaysApply: true
 
 # Architecture
 
-## Module Layout
+## Monorepo Layout
 
 ```
-src/
-├── engine/          # Core loop, registry, entity primitives
-├── math/            # vec3, quat, mat4 — no deps, no classes
-├── input/           # createInput — keyboard, mouse, pointer lock
-├── collision/       # Pure AABB/OBB math helpers (no GL, no registry)
-├── components/      # Shared data-only component types + factories
-│   ├── transform    # position, yaw, scale, world matrix
-│   ├── renderable   # mesh + material + optional model matrix
-│   ├── collider     # AABB / ObbY — static or dynamic
-│   ├── skin         # skinning palette for skeletal meshes
-│   └── animation    # clip sampling, retargeting
-├── assets/gltf/     # GLB/glTF loader, runtime scene, materials builder
-├── render/          # WebGL2 device, passes, pipeline installer
-│   ├── gl/          # device, mesh, shader, texture, framebuffers
-│   ├── passes/      # ShadowPass, ForwardPass, PostProcessPass, AsciiPostProcessPass
-│   ├── shaders/     # GLSL source split by concern (shadow, lit, ground, post, ascii)
-│   └── pipeline.ts  # installRenderPipeline → RenderPipeline
-├── systems/         # Registry system installers (character, camera, animation, …)
-├── player/          # Player entity assembly + player-specific components
-│   ├── components/  # characterController, cameraFollow
-│   └── player.ts    # createPlayer — entity assembly + asset loading
-├── world/           # World geometry helpers
-│   ├── ground.ts    # createGroundMesh
-│   └── staticProps.ts # instantiateStaticProp
-└── startup/
-    └── bootstrap.ts # Composition root — wire systems, load assets, game.start()
+viberanium/                  # Game engine (Viberanium)
+└── src/
+    ├── engine/              # Core loop, registry, entity primitives
+    ├── math/                # vec3, quat, mat4 — no deps, no classes
+    ├── input/               # createInput — keyboard, mouse, pointer lock
+    ├── collision/           # Pure AABB/OBB math helpers (no GL, no registry)
+    ├── components/          # Shared data-only component types + factories
+    ├── assets/gltf/         # GLB/glTF loader, runtime scene, materials builder
+    ├── render/              # WebGL2 device, passes, pipeline installer
+    ├── starter/             # Optional 3rd-person kit (components + systems)
+    │   ├── components/      # characterController, cameraFollow
+    │   └── systems/         # character, camera, animation installers
+    └── index.ts             # Public barrel export (package entry only)
+sandbox/                     # Game content
+└── src/
+    ├── startup/             # bootstrap.ts — composition root
+    ├── player/              # createPlayer — entity assembly + asset loading
+    └── world/               # ground mesh, static props
 ```
+
+Games import the engine via `import { ... } from 'viberanium'`. Game code never lives under `viberanium/`.
 
 ## Naming Conventions
 
@@ -52,17 +46,17 @@ src/
 - Factory functions return plain typed objects — never extend or subclass them
 - Every public-facing factory/installer exports its return type explicitly
 - Guard throws at entry: `if (!canvas) throw new Error('Missing #game canvas')`
-- **Never** add barrel `index.ts` files — import directly from the concrete module (e.g. `../engine/registry.ts`, not `../engine` or `../engine/index.ts`)
+- **Never** add barrel `index.ts` files inside engine or game source trees — the single exception is `viberanium/src/index.ts` (package public API)
 
 ## Adding New Features
 
-Follow the manaburn-barcrawl pattern — add a feature folder:
+Follow the manaburn-barcrawl pattern — add a feature folder under the game package:
 ```
-src/enemies/spider/
+sandbox/src/enemies/spider/
   spider.ts           # createSpiderEntity
   components/
     spiderAI.ts
   systems/
     spiderSystem.ts   # installSpiderSystem
 ```
-Register in `bootstrap.ts` with a call to `installSpiderSystem(registry, staticColliders)`.
+Register in `sandbox/src/startup/bootstrap.ts` with a call to `installSpiderSystem(registry, staticColliders)`.

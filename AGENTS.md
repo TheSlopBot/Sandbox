@@ -1,6 +1,6 @@
 ﻿# AGENTS.md
 
-Agent instructions for the Sandbox project. Rules here are enforced on **every** file an agent touches.
+Agent instructions for the Sandbox monorepo. Rules here are enforced on **every** file an agent touches.
 
 ---
 
@@ -48,23 +48,27 @@ Code must be self-documenting through names and types. Do not add `//` inline co
 ## Module layout
 
 ```
-src/
+viberanium/src/
   engine/       core loop, registry, entity
   math/         vec3, mat4, quat
   input/        createInput
   collision/    aabb, obb — pure math only
   components/   shared component types
-  assets/       loaders (gltf/, texture)
+  assets/       loaders (gltf/)
   render/       pipeline, passes, shaders, gl/
-  player/       feature slice: components/, systems/, player.ts
+  starter/      optional 3rd-person kit (components + systems)
+  index.ts      package public API (barrel — only permitted index.ts)
+
+sandbox/src/
+  player/       feature slice: player.ts
   world/        ground, staticProps
   startup/      bootstrap (composition root only)
 ```
 
-Feature code lives in its own slice folder. Do not add logic to `startup/bootstrap.ts`; it is a composition root only.
+Feature code lives in its own slice folder under the game package. Do not add logic to `startup/bootstrap.ts` beyond composition wiring.
 
 ---
 
 ## File system notes
 
-The `src/player/systems/` directory exists on disk at `src/player/systems/`. When creating new files in that directory (or any `src/player/` subdirectory), use the Shell tool with `Set-Content` if the Write tool does not produce the file on disk — Cursor''s virtual FS may not flush new files in this path automatically.
+When creating new files under `sandbox/src/player/` (or any game subdirectory), use the Shell tool with `Set-Content` if the Write tool does not produce the file on disk — Cursor's virtual FS may not flush new files in this path automatically.

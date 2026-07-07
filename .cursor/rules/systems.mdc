@@ -1,6 +1,6 @@
 ---
 description: Registry, systems, and component query patterns
-globs: src/engine/**,src/player/**,src/world/**
+globs: viberanium/src/engine/**,viberanium/src/starter/**,sandbox/src/**
 alwaysApply: false
 ---
 

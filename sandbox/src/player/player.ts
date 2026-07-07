@@ -1,17 +1,25 @@
-import { type Registry } from '../engine/registry.ts';
-import { type Transform, createTransform } from '../components/transform.ts';
-import { createSkinInstance, type SkinInstance } from '../components/skin.ts';
-import { buildRetargetedClips, type AnimClip } from '../components/animation.ts';
-import { type Material } from '../render/types.ts';
-import { createInterleavedMesh, createSkinnedMesh } from '../render/gl/mesh.ts';
-import { TextureCache } from '../render/gl/texture.ts';
-import { loadGltf } from '../assets/gltf/loader.ts';
-import { buildRuntimeScene, type RuntimeScene } from '../assets/gltf/runtime.ts';
-import { buildGltfMaterials } from '../assets/gltf/materials.ts';
-import { m4 } from '../math/mat4.ts';
-import { createCharacterController } from './components/characterController.ts';
-import { createCameraFollow } from './components/cameraFollow.ts';
-import { type AnimClips, type CharacterPart } from '../systems/animationSystem.ts';
+import {
+  type Registry,
+  type Transform,
+  createTransform,
+  createSkinInstance,
+  type SkinInstance,
+  buildRetargetedClips,
+  type AnimClip,
+  type Material,
+  createInterleavedMesh,
+  createSkinnedMesh,
+  TextureCache,
+  loadGltf,
+  buildRuntimeScene,
+  type RuntimeScene,
+  buildGltfMaterials,
+  m4,
+  createCharacterController,
+  createCameraFollow,
+  type AnimClips,
+  type CharacterPart,
+} from 'viberanium';
 
 export type PlayerAssets = {
   bodyGlb: string;

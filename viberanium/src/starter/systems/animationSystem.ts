@@ -1,12 +1,12 @@
-import { type Registry } from '../engine/registry.ts';
-import { type Entity } from '../engine/entity.ts';
-import { type Transform, updateWorldMatrix } from '../components/transform.ts';
-import { type Renderable } from '../components/renderable.ts';
-import { type SkinInstance } from '../components/skin.ts';
-import { type AnimClip, sampleClipToNodes } from '../components/animation.ts';
-import { type CharacterController } from '../player/components/characterController.ts';
-import { type RuntimeScene, computeSkinPalette, snapshotPose, updateWorldFromLocals } from '../assets/gltf/runtime.ts';
-import { m4, m4Copy, m4Mul } from '../math/mat4.ts';
+import { type Registry } from '../../engine/registry.ts';
+import { type Entity } from '../../engine/entity.ts';
+import { type Transform, updateWorldMatrix } from '../../components/transform.ts';
+import { type Renderable } from '../../components/renderable.ts';
+import { type SkinInstance } from '../../components/skin.ts';
+import { type AnimClip, sampleClipToNodes } from '../../components/animation.ts';
+import { type CharacterController } from '../components/characterController.ts';
+import { type RuntimeScene, computeSkinPalette, snapshotPose, updateWorldFromLocals } from '../../assets/gltf/runtime.ts';
+import { m4, m4Copy, m4Mul } from '../../math/mat4.ts';
 
 export type AnimClips = {
   idle: AnimClip;
