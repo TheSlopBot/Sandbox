@@ -24,7 +24,7 @@ Register game logic via `registry.addAction('update', ctx => …)` — no `setIn
 - Multiply **per-second** rates by `ctx.dt` (Sandbox) or `deltaTime()` (Titanium):
 
 ```typescript
-if (!supported) velocity[1] -= gravity * ctx.dt;
+velocity[1] -= gravity * ctx.dt;
 position[0] += velocity[0] * ctx.dt;
 animClock += ctx.dt * playbackSpeed;
 ```
@@ -38,7 +38,7 @@ value += (target - value) * k;
 ```
 
 - Treat speeds, accelerations, gravity, turn rates, blend speeds, and playback speeds as **units per second**.
-- Apply gravity only when airborne; zero downward velocity when supported on ground.
+- Ground collision resolves landing and zeros vertical velocity — do not gate gravity with approximate support checks.
 
 ## Must not do
 

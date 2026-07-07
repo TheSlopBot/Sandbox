@@ -79,25 +79,6 @@ function hasHorizontalSupport(s: Collider, posX: number, posZ: number, hx: numbe
   return aabbOverlapsAabbXZ(s.aabb, posX, posZ, hx, hz);
 }
 
-function isFeetSupported(
-  t: Transform,
-  statics: Collider[],
-  hx: number,
-  hy: number,
-  hz: number,
-): boolean {
-  const footY = t.position[1] - hy;
-  if (footY <= 1e-4) return true;
-
-  for (const s of statics) {
-    if (!hasHorizontalSupport(s, t.position[0], t.position[2], hx, hz)) continue;
-    const top = s.obbY ? s.obbY.center[1] + s.obbY.halfExtents[1] : s.aabb.max[1];
-    if (Math.abs(footY - top) < 1e-3) return true;
-  }
-
-  return false;
-}
-
 function resolveAabbVsObbHorizontal(posX: number, posZ: number, hx: number, hz: number, obb: ObbY): { x: number; z: number } {
   // Compute minimal push-out in XZ against a yaw-only OBB by working in OBB local space.
   const relX = posX - obb.center[0];
@@ -250,12 +231,7 @@ export function installCharacterSystem(registry: Registry, input: Input) {
           };
         }
 
-        const supported = isFeetSupported(t, statics, hx, hy, hz);
-        if (!supported) {
-          cc.velocity[1] -= cc.gravity * ctx.dt;
-        } else if (cc.velocity[1] < 0) {
-          cc.velocity[1] = 0;
-        }
+        cc.velocity[1] -= cc.gravity * ctx.dt;
 
         // Vertical Y
         t.position[1] += cc.velocity[1] * ctx.dt;
