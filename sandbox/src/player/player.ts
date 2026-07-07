@@ -3,7 +3,7 @@ import {
   createTransform,
   createCharacterController,
   createCameraFollow,
-  createLocomotionIntent,
+  createMovementIntent,
   createSkeletalRig,
   TextureCache,
   COMPONENT_KEYS,
@@ -26,7 +26,7 @@ export const createPlayer = async (
   const entity = registry.createBare();
   entity.components[COMPONENT_KEYS.transform] = charT;
   entity.components[COMPONENT_KEYS.character] = createCharacterController();
-  entity.components[COMPONENT_KEYS.locomotionIntent] = createLocomotionIntent();
+  entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
   entity.components[PLAYER_CONTROLLER_KEY] = createPlayerController();
   entity.components[COMPONENT_KEYS.cameraFollow] = createCameraFollow();
 

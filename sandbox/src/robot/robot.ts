@@ -2,7 +2,7 @@ import {
   type Registry,
   createTransform,
   createCharacterController,
-  createLocomotionIntent,
+  createMovementIntent,
   createSkeletalRig,
   TextureCache,
   COMPONENT_KEYS,
@@ -32,7 +32,7 @@ export const createRobot = async (
   const entity = registry.createBare();
   entity.components[COMPONENT_KEYS.transform] = charT;
   entity.components[COMPONENT_KEYS.character] = createCharacterController();
-  entity.components[COMPONENT_KEYS.locomotionIntent] = createLocomotionIntent();
+  entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
   entity.components[ROBOT_AI_KEY] = createRobotAi(opts);
 
   const { bodyScene, characterParts, renderEntityIds, clips } = await assembleSkeletalCharacter(

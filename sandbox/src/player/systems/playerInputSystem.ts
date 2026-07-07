@@ -3,7 +3,7 @@ import {
   type Input,
   type Transform,
   type CameraFollow,
-  type LocomotionIntent,
+  type MovementIntent,
   type CharacterController,
   COMPONENT_KEYS,
   v3Set,
@@ -23,7 +23,7 @@ export const installPlayerInputSystem = (registry: Registry, input: Input) => {
     for (const e of registry.view(PLAYER_CONTROLLER_KEY)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-      const intent = e.components[COMPONENT_KEYS.locomotionIntent] as LocomotionIntent | undefined;
+      const intent = e.components[COMPONENT_KEYS.movementIntent] as MovementIntent | undefined;
       const pc = e.components[PLAYER_CONTROLLER_KEY] as PlayerController;
       if (!t || !cc || !intent) continue;
 
@@ -35,8 +35,8 @@ export const installPlayerInputSystem = (registry: Registry, input: Input) => {
         cc.onGround = false;
         cc.jumpPhase = 'none';
         cc.jumpClipTime = 0;
-        cc.locomotionAnimTime = 0;
-        cc.locomotionBlend = 1;
+        cc.movementAnimTime = 0;
+        cc.movementBlend = 1;
         t.dirty = true;
       }
 

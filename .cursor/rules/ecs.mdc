@@ -23,7 +23,7 @@ Entities are built by game factories, then registered by the scene:
 const entity = registry.createBare();
 entity.components[COMPONENT_KEYS.transform] = createTransform();
 entity.components[COMPONENT_KEYS.character] = createCharacterController();
-entity.components[COMPONENT_KEYS.locomotionIntent] = createLocomotionIntent();
+entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
 entity.components[PLAYER_CONTROLLER_KEY] = createPlayerController();
 registry.register(entity);
 ```
@@ -34,7 +34,7 @@ Mesh sub-entities use `createBare()` → attach components → `register(entity)
 
 - Data only — no `actions`, no registry imports, no per-frame logic
 - Use `COMPONENT_KEYS` constants — never raw string literals for component keys
-- Controllers write `locomotionIntent`; shared systems read it
+- Controllers write `movementIntent`; shared systems read it
 
 ## System rules
 
@@ -44,14 +44,15 @@ Mesh sub-entities use `createBare()` → attach components → `register(entity)
 
 ## Controller pattern
 
-Player and AI characters share locomotion, physics, collision, and animation systems. Only the controller differs:
+Player and AI characters share movement, physics, collision, and animation systems. Only the controller differs:
 
 | Component | Written by | Read by |
 |-----------|-----------|---------|
 | `playerController` (sandbox) | — (tag) | `installPlayerInputSystem` |
 | `robotAi` (sandbox) | — (data) | `installRobotAiSystem` |
-| `locomotionIntent` | controller systems | `installMovementSystem` |
-| `character` | locomotion + physics | physics, state, animation |
+| `movementIntent` | controller systems | `installMovementSystem` |
+| `character` | movement + physics | physics, state, animation |
+| `navGrid` | — (data) | `installNavGridSystem`, `installRobotAiSystem` |
 
 ## Registry queries
 
@@ -78,7 +79,7 @@ registry.deregister(entity.id);
 ## Scene boundaries
 
 - **Game registry** — persistent entities (inventory, global input handlers, render pipeline draw action)
-- **Scene registry** — level terrain, props, player; torn down on `scene.unload()`
+- **Scene registry** — level terrain, props, player, scene `navGrid`; torn down on `scene.unload()` (nav grid entity persists across load/unload cycles)
 - `game.setActiveScene(scene)` unloads the previous scene before switching
 - Frame loop runs game registry actions first, then active scene registry actions
 

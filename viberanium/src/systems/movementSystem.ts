@@ -1,13 +1,13 @@
 import { type Registry } from '../engine/registry.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type CharacterController } from '../components/characterController.ts';
-import { type LocomotionIntent } from '../components/locomotionIntent.ts';
+import { type MovementIntent } from '../components/movementIntent.ts';
 
 export const installMovementSystem = (registry: Registry) => {
   registry.addAction('update', () => {
-    for (const e of registry.view(COMPONENT_KEYS.locomotionIntent)) {
+    for (const e of registry.view(COMPONENT_KEYS.movementIntent)) {
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-      const intent = e.components[COMPONENT_KEYS.locomotionIntent] as LocomotionIntent | undefined;
+      const intent = e.components[COMPONENT_KEYS.movementIntent] as MovementIntent | undefined;
       if (!cc || !intent) continue;
 
       cc.wasOnGroundPrevious = cc.onGround;
@@ -20,7 +20,7 @@ export const installMovementSystem = (registry: Registry) => {
         cc.onGround = false;
         cc.jumpPhase = 'start';
         cc.jumpClipTime = 0;
-        cc.locomotionBlend = 0;
+        cc.movementBlend = 0;
       }
 
       intent.jumpRequested = false;

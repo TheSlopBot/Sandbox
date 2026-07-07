@@ -6,11 +6,14 @@ import {
   TextureCache,
   useRegistry,
   installMovementSystem,
+  installNavGridSystem,
   installCharacterPhysicsSystem,
   installCollisionSystem,
   installCharacterStateSystem,
   installCameraFollowSystem,
   installSkeletalAnimationSystem,
+  createNavGrid,
+  COMPONENT_KEYS,
 } from 'viberanium';
 import { instantiateStaticProp } from '../world/staticProps.ts';
 import { createPlayer } from '../player/player.ts';
@@ -25,6 +28,12 @@ export const SPACE_RANGER_GLB = `${KAYKIT}/space-ranger/SpaceRanger.glb`;
 export const ROBOT_ONE_GLB = `${KAYKIT}/robots/Robot_One.glb`;
 export const ANIM_GENERAL_GLB = `${KAYKIT}/animations/Rig_Medium_General.glb`;
 export const ANIM_MOVEMENT_GLB = `${KAYKIT}/animations/Rig_Medium_MovementBasic.glb`;
+
+const NAV_MIN_X = -18;
+const NAV_MAX_X = 18;
+const NAV_MIN_Z = -18;
+const NAV_MAX_Z = 18;
+const NAV_CELL = 1.0;
 
 export type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
 
@@ -47,7 +56,18 @@ export const createPlayableScene = (
   const registry = useRegistry();
   let loaded = false;
 
+  const navGridEntity = registry.createBare();
+  navGridEntity.components[COMPONENT_KEYS.navGrid] = createNavGrid({
+    minX: NAV_MIN_X,
+    maxX: NAV_MAX_X,
+    minZ: NAV_MIN_Z,
+    maxZ: NAV_MAX_Z,
+    cellSize: NAV_CELL,
+  });
+  registry.register(navGridEntity);
+
   installPlayerInputSystem(registry, deps.input);
+  installNavGridSystem(registry);
   installRobotAiSystem(registry);
   installMovementSystem(registry);
   installCharacterPhysicsSystem(registry);
@@ -76,7 +96,9 @@ export const createPlayableScene = (
 
   const unload = () => {
     if (!loaded) return;
-    const ids = [...registry.all()].map((e) => e.id);
+    const ids = [...registry.all()]
+      .filter((e) => e.components[COMPONENT_KEYS.navGrid] === undefined)
+      .map((e) => e.id);
     for (const id of ids) registry.deregister(id);
     loaded = false;
   };

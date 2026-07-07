@@ -33,7 +33,8 @@ export {
 
 export { createCharacterController, type CharacterController } from './components/characterController.ts';
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
-export { createLocomotionIntent, type LocomotionIntent } from './components/locomotionIntent.ts';
+export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
+export { createNavGrid, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
 export {
   createSkeletalRig,
   type SkeletalRig,
@@ -52,10 +53,11 @@ export {
 export { buildRuntimeModel } from './assets/gltf/buildRuntime.ts';
 export { buildGltfMaterials } from './assets/gltf/materials.ts';
 
-export { buildNavGrid, isWalkableWorld, worldToCell, cellToWorld, type NavGrid } from './navigation/navGrid.ts';
+export { buildNavGrid, updateNavGridBlocked, isWalkableWorld, worldToCell, cellToWorld, type NavGrid } from './navigation/navGrid.ts';
 export { findPath, pickRandomObjective } from './navigation/astar.ts';
 
 export { installMovementSystem } from './systems/movementSystem.ts';
+export { installNavGridSystem } from './systems/navGridSystem.ts';
 export { installCharacterPhysicsSystem } from './systems/characterPhysicsSystem.ts';
 export { installCollisionSystem } from './systems/collisionSystem.ts';
 export { installCharacterStateSystem } from './systems/characterStateSystem.ts';

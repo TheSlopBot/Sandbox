@@ -16,9 +16,9 @@ export type CharacterController = {
   jumpLandDuration: number;
   jumpStartSpeed: number;
   jumpLandSpeed: number;
-  locomotionAnimTime: number;
+  movementAnimTime: number;
   moveAnimSpeed: number;
-  locomotionBlend: number;
+  movementBlend: number;
   obstructiveColliderKeys: readonly string[];
   wasOnGroundPrevious: boolean;
 };
@@ -36,9 +36,9 @@ export const createCharacterController = (): CharacterController => ({
   jumpLandDuration: 0.3,
   jumpStartSpeed: 4,
   jumpLandSpeed: 2,
-  locomotionAnimTime: 0,
+  movementAnimTime: 0,
   moveAnimSpeed: 1.5,
-  locomotionBlend: 1,
+  movementBlend: 1,
   obstructiveColliderKeys: [COMPONENT_KEYS.collider],
   wasOnGroundPrevious: false,
 });
