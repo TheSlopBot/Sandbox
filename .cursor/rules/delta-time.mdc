@@ -1,6 +1,6 @@
 ---
 description: Enforce strict delta-time usage in frame-bound engine and game logic
-globs: viberanium/src/engine/**,viberanium/src/starter/**,sandbox/src/**
+globs: viberanium/src/engine/**,viberanium/src/systems/**,sandbox/src/**
 alwaysApply: false
 ---
 

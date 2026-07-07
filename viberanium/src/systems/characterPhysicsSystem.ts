@@ -1,10 +1,10 @@
-import { type Registry } from '../../engine/registry.ts';
-import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
-import { type Transform } from '../../components/transform.ts';
-import { type Aabb } from '../../components/collider.ts';
+import { type Registry } from '../engine/registry.ts';
+import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
+import { type Transform } from '../components/transform.ts';
+import { type Aabb } from '../components/collider.ts';
 import { type CharacterController } from '../components/characterController.ts';
-import { makeAabb } from '../../collision/aabb.ts';
-import { getSupportSurfaceY } from '../../collision/obb.ts';
+import { makeAabb } from '../collision/aabb.ts';
+import { getSupportSurfaceY } from '../collision/obb.ts';
 import {
   getObstacles,
   resolveHorizontalCollisions,

@@ -1,12 +1,14 @@
-import { type Registry } from '../../engine/registry.ts';
-import { type Input } from '../../input/input.ts';
-import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
-import { type Transform } from '../../components/transform.ts';
-import { type CameraFollow } from '../components/cameraFollow.ts';
-import { type LocomotionIntent } from '../components/locomotionIntent.ts';
-import { type PlayerController } from '../components/playerController.ts';
-import { type CharacterController } from '../components/characterController.ts';
-import { v3Set } from '../../math/vec3.ts';
+import {
+  type Registry,
+  type Input,
+  type Transform,
+  type CameraFollow,
+  type LocomotionIntent,
+  type CharacterController,
+  COMPONENT_KEYS,
+  v3Set,
+} from 'viberanium';
+import { PLAYER_CONTROLLER_KEY, type PlayerController } from '../components/playerController.ts';
 
 export const installPlayerInputSystem = (registry: Registry, input: Input) => {
   registry.addAction('update', () => {
@@ -18,11 +20,11 @@ export const installPlayerInputSystem = (registry: Registry, input: Input) => {
     const sinY = Math.sin(camYaw);
     const cosY = Math.cos(camYaw);
 
-    for (const e of registry.view(COMPONENT_KEYS.playerController)) {
+    for (const e of registry.view(PLAYER_CONTROLLER_KEY)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
       const intent = e.components[COMPONENT_KEYS.locomotionIntent] as LocomotionIntent | undefined;
-      const pc = e.components[COMPONENT_KEYS.playerController] as PlayerController;
+      const pc = e.components[PLAYER_CONTROLLER_KEY] as PlayerController;
       if (!t || !cc || !intent) continue;
 
       if (input.pressed(pc.resetKey)) {

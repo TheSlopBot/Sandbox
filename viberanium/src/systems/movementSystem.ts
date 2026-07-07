@@ -1,9 +1,9 @@
-import { type Registry } from '../../engine/registry.ts';
-import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
+import { type Registry } from '../engine/registry.ts';
+import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type CharacterController } from '../components/characterController.ts';
 import { type LocomotionIntent } from '../components/locomotionIntent.ts';
 
-export const installLocomotionSystem = (registry: Registry) => {
+export const installMovementSystem = (registry: Registry) => {
   registry.addAction('update', () => {
     for (const e of registry.view(COMPONENT_KEYS.locomotionIntent)) {
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;

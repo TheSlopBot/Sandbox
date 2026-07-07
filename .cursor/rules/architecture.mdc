@@ -14,12 +14,11 @@ viberanium/                  # Game engine (Viberanium)
     ├── math/                # vec3, quat, mat4 — no deps, no classes
     ├── input/               # createInput — keyboard, mouse, pointer lock
     ├── collision/           # Pure AABB/OBB math helpers (no GL, no registry)
-    ├── components/          # Shared data-only component types + factories
+    ├── components/          # Data-only component types + factories
+    ├── systems/             # install*System processors (movement, physics, animation, …)
+    ├── navigation/          # A* pathfinding helpers
     ├── assets/gltf/         # GLB/glTF loader, runtime scene, materials builder
     ├── render/              # WebGL2 device, passes, pipeline installer
-    ├── starter/             # Optional 3rd-person kit (components + systems)
-    │   ├── components/      # characterController, locomotionIntent, skeletalRig
-    │   └── systems/         # playerInput, locomotion, physics, animation installers
     └── index.ts             # Public barrel export (package entry only)
 sandbox/                     # Game content
 └── src/
@@ -42,7 +41,7 @@ Games import the engine via `import { ... } from 'viberanium'`. Game code never 
 | Pattern | Example | Use for |
 |---------|---------|---------|
 | `createX()` | `createTransform()` | Data factory — returns a plain object |
-| `installXSystem()` | `installLocomotionSystem()` | System installer — registers actions on registry |
+| `installXSystem()` | `installMovementSystem()` | System installer — registers actions on registry |
 | `useX()` | `useRegistry()`, `useTestScene()` | Engine/game primitive — creates and owns internal state |
 | `buildX()` | `buildGltfMaterials()` | Pure transform/builder — no side effects |
 

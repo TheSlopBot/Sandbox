@@ -41,11 +41,11 @@ body {
 }
 
 body.is-loading #game,
-body.is-loading #hud {
+body.is-loading #controls {
   visibility: hidden;
 }
 
-#hud {
+#controls {
   position: fixed;
   left: 12px;
   top: 12px;
@@ -58,13 +58,13 @@ body.is-loading #hud {
   pointer-events: none;
 }
 
-#hud .row {
+#controls .row {
   display: flex;
   gap: 10px;
   align-items: baseline;
 }
 
-#hud .k {
+#controls .k {
   color: rgba(255, 255, 255, 0.6);
   width: 58px;
   display: inline-block;

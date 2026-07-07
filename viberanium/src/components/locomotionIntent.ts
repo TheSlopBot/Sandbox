@@ -1,4 +1,4 @@
-import { type Vec3, v3 } from '../../math/vec3.ts';
+import { type Vec3, v3 } from '../math/vec3.ts';
 
 export type LocomotionIntent = {
   desiredVelocity: Vec3;

@@ -1,5 +1,5 @@
-import { type Vec3, v3 } from '../../math/vec3.ts';
-import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
+import { type Vec3, v3 } from '../math/vec3.ts';
+import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 
 export type JumpPhase = 'none' | 'start' | 'air' | 'land';
 

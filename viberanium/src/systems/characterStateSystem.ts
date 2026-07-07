@@ -1,6 +1,6 @@
-import { type Registry } from '../../engine/registry.ts';
-import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
-import { type Transform } from '../../components/transform.ts';
+import { type Registry } from '../engine/registry.ts';
+import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
+import { type Transform } from '../components/transform.ts';
 import { type CharacterController } from '../components/characterController.ts';
 
 const wrapPi = (a: number): number => {

@@ -1,12 +1,12 @@
-import { type Registry } from '../../engine/registry.ts';
-import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
-import { type Transform, updateWorldMatrix } from '../../components/transform.ts';
-import { type Renderable } from '../../components/renderable.ts';
-import { sampleClipToNodes } from '../../components/animation.ts';
+import { type Registry } from '../engine/registry.ts';
+import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
+import { type Transform, updateWorldMatrix } from '../components/transform.ts';
+import { type Renderable } from '../components/renderable.ts';
+import { sampleClipToNodes } from '../components/animation.ts';
 import { type CharacterController } from '../components/characterController.ts';
 import { type SkeletalRig } from '../components/skeletalRig.ts';
-import { computeSkinPalette, snapshotPose, updateWorldFromLocals } from '../../assets/gltf/runtime.ts';
-import { m4, m4Copy, m4Mul } from '../../math/mat4.ts';
+import { computeSkinPalette, snapshotPose, updateWorldFromLocals } from '../assets/gltf/runtime.ts';
+import { m4, m4Copy, m4Mul } from '../math/mat4.ts';
 
 export const installSkeletalAnimationSystem = (registry: Registry) => {
   const bindPoseCache = new WeakMap<SkeletalRig, ReturnType<typeof snapshotPose>>();
@@ -67,7 +67,9 @@ export const installSkeletalAnimationSystem = (registry: Registry) => {
 
       updateWorldFromLocals(bodyScene.nodes);
 
-      for (const re of registry.view(COMPONENT_KEYS.gltfNodeIndex)) {
+      for (const renderId of rig.renderEntityIds) {
+        const re = registry.get(renderId);
+        if (!re) continue;
         const r = re.components[COMPONENT_KEYS.renderable] as Renderable | undefined;
         const nodeIndex = re.components[COMPONENT_KEYS.gltfNodeIndex] as number;
         if (!r?.model) continue;

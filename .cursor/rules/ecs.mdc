@@ -11,7 +11,7 @@ alwaysApply: true
 |---------|------|----------|
 | **Entity** | Plain bag of components; no methods | Game `createXEntity()` factories |
 | **Component** | Data-only plain object | `viberanium/components/` or game `components/` |
-| **System** | `installXSystem(registry, ...deps)` — one concern per installer | `viberanium/starter/systems/` or game `systems/` |
+| **System** | `installXSystem(registry, ...deps)` — one concern per installer | `viberanium/src/systems/` or game `systems/` |
 | **Scene** | Owns a scene `Registry`; load/unload level content | Game `scenes/` |
 | **Game** | Owns persistent game `Registry` + active scene | `bootstrap.ts` |
 
@@ -24,7 +24,7 @@ const entity = registry.createBare();
 entity.components[COMPONENT_KEYS.transform] = createTransform();
 entity.components[COMPONENT_KEYS.character] = createCharacterController();
 entity.components[COMPONENT_KEYS.locomotionIntent] = createLocomotionIntent();
-entity.components[COMPONENT_KEYS.playerController] = createPlayerController();
+entity.components[PLAYER_CONTROLLER_KEY] = createPlayerController();
 registry.register(entity);
 ```
 
@@ -48,9 +48,9 @@ Player and AI characters share locomotion, physics, collision, and animation sys
 
 | Component | Written by | Read by |
 |-----------|-----------|---------|
-| `playerController` | — (tag) | `installPlayerInputSystem` |
-| `aiController` | — (data) | `installAiControllerSystem` |
-| `locomotionIntent` | controller systems | `installLocomotionSystem` |
+| `playerController` (sandbox) | — (tag) | `installPlayerInputSystem` |
+| `robotAi` (sandbox) | — (data) | `installRobotAiSystem` |
+| `locomotionIntent` | controller systems | `installMovementSystem` |
 | `character` | locomotion + physics | physics, state, animation |
 
 ## Registry queries

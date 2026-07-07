@@ -53,10 +53,11 @@ viberanium/src/
   math/         vec3, mat4, quat
   input/        createInput
   collision/    aabb, obb — pure math only
-  components/   shared component types
+  components/   shared + character component types
+  systems/      install*System processors
+  navigation/   A* pathfinding helpers
   assets/       loaders (gltf/)
   render/       pipeline, passes, shaders, gl/
-  starter/      optional 3rd-person kit (components + systems)
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/

@@ -31,6 +31,16 @@ export {
   type AnimClip,
 } from './components/animation.ts';
 
+export { createCharacterController, type CharacterController } from './components/characterController.ts';
+export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
+export { createLocomotionIntent, type LocomotionIntent } from './components/locomotionIntent.ts';
+export {
+  createSkeletalRig,
+  type SkeletalRig,
+  type AnimClips,
+  type CharacterPart,
+} from './components/skeletalRig.ts';
+
 export { loadGltf } from './assets/gltf/loader.ts';
 export {
   buildRuntimeScene,
@@ -41,6 +51,16 @@ export {
 } from './assets/gltf/runtime.ts';
 export { buildRuntimeModel } from './assets/gltf/buildRuntime.ts';
 export { buildGltfMaterials } from './assets/gltf/materials.ts';
+
+export { buildNavGrid, isWalkableWorld, worldToCell, cellToWorld, type NavGrid } from './navigation/navGrid.ts';
+export { findPath, pickRandomObjective } from './navigation/astar.ts';
+
+export { installMovementSystem } from './systems/movementSystem.ts';
+export { installCharacterPhysicsSystem } from './systems/characterPhysicsSystem.ts';
+export { installCollisionSystem } from './systems/collisionSystem.ts';
+export { installCharacterStateSystem } from './systems/characterStateSystem.ts';
+export { installCameraFollowSystem } from './systems/cameraFollowSystem.ts';
+export { installSkeletalAnimationSystem } from './systems/skeletalAnimationSystem.ts';
 
 export {
   installRenderPipeline,
@@ -62,24 +82,3 @@ export {
   createAsciiPostProcessStage,
   type AsciiStageOptions,
 } from './render/createAsciiPostProcessStage.ts';
-
-export { createCharacterController, type CharacterController } from './starter/components/characterController.ts';
-export { createCameraFollow, type CameraFollow } from './starter/components/cameraFollow.ts';
-export { createLocomotionIntent, type LocomotionIntent } from './starter/components/locomotionIntent.ts';
-export { createPlayerController, type PlayerController } from './starter/components/playerController.ts';
-export { createAiController, type AiController } from './starter/components/aiController.ts';
-export {
-  createSkeletalRig,
-  type SkeletalRig,
-  type AnimClips,
-  type CharacterPart,
-} from './starter/components/skeletalRig.ts';
-
-export { installPlayerInputSystem } from './starter/systems/playerInputSystem.ts';
-export { installAiControllerSystem } from './starter/systems/aiControllerSystem.ts';
-export { installLocomotionSystem } from './starter/systems/locomotionSystem.ts';
-export { installCharacterPhysicsSystem } from './starter/systems/characterPhysicsSystem.ts';
-export { installCollisionSystem } from './starter/systems/collisionSystem.ts';
-export { installCharacterStateSystem } from './starter/systems/characterStateSystem.ts';
-export { installCameraFollowSystem } from './starter/systems/cameraFollowSystem.ts';
-export { installSkeletalAnimationSystem } from './starter/systems/skeletalAnimationSystem.ts';

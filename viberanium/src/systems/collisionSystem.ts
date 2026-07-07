@@ -1,13 +1,13 @@
-import { type Registry } from '../../engine/registry.ts';
-import { type Transform } from '../../components/transform.ts';
-import { type Collider, type Aabb } from '../../components/collider.ts';
+import { type Registry } from '../engine/registry.ts';
+import { type Transform } from '../components/transform.ts';
+import { type Collider, type Aabb } from '../components/collider.ts';
 import { type CharacterController } from '../components/characterController.ts';
-import { aabbIntersects, aabbOverlapsYStrict, makeAabb } from '../../collision/aabb.ts';
+import { aabbIntersects, aabbOverlapsYStrict, makeAabb } from '../collision/aabb.ts';
 import {
   obbIntersectsAabb,
   hasHorizontalSupport,
   resolveAabbVsObbHorizontal,
-} from '../../collision/obb.ts';
+} from '../collision/obb.ts';
 
 export const getObstacles = (registry: Registry, keys: readonly string[]): Collider[] => {
   const result: Collider[] = [];

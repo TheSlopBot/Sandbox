@@ -31,8 +31,8 @@ const main = async () => {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
-    const hud = document.querySelector<HTMLDivElement>('#hud');
-    if (hud) hud.innerText = `Boot error: ${String(err)}`;
+    const controls = document.querySelector<HTMLDivElement>('#controls');
+    if (controls) controls.innerText = `Boot error: ${String(err)}`;
     document.body.classList.remove('is-loading');
   } finally {
     loadingScreen.destroy();

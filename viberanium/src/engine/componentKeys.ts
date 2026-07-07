@@ -3,8 +3,6 @@ export const COMPONENT_KEYS = {
   collider: 'collider',
   character: 'character',
   locomotionIntent: 'locomotionIntent',
-  playerController: 'playerController',
-  aiController: 'aiController',
   skeletalRig: 'skeletalRig',
   cameraFollow: 'cameraFollow',
   renderable: 'renderable',

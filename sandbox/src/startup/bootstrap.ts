@@ -6,6 +6,8 @@
   createAsciiPostProcessStage,
 } from 'viberanium';
 import { useTestScene } from '../scenes/testScene.ts';
+import { useTestSceneAlt } from '../scenes/testSceneAlt.ts';
+import { installSceneChangerSystem } from './sceneChangerSystem.ts';
 
 export const bootstrap = async () => {
   const canvas = document.querySelector<HTMLCanvasElement>('#game');
@@ -29,10 +31,20 @@ export const bootstrap = async () => {
     if (input.pressed('KeyT')) asciiStage.enabled = !asciiStage.enabled;
   }, 0);
 
-  const testScene = useTestScene({ gl, input, pipeline, textures });
-  activeSceneRegistry = testScene.registry;
+  const sceneDeps = { gl, input, pipeline, textures };
+  const testScene = useTestScene(sceneDeps);
+  const testSceneAlt = useTestSceneAlt(sceneDeps);
+
+  const sceneChanger = installSceneChangerSystem(game.registry, {
+    game,
+    input,
+    scenes: { test: testScene, alt: testSceneAlt },
+    setActiveSceneRegistry: (registry) => { activeSceneRegistry = registry; },
+  });
 
   game.setActiveScene(testScene);
+  activeSceneRegistry = testScene.registry;
+  sceneChanger.setCurrent(testScene);
   await testScene.load();
 
   game.registry.addAction('commit', () => { input.commitFrame(); }, 0);

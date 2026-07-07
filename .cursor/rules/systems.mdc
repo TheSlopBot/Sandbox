@@ -1,6 +1,6 @@
 ---
 description: Registry, systems, and component query patterns
-globs: viberanium/src/engine/**,viberanium/src/starter/**,sandbox/src/**
+globs: viberanium/src/engine/**,viberanium/src/systems/**,sandbox/src/**
 alwaysApply: false
 ---
 
@@ -9,7 +9,7 @@ alwaysApply: false
 ## Three-Phase Loop
 
 ```
-update (order 0–20)   → input, AI, locomotion, physics, collision, camera, animation
+update (order 0–20)   → input, AI, movement, physics, collision, camera, animation
 draw   (order 0)      → render pipeline (shadow + forward + post)
 commit (order 0–100)  → flush input frame, record dt for FPS
 ```
@@ -20,7 +20,8 @@ Lower `order` runs first within a phase. Reserve bands:
 |------|-------|-----|
 | 0 | update | input toggles, debug |
 | 5 | update | player input, AI controller |
-| 8 | update | locomotion (intent → velocity) |
+| 6 | update | robot AI pathfinding (sandbox `installRobotAiSystem`) |
+| 8 | update | movement (intent → velocity) |
 | 10 | update | character physics (gravity, integration) |
 | 12 | update | collision helpers (used by physics) |
 | 13 | update | character state (jump phases, yaw) |
