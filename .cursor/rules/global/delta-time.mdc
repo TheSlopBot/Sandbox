@@ -39,6 +39,7 @@ value += (target - value) * k;
 
 - Treat speeds, accelerations, gravity, turn rates, blend speeds, and playback speeds as **units per second**.
 - Ground collision resolves landing and zeros vertical velocity — do not gate gravity with approximate support checks.
+- For movement + discrete collision, substep physics with a fixed max step (e.g. `1/144` s) so integration and swept landing tests match across refresh rates.
 
 ## Must not do
 

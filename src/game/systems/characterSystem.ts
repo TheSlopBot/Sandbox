@@ -5,6 +5,8 @@ import { type CharacterController } from '../components/characterController.ts';
 import { type Collider, type Aabb, type ObbY } from '../components/collider.ts';
 import { type CameraFollow } from '../components/cameraFollow.ts';
 
+const PHYSICS_STEP_SEC = 1 / 144;
+
 function aabbIntersects(a: Aabb, b: Aabb): boolean {
   return (
     a.min[0] <= b.max[0] &&
@@ -195,85 +197,85 @@ export function installCharacterSystem(registry: Registry, input: Input) {
         const hy = cc.halfExtents[1];
         const hz = cc.halfExtents[2];
 
-        const prevY = t.position[1];
+        let physicsRemaining = ctx.dt;
+        while (physicsRemaining > 1e-12) {
+          const step = Math.min(physicsRemaining, PHYSICS_STEP_SEC);
+          physicsRemaining -= step;
 
-        // Horizontal XZ together (required for yaw-rotated static colliders).
-        t.position[0] += cc.velocity[0] * ctx.dt;
-        t.position[2] += cc.velocity[2] * ctx.dt;
-        let charBox: Aabb = {
-          min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
-          max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
-        };
-        for (const s of statics) {
-          if (!aabbIntersects(charBox, s.aabb)) continue; // broadphase
-          if (!aabbOverlapsYStrict(charBox, s.aabb)) continue; // must actually overlap in Y to block horizontally
+          const prevY = t.position[1];
 
-          const obb = s.obbY;
-          if (obb) {
-            if (!obbIntersectsAabb(obb, charBox)) continue;
-            const resolved = resolveAabbVsObbHorizontal(t.position[0], t.position[2], hx, hz, obb);
-            t.position[0] = resolved.x;
-            t.position[2] = resolved.z;
-          } else {
-            // Fallback: treat static as axis-aligned.
-            const penX = Math.min(s.aabb.max[0] - charBox.min[0], charBox.max[0] - s.aabb.min[0]);
-            const penZ = Math.min(s.aabb.max[2] - charBox.min[2], charBox.max[2] - s.aabb.min[2]);
-            if (penX < penZ) {
-              t.position[0] += (t.position[0] >= (s.aabb.min[0] + s.aabb.max[0]) * 0.5 ? penX : -penX) + 1e-3;
+          t.position[0] += cc.velocity[0] * step;
+          t.position[2] += cc.velocity[2] * step;
+          let charBox: Aabb = {
+            min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
+            max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
+          };
+          for (const s of statics) {
+            if (!aabbIntersects(charBox, s.aabb)) continue;
+            if (!aabbOverlapsYStrict(charBox, s.aabb)) continue;
+
+            const obb = s.obbY;
+            if (obb) {
+              if (!obbIntersectsAabb(obb, charBox)) continue;
+              const resolved = resolveAabbVsObbHorizontal(t.position[0], t.position[2], hx, hz, obb);
+              t.position[0] = resolved.x;
+              t.position[2] = resolved.z;
             } else {
-              t.position[2] += (t.position[2] >= (s.aabb.min[2] + s.aabb.max[2]) * 0.5 ? penZ : -penZ) + 1e-3;
+              const penX = Math.min(s.aabb.max[0] - charBox.min[0], charBox.max[0] - s.aabb.min[0]);
+              const penZ = Math.min(s.aabb.max[2] - charBox.min[2], charBox.max[2] - s.aabb.min[2]);
+              if (penX < penZ) {
+                t.position[0] += (t.position[0] >= (s.aabb.min[0] + s.aabb.max[0]) * 0.5 ? penX : -penX) + 1e-3;
+              } else {
+                t.position[2] += (t.position[2] >= (s.aabb.min[2] + s.aabb.max[2]) * 0.5 ? penZ : -penZ) + 1e-3;
+              }
             }
+
+            charBox = {
+              min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
+              max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
+            };
           }
 
+          cc.velocity[1] -= cc.gravity * step;
+
+          t.position[1] += cc.velocity[1] * step;
+          cc.onGround = false;
           charBox = {
             min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
             max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
           };
-        }
+          for (const s of statics) {
+            if (!aabbIntersects(charBox, s.aabb)) continue;
 
-        cc.velocity[1] -= cc.gravity * ctx.dt;
+            const obb = s.obbY;
+            const top = obb ? obb.center[1] + obb.halfExtents[1] : s.aabb.max[1];
+            const bottom = obb ? obb.center[1] - obb.halfExtents[1] : s.aabb.min[1];
+            const prevBottom = prevY - hy;
+            const currBottom = t.position[1] - hy;
+            const prevTop = prevY + hy;
+            const currTop = t.position[1] + hy;
+            const supported = hasHorizontalSupport(s, t.position[0], t.position[2], hx, hz);
 
-        // Vertical Y
-        t.position[1] += cc.velocity[1] * ctx.dt;
-        cc.onGround = false;
-        charBox = {
-          min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
-          max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
-        };
-        for (const s of statics) {
-          if (!aabbIntersects(charBox, s.aabb)) continue;
+            if (cc.velocity[1] <= 0 && supported && prevBottom >= top - 1e-4 && currBottom < top) {
+              t.position[1] = top + hy;
+              cc.velocity[1] = 0;
+              cc.onGround = true;
+            } else if (cc.velocity[1] > 0 && supported && prevTop <= bottom + 1e-4 && currTop > bottom) {
+              t.position[1] = bottom - hy;
+              cc.velocity[1] = 0;
+            }
 
-          const obb = s.obbY;
-          const top = obb ? obb.center[1] + obb.halfExtents[1] : s.aabb.max[1];
-          const bottom = obb ? obb.center[1] - obb.halfExtents[1] : s.aabb.min[1];
-          const prevBottom = prevY - hy;
-          const currBottom = t.position[1] - hy;
-          const prevTop = prevY + hy;
-          const currTop = t.position[1] + hy;
-          const supported = hasHorizontalSupport(s, t.position[0], t.position[2], hx, hz);
+            charBox = {
+              min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
+              max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
+            };
+          }
 
-          if (cc.velocity[1] <= 0 && supported && prevBottom >= top - 1e-4 && currBottom < top) {
-            // Land on platform (XZ must overlap the actual box, not just its world AABB).
-            t.position[1] = top + hy;
+          if (t.position[1] - hy < 0) {
+            t.position[1] = hy;
             cc.velocity[1] = 0;
             cc.onGround = true;
-          } else if (cc.velocity[1] > 0 && supported && prevTop <= bottom + 1e-4 && currTop > bottom) {
-            // Hit head
-            t.position[1] = bottom - hy;
-            cc.velocity[1] = 0;
           }
-
-          charBox = {
-            min: new Float32Array([t.position[0] - hx, t.position[1] - hy, t.position[2] - hz]),
-            max: new Float32Array([t.position[0] + hx, t.position[1] + hy, t.position[2] + hz]),
-          };
-        }
-
-        // Clamp to ground plane at y=0
-        if (t.position[1] - hy < 0) {
-          t.position[1] = hy;
-          cc.velocity[1] = 0;
-          cc.onGround = true;
         }
 
         if (cc.onGround && (cc.jumpPhase === 'start' || cc.jumpPhase === 'air')) {
