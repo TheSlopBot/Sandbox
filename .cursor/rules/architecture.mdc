@@ -23,9 +23,10 @@ viberanium/                  # Game engine (Viberanium)
 sandbox/                     # Game content
 └── src/
     ├── startup/             # bootstrap.ts — game-level composition root
-    ├── scenes/              # useTestScene — scene registry, load/unload
+    ├── scenes/              # useTestScene — scene registry, load/unload, nav grid entity
     ├── player/              # createPlayer — entity assembly + asset loading
-    └── world/               # ground mesh, static props
+    ├── robot/               # createRobot — NPC assembly + robot AI system
+    └── world/               # ground mesh, static props (marks nav grid dirty on collider add)
 ```
 
 Games import the engine via `import { ... } from 'viberanium'`. Game code never lives under `viberanium/`.
@@ -33,8 +34,10 @@ Games import the engine via `import { ... } from 'viberanium'`. Game code never 
 ## Game vs Scene Registry
 
 - **Game registry** (`game.registry`) — persistent entities, render pipeline, global input handlers
-- **Scene registry** (`scene.registry`) — level props, player, enemies; torn down on `scene.unload()`
+- **Scene registry** (`scene.registry`) — level props, player, NPCs, and one scene `navGrid` entity; level content torn down on `scene.unload()`
 - `game.setActiveScene(scene)` manages scene transitions
+
+Each playable scene registers a persistent `navGrid` entity at creation time. `scene.unload()` removes level entities but keeps the nav grid entity; call `markNavGridDirty(registry)` after collider changes so `installNavGridSystem` rebuilds blocked cells on the next update.
 
 ## Naming Conventions
 
@@ -43,7 +46,7 @@ Games import the engine via `import { ... } from 'viberanium'`. Game code never 
 | `createX()` | `createTransform()` | Data factory — returns a plain object |
 | `installXSystem()` | `installMovementSystem()` | System installer — registers actions on registry |
 | `useX()` | `useRegistry()`, `useTestScene()` | Engine/game primitive — creates and owns internal state |
-| `buildX()` | `buildGltfMaterials()` | Pure transform/builder — no side effects |
+| `buildX()` | `buildGltfMaterials()`, `updateNavGridBlocked()` | Pure transform/builder — no side effects |
 
 ## Code Style
 
@@ -66,3 +69,5 @@ sandbox/src/enemies/spider/
     spiderSystem.ts   # installSpiderSystem
 ```
 Register the entity in a scene's `load()` and call `installSpiderSystem(scene.registry)` once when creating the scene.
+
+When adding geometry that blocks pathfinding, register a static `collider` and call `markNavGridDirty(scene.registry)` so the scene nav grid rebuilds.

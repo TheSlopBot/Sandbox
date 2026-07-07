@@ -35,6 +35,7 @@ Mesh sub-entities use `createBare()` → attach components → `register(entity)
 - Data only — no `actions`, no registry imports, no per-frame logic
 - Use `COMPONENT_KEYS` constants — never raw string literals for component keys
 - Controllers write `movementIntent`; shared systems read it
+- **Movement** is the canonical term for anything that can move — use `movementIntent`, `movementBlend`, `movementAnimTime`; never `locomotion*`
 
 ## System rules
 
@@ -79,9 +80,44 @@ registry.deregister(entity.id);
 ## Scene boundaries
 
 - **Game registry** — persistent entities (inventory, global input handlers, render pipeline draw action)
-- **Scene registry** — level terrain, props, player, scene `navGrid`; torn down on `scene.unload()` (nav grid entity persists across load/unload cycles)
+- **Scene registry** — level terrain, props, player, NPCs, and one scene `navGrid` entity
+- `scene.unload()` deregisters level content but **keeps** the nav grid entity registered
 - `game.setActiveScene(scene)` unloads the previous scene before switching
 - Frame loop runs game registry actions first, then active scene registry actions
+
+## Nav grid
+
+The nav grid is a first-class scene component — not a hidden cache inside an AI system.
+
+| Piece | Location | Role |
+|-------|----------|------|
+| `NavGridComponent` | `viberanium/components/navGrid.ts` | Grid bounds, `blocked` cells, `agentRadius`, `dirty` flag |
+| `createNavGrid()` | component factory | Allocates grid data; `dirty` starts `true` |
+| `markNavGridDirty(registry)` | component helper | Sets `dirty = true` on the scene nav grid after collider changes |
+| `updateNavGridBlocked()` | `viberanium/navigation/navGrid.ts` | Pure rebuild of `blocked` from static colliders |
+| `installNavGridSystem()` | `viberanium/systems/navGridSystem.ts` | Rebuilds only when `dirty`; clears flag after rebuild |
+| `findPath` / `pickRandomObjective` | `viberanium/navigation/astar.ts` | Read the grid; never build or own one |
+
+### Scene setup
+
+Register one nav grid entity when creating the scene (not in `load()`), before installing systems:
+
+```typescript
+const navGridEntity = registry.createBare();
+navGridEntity.components[COMPONENT_KEYS.navGrid] = createNavGrid({
+  minX: -18, maxX: 18, minZ: -18, maxZ: 18, cellSize: 1.0,
+});
+registry.register(navGridEntity);
+installNavGridSystem(registry);
+```
+
+`unload()` must skip the nav grid entity when deregistering level content, then call `markNavGridDirty(registry)`.
+
+### Dirty rebuild contract
+
+- **Do not** rebuild the nav grid every update — only when `navGrid.dirty` is true
+- **Do** call `markNavGridDirty(registry)` whenever static colliders are added or removed (e.g. `instantiateStaticProp`, scene `unload()`, future destructible props)
+- AI systems read the scene grid via `registry.view(COMPONENT_KEYS.navGrid)` — never build or cache their own grid
 
 ## Forbidden
 
@@ -89,3 +125,6 @@ registry.deregister(entity.id);
 - `registry.view('character')[0]` in bootstrap to wire a specific entity
 - Bootstrap-time `staticColliders: Collider[]` arrays passed to systems
 - Behavior logic inside component factories
+- Per-frame nav grid rebuilds without `dirty`
+- AI-owned nav grid caches (`WeakMap<Registry, NavGrid>`) — the scene component is the single source of truth
+- `locomotion*` naming for movement-related components or fields — use `movement*`

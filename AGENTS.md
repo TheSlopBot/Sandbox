@@ -43,6 +43,8 @@ Code must be self-documenting through names and types. Do not add `//` inline co
 | `buildX()` | Pure data transformation (no GL calls, no registry writes) |
 | `useX()` | Registry-level singleton (engine-layer only) |
 
+**Movement** is the canonical term for anything that can move: `movementIntent`, `movementBlend`, `movementAnimTime`. Do not use `locomotion*`.
+
 ---
 
 ## Module layout
@@ -62,11 +64,17 @@ viberanium/src/
 
 sandbox/src/
   player/       feature slice: player.ts
-  world/        ground, staticProps
+  robot/        feature slice: robot.ts, robot AI system
+  world/        ground, staticProps (calls markNavGridDirty on collider add)
   startup/      bootstrap (composition root only)
+  scenes/       scene registry, nav grid entity, load/unload
 ```
 
 Feature code lives in its own slice folder under the game package. Do not add logic to `startup/bootstrap.ts` beyond composition wiring.
+
+### Scene nav grid
+
+Each playable scene owns one `navGrid` entity on its registry. `installNavGridSystem` rebuilds `blocked` cells only when `navGrid.dirty` is true. Call `markNavGridDirty(registry)` after adding or removing static colliders — never rebuild the grid every frame from AI systems.
 
 ---
 
