@@ -67,4 +67,6 @@ entity.components[COMPONENT_KEYS.spiderAI] = createSpiderAI();
 registry.register(entity);
 ```
 
+Never call `register` before components are attached — `registry.create()` is an alias for `createBare()` and does not index components.
+
 Components are data-only. Behaviour lives exclusively in system installers.

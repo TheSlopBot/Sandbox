@@ -28,7 +28,7 @@ entity.components[COMPONENT_KEYS.playerController] = createPlayerController();
 registry.register(entity);
 ```
 
-Mesh sub-entities (render parts) may use `registry.create()` for immediate registration.
+Mesh sub-entities use `createBare()` → attach components → `register(entity)`.
 
 ## Component rules
 

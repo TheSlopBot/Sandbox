@@ -82,18 +82,20 @@ const buildSkinnedEntities = (
 
       if (prim.kind === 'skinned' && skinInst) {
         const mesh = createSkinnedMesh(gl, prim.vertices, prim.joints, prim.weights, prim.indices, skinInst.jointCount);
-        const e = registry.create();
+        const e = registry.createBare();
         e.components[COMPONENT_KEYS.transform] = charT;
         e.components[COMPONENT_KEYS.skin] = skinInst;
         e.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
         e.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
+        registry.register(e);
         renderEntityIds.push(e.id);
       } else {
         const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
-        const e = registry.create();
+        const e = registry.createBare();
         e.components[COMPONENT_KEYS.transform] = charT;
         e.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
         e.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
+        registry.register(e);
         renderEntityIds.push(e.id);
       }
     }

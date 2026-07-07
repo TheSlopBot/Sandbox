@@ -114,9 +114,10 @@ export const instantiateStaticProp = async (
 
       expandBoundsFromInterleaved(localMin, localMax, prim.vertices);
 
-      const e = registry.create();
+      const e = registry.createBare();
       e.components[COMPONENT_KEYS.transform] = t;
       e.components[COMPONENT_KEYS.renderable] = { mesh, material };
+      registry.register(e);
     }
   }
 
@@ -134,8 +135,9 @@ export const instantiateStaticProp = async (
     obbY: worldObbFromLocal(localMin, localMax, pos, s, t.yaw),
   };
 
-  const ce = registry.create();
+  const ce = registry.createBare();
   ce.components[COMPONENT_KEYS.collider] = collider;
+  registry.register(ce);
 
   return true;
 };

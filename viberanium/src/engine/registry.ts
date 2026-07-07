@@ -91,16 +91,16 @@ export const useRegistry = (): Registry => {
 
   const register = (entity: Entity): void => {
     if (!entities.has(entity.id)) entities.set(entity.id, entity);
-    if (registeredIds.has(entity.id)) return;
+    if (registeredIds.has(entity.id)) {
+      unindexEntity(entity.id);
+      indexEntityComponents(entity);
+      return;
+    }
     registeredIds.add(entity.id);
     indexEntityComponents(entity);
   };
 
-  const create = (): Entity => {
-    const e = createBare();
-    register(e);
-    return e;
-  };
+  const create = (): Entity => createBare();
 
   const deregister = (id: EntityId) => {
     const e = entities.get(id);
