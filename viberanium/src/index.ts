@@ -34,7 +34,7 @@ export {
 export { createCharacterController, type CharacterController } from './components/characterController.ts';
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
 export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
-export { createNavGrid, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
+export { createNavGrid, markNavGridDirty, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
 export {
   createSkeletalRig,
   type SkeletalRig,

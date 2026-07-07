@@ -10,6 +10,7 @@ import {
   buildGltfMaterials,
   aabb,
   COMPONENT_KEYS,
+  markNavGridDirty,
 } from 'viberanium';
 
 type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
@@ -138,6 +139,7 @@ export const instantiateStaticProp = async (
   const ce = registry.createBare();
   ce.components[COMPONENT_KEYS.collider] = collider;
   registry.register(ce);
+  markNavGridDirty(registry);
 
   return true;
 };

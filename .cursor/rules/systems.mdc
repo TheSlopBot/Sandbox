@@ -19,7 +19,7 @@ Lower `order` runs first within a phase. Reserve bands:
 | Band | Phase | Use |
 |------|-------|-----|
 | 0 | update | input toggles, debug |
-| 4 | update | nav grid blocked-cell refresh (`installNavGridSystem`) |
+| 4 | update | nav grid blocked-cell refresh when `navGrid.dirty` (`installNavGridSystem`) |
 | 5 | update | player input, AI controller |
 | 6 | update | robot AI pathfinding (sandbox `installRobotAiSystem`) |
 | 8 | update | movement (intent → velocity) |

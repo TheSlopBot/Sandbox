@@ -52,7 +52,7 @@ Player and AI characters share movement, physics, collision, and animation syste
 | `robotAi` (sandbox) | — (data) | `installRobotAiSystem` |
 | `movementIntent` | controller systems | `installMovementSystem` |
 | `character` | movement + physics | physics, state, animation |
-| `navGrid` | — (data) | `installNavGridSystem`, `installRobotAiSystem` |
+| `navGrid` | — (data, `dirty` flag) | `installNavGridSystem` (rebuild when dirty), `installRobotAiSystem` |
 
 ## Registry queries
 

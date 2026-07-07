@@ -13,6 +13,7 @@ import {
   installCameraFollowSystem,
   installSkeletalAnimationSystem,
   createNavGrid,
+  markNavGridDirty,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { instantiateStaticProp } from '../world/staticProps.ts';
@@ -100,6 +101,7 @@ export const createPlayableScene = (
       .filter((e) => e.components[COMPONENT_KEYS.navGrid] === undefined)
       .map((e) => e.id);
     for (const id of ids) registry.deregister(id);
+    markNavGridDirty(registry);
     loaded = false;
   };
 
