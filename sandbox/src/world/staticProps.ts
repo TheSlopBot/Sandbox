@@ -4,12 +4,14 @@ import {
   type Material,
   createTransform,
   createInterleavedMesh,
+  destroyMesh,
   TextureCache,
-  loadGltf,
+  type GltfCache,
   buildRuntimeModel,
   buildGltfMaterials,
   aabb,
   COMPONENT_KEYS,
+  markNavGridDirty,
 } from 'viberanium';
 
 type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
@@ -85,11 +87,12 @@ export const instantiateStaticProp = async (
   gl: WebGL2RenderingContext,
   registry: Registry,
   textures: TextureCache,
+  gltfCache: GltfCache,
   gltfUrl: string,
   materialPrefix: string,
   opts: PropOpts = {},
 ): Promise<boolean> => {
-  const loaded = await loadGltf(gltfUrl);
+  const loaded = await gltfCache.getOrLoad(gltfUrl);
   const runtimeMeshes = buildRuntimeModel(loaded);
   const mats = buildGltfMaterials(loaded, materialPrefix, textures);
 
@@ -117,6 +120,7 @@ export const instantiateStaticProp = async (
       const e = registry.createBare();
       e.components[COMPONENT_KEYS.transform] = t;
       e.components[COMPONENT_KEYS.renderable] = { mesh, material };
+      e.onDeregister.push(() => destroyMesh(gl, mesh));
       registry.register(e);
     }
   }
@@ -138,6 +142,7 @@ export const instantiateStaticProp = async (
   const ce = registry.createBare();
   ce.components[COMPONENT_KEYS.collider] = collider;
   registry.register(ce);
+  markNavGridDirty(registry);
 
   return true;
 };

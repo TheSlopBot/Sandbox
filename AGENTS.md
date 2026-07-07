@@ -43,6 +43,8 @@ Code must be self-documenting through names and types. Do not add `//` inline co
 | `buildX()` | Pure data transformation (no GL calls, no registry writes) |
 | `useX()` | Registry-level singleton (engine-layer only) |
 
+**Movement** is the canonical term for anything that can move: `movementIntent`, `movementBlend`, `movementAnimTime`. Do not use `locomotion*`.
+
 ---
 
 ## Module layout
@@ -61,12 +63,24 @@ viberanium/src/
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/
+  levels/       catalog, assets, useLevelScene
+  startup/      bootstrap, sceneManager, levelLoadingGate
+  scenes/       createPlayableScene (generic load/unload factory)
   player/       feature slice: player.ts
-  world/        ground, staticProps
-  startup/      bootstrap (composition root only)
+  robot/        feature slice: robot.ts, robot AI system
+  world/        ground, staticProps (gltfCache + markNavGridDirty)
 ```
 
 Feature code lives in its own slice folder under the game package. Do not add logic to `startup/bootstrap.ts` beyond composition wiring.
+
+### Levels & assets
+
+- Add levels as `LevelDefinition` entries in `sandbox/src/levels/catalog.ts`
+- `installSceneManager` creates ephemeral scenes via `useLevelScene` — do not pre-create scenes at bootstrap
+- Session caches (`createGltfCache`, `TextureCache`) live in bootstrap; use `gltfCache.getOrLoad(url)` in all spawn code
+- `scene.load()` creates nav grid + level content; `scene.unload()` destroys everything on the scene registry
+
+See `.cursor/rules/levels.mdc` for the full pattern.
 
 ---
 

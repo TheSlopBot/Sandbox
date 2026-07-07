@@ -40,14 +40,14 @@ export const installSkeletalAnimationSystem = (registry: Registry) => {
       const speed = Math.hypot(vx, vz);
       const moveW = speed > 0.05 ? Math.min(1, speed / Math.max(1e-6, cc.moveSpeed)) : 0;
 
-      if (cc.jumpPhase === 'none' && cc.locomotionBlend < 1) {
-        cc.locomotionBlend = Math.min(1, cc.locomotionBlend + ctx.dt * 5);
+      if (cc.jumpPhase === 'none' && cc.movementBlend < 1) {
+        cc.movementBlend = Math.min(1, cc.movementBlend + ctx.dt * 5);
       }
 
-      cc.locomotionAnimTime += ctx.dt;
+      cc.movementAnimTime += ctx.dt;
 
-      const jumpW = 1 - cc.locomotionBlend;
-      const locoW = cc.locomotionBlend;
+      const jumpW = 1 - cc.movementBlend;
+      const movementW = cc.movementBlend;
       const { clips, bodyScene } = rig;
 
       if (jumpW > 0) {
@@ -62,8 +62,8 @@ export const installSkeletalAnimationSystem = (registry: Registry) => {
         sampleClipToNodes(jumpClip, bodyScene.nodes, jumpTime, jumpW, jumpLoop);
       }
 
-      sampleClipToNodes(clips.idle, bodyScene.nodes, cc.locomotionAnimTime, locoW);
-      sampleClipToNodes(clips.run, bodyScene.nodes, cc.locomotionAnimTime * cc.moveAnimSpeed, locoW * moveW);
+      sampleClipToNodes(clips.idle, bodyScene.nodes, cc.movementAnimTime, movementW);
+      sampleClipToNodes(clips.run, bodyScene.nodes, cc.movementAnimTime * cc.moveAnimSpeed, movementW * moveW);
 
       updateWorldFromLocals(bodyScene.nodes);
 

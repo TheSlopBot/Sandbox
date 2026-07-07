@@ -23,7 +23,7 @@ Entities are built by game factories, then registered by the scene:
 const entity = registry.createBare();
 entity.components[COMPONENT_KEYS.transform] = createTransform();
 entity.components[COMPONENT_KEYS.character] = createCharacterController();
-entity.components[COMPONENT_KEYS.locomotionIntent] = createLocomotionIntent();
+entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
 entity.components[PLAYER_CONTROLLER_KEY] = createPlayerController();
 registry.register(entity);
 ```
@@ -34,7 +34,8 @@ Mesh sub-entities use `createBare()` → attach components → `register(entity)
 
 - Data only — no `actions`, no registry imports, no per-frame logic
 - Use `COMPONENT_KEYS` constants — never raw string literals for component keys
-- Controllers write `locomotionIntent`; shared systems read it
+- Controllers write `movementIntent`; shared systems read it
+- **Movement** is the canonical term for anything that can move — use `movementIntent`, `movementBlend`, `movementAnimTime`; never `locomotion*`
 
 ## System rules
 
@@ -44,14 +45,15 @@ Mesh sub-entities use `createBare()` → attach components → `register(entity)
 
 ## Controller pattern
 
-Player and AI characters share locomotion, physics, collision, and animation systems. Only the controller differs:
+Player and AI characters share movement, physics, collision, and animation systems. Only the controller differs:
 
 | Component | Written by | Read by |
 |-----------|-----------|---------|
 | `playerController` (sandbox) | — (tag) | `installPlayerInputSystem` |
 | `robotAi` (sandbox) | — (data) | `installRobotAiSystem` |
-| `locomotionIntent` | controller systems | `installMovementSystem` |
-| `character` | locomotion + physics | physics, state, animation |
+| `movementIntent` | controller systems | `installMovementSystem` |
+| `character` | movement + physics | physics, state, animation |
+| `navGrid` | — (data, `dirty` flag) | `installNavGridSystem` (rebuild when dirty), `installRobotAiSystem` |
 
 ## Registry queries
 
@@ -77,10 +79,44 @@ registry.deregister(entity.id);
 
 ## Scene boundaries
 
-- **Game registry** — persistent entities (inventory, global input handlers, render pipeline draw action)
-- **Scene registry** — level terrain, props, player; torn down on `scene.unload()`
-- `game.setActiveScene(scene)` unloads the previous scene before switching
+- **Game registry** — persistent entities (render pipeline draw action, scene manager, global input handlers)
+- **Scene registry** — ephemeral; one per active level visit
+- `scene.load()` creates all level content including the nav grid entity
+- `scene.unload()` deregisters **all** entities and clears ground — nothing persists on the registry
+- `game.setActiveScene(null)` drops the active scene; the `Scene` object is discarded after `switchTo` completes
 - Frame loop runs game registry actions first, then active scene registry actions
+
+## Nav grid
+
+The nav grid is a first-class scene component — not a hidden cache inside an AI system.
+
+| Piece | Location | Role |
+|-------|----------|------|
+| `NavGridComponent` | `viberanium/components/navGrid.ts` | Grid bounds, `blocked` cells, `agentRadius`, `dirty` flag |
+| `createNavGrid()` | component factory | Allocates grid data; `dirty` starts `true` |
+| `markNavGridDirty(registry)` | component helper | Sets `dirty = true` after collider changes during an active level |
+| `updateNavGridBlocked()` | `viberanium/navigation/navGrid.ts` | Pure rebuild of `blocked` from static colliders |
+| `installNavGridSystem()` | `viberanium/systems/navGridSystem.ts` | Rebuilds only when `dirty`; clears flag after rebuild |
+| `findPath` / `pickRandomObjective` | `viberanium/navigation/astar.ts` | Read the grid; never build or own one |
+
+### Lifecycle
+
+Nav grid entity is registered in `scene.load()` and deregistered in `scene.unload()` alongside props and NPCs. Only the active level holds a grid in memory.
+
+```typescript
+// inside scene.load()
+const navGridEntity = registry.createBare();
+navGridEntity.components[COMPONENT_KEYS.navGrid] = createNavGrid(navGridConfig);
+registry.register(navGridEntity);
+```
+
+Bounds come from `LevelDefinition.navGrid` in the level catalog.
+
+### Dirty rebuild contract
+
+- **Do not** rebuild the nav grid every update — only when `navGrid.dirty` is true
+- **Do** call `markNavGridDirty(registry)` when static colliders are added or removed during an active level (e.g. `instantiateStaticProp`, runtime destructibles)
+- AI systems read the scene grid via `registry.view(COMPONENT_KEYS.navGrid)` — never build or cache their own grid
 
 ## Forbidden
 
@@ -88,3 +124,7 @@ registry.deregister(entity.id);
 - `registry.view('character')[0]` in bootstrap to wire a specific entity
 - Bootstrap-time `staticColliders: Collider[]` arrays passed to systems
 - Behavior logic inside component factories
+- Per-frame nav grid rebuilds without `dirty`
+- AI-owned nav grid caches (`WeakMap<Registry, NavGrid>`) — the scene component is the single source of truth
+- Persistent nav grid entities across `unload()` — grid is level content, destroyed with the level
+- `locomotion*` naming for movement-related components or fields — use `movement*`

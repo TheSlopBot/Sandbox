@@ -2,44 +2,35 @@ import {
   type Registry,
   type Collider,
   type Transform,
-  type LocomotionIntent,
+  type MovementIntent,
   type CharacterController,
+  type NavGrid,
   COMPONENT_KEYS,
-  buildNavGrid,
   findPath,
   pickRandomObjective,
   v3Set,
 } from 'viberanium';
 import { ROBOT_AI_KEY, type RobotAi } from '../components/robotAi.ts';
 
-const NAV_MIN_X = -18;
-const NAV_MAX_X = 18;
-const NAV_MIN_Z = -18;
-const NAV_MAX_Z = 18;
-const NAV_CELL = 1.0;
 const WAYPOINT_RADIUS = 0.45;
 const OBJECTIVE_MIN_DIST = 3;
 const OBJECTIVE_MAX_DIST = 16;
 
-const gridCache = new WeakMap<Registry, ReturnType<typeof buildNavGrid>>();
-
-const getNavGrid = (registry: Registry, colliders: Collider[]) => {
-  let grid = gridCache.get(registry);
-  if (!grid) {
-    grid = buildNavGrid(NAV_MIN_X, NAV_MAX_X, NAV_MIN_Z, NAV_MAX_Z, NAV_CELL, colliders);
-    gridCache.set(registry, grid);
+const getSceneNavGrid = (registry: Registry): NavGrid | null => {
+  for (const e of registry.view(COMPONENT_KEYS.navGrid)) {
+    return e.components[COMPONENT_KEYS.navGrid] as NavGrid;
   }
-  return grid;
+
+  return null;
 };
 
 const assignObjective = (
   robot: RobotAi,
-  registry: Registry,
   colliders: Collider[],
+  grid: NavGrid,
   fromX: number,
   fromZ: number,
 ): boolean => {
-  const grid = getNavGrid(registry, colliders);
   const objective = pickRandomObjective(grid, colliders, fromX, fromZ, OBJECTIVE_MIN_DIST, OBJECTIVE_MAX_DIST);
   if (!objective) return false;
 
@@ -60,7 +51,7 @@ const beginPause = (robot: RobotAi) => {
 };
 
 const steerToward = (
-  intent: LocomotionIntent,
+  intent: MovementIntent,
   cc: CharacterController,
   fromX: number,
   fromZ: number,
@@ -79,12 +70,15 @@ const steerToward = (
 
 export const installRobotAiSystem = (registry: Registry) => {
   registry.addAction('update', (ctx) => {
+    const grid = getSceneNavGrid(registry);
+    if (!grid) return;
+
     const colliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
 
     for (const e of registry.view(ROBOT_AI_KEY)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-      const intent = e.components[COMPONENT_KEYS.locomotionIntent] as LocomotionIntent | undefined;
+      const intent = e.components[COMPONENT_KEYS.movementIntent] as MovementIntent | undefined;
       const robot = e.components[ROBOT_AI_KEY] as RobotAi;
       if (!t || !cc || !intent) continue;
 
@@ -94,13 +88,13 @@ export const installRobotAiSystem = (registry: Registry) => {
         intent.jumpRequested = false;
         if (robot.pauseRemaining <= 0) {
           robot.pauseRemaining = 0;
-          assignObjective(robot, registry, colliders, t.position[0], t.position[2]);
+          assignObjective(robot, colliders, grid, t.position[0], t.position[2]);
         }
         continue;
       }
 
       if (robot.path.length === 0) {
-        assignObjective(robot, registry, colliders, t.position[0], t.position[2]);
+        assignObjective(robot, colliders, grid, t.position[0], t.position[2]);
         if (robot.path.length === 0) {
           v3Set(intent.desiredVelocity, 0, 0, 0);
           intent.jumpRequested = false;

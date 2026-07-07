@@ -29,6 +29,7 @@ export type RenderPipeline = {
   readonly camera: Camera;
   readonly target: Vec3;
   setGround: (g: { mesh: DrawItem['mesh']; model: Mat4 }) => void;
+  clearGround: () => void;
   addPostProcess: (stage: PostProcessStage) => () => void;
   getPostProcessStages: () => ReadonlyArray<PostProcessStage>;
 };
@@ -115,6 +116,8 @@ export const installRenderPipeline = (
     };
   };
 
+  const clearGround = () => { groundItem = null; };
+
   let lastDt = 1 / 60;
   registry.addAction('draw', () => {
     device.resize();
@@ -193,6 +196,7 @@ export const installRenderPipeline = (
     camera,
     target,
     setGround,
+    clearGround,
     addPostProcess: (stage) => {
       postStages.push(stage);
       return () => {

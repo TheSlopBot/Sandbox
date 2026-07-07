@@ -17,14 +17,16 @@ viberanium/                  # Game engine (Viberanium)
     ├── components/          # Data-only component types + factories
     ├── systems/             # install*System processors (movement, physics, animation, …)
     ├── navigation/          # A* pathfinding helpers
-    ├── assets/gltf/         # GLB/glTF loader, runtime scene, materials builder
+    ├── assets/gltf/         # GLB/glTF loader, cache, runtime scene, materials builder
     ├── render/              # WebGL2 device, passes, pipeline installer
     └── index.ts             # Public barrel export (package entry only)
 sandbox/                     # Game content
 └── src/
-    ├── startup/             # bootstrap.ts — game-level composition root
-    ├── scenes/              # useTestScene — scene registry, load/unload
+    ├── startup/             # bootstrap, sceneManager, levelLoadingGate
+    ├── levels/              # catalog, assets, useLevelScene
+    ├── scenes/              # createPlayableScene — generic load/unload factory
     ├── player/              # createPlayer — entity assembly + asset loading
+    ├── robot/               # createRobot — NPC assembly + robot AI system
     └── world/               # ground mesh, static props
 ```
 
@@ -32,18 +34,20 @@ Games import the engine via `import { ... } from 'viberanium'`. Game code never 
 
 ## Game vs Scene Registry
 
-- **Game registry** (`game.registry`) — persistent entities, render pipeline, global input handlers
-- **Scene registry** (`scene.registry`) — level props, player, enemies; torn down on `scene.unload()`
-- `game.setActiveScene(scene)` manages scene transitions
+- **Game registry** (`game.registry`) — persistent entities, render pipeline, global input handlers, scene manager
+- **Scene registry** (`scene.registry`) — ephemeral; created per level visit, destroyed on exit
+- `game.setActiveScene(scene)` unloads the previous scene synchronously before activating the next
+
+Session-scoped caches (`GltfCache`, `TextureCache`) live in bootstrap and survive level transitions. Scene registries, entities, nav grids, and GPU meshes for level content do not.
 
 ## Naming Conventions
 
 | Pattern | Example | Use for |
 |---------|---------|---------|
-| `createX()` | `createTransform()` | Data factory — returns a plain object |
+| `createX()` | `createTransform()`, `createGltfCache()` | Data factory — returns a plain object |
 | `installXSystem()` | `installMovementSystem()` | System installer — registers actions on registry |
-| `useX()` | `useRegistry()`, `useTestScene()` | Engine/game primitive — creates and owns internal state |
-| `buildX()` | `buildGltfMaterials()` | Pure transform/builder — no side effects |
+| `useX()` | `useRegistry()`, `useLevelScene()` | Engine/game primitive — creates and owns internal state |
+| `buildX()` | `buildGltfMaterials()`, `updateNavGridBlocked()` | Pure transform/builder — no side effects |
 
 ## Code Style
 
@@ -65,4 +69,10 @@ sandbox/src/enemies/spider/
   systems/
     spiderSystem.ts   # installSpiderSystem
 ```
-Register the entity in a scene's `load()` and call `installSpiderSystem(scene.registry)` once when creating the scene.
+Register spawn logic in a `LevelDefinition` or custom `spawnNpcs` callback. Install feature systems in `createPlayableScene` (or a scene variant) once per scene instance.
+
+When adding geometry that blocks pathfinding, register a static `collider` and call `markNavGridDirty(scene.registry)`.
+
+## Level loading
+
+See `.cursor/rules/levels.mdc` for the full catalog → preload → ephemeral scene → load/unload pattern.

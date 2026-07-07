@@ -2,9 +2,10 @@ import {
   type Registry,
   createTransform,
   createCharacterController,
-  createLocomotionIntent,
+  createMovementIntent,
   createSkeletalRig,
   TextureCache,
+  type GltfCache,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { assembleSkeletalCharacter, type CharacterAnimAssets } from '../character/assembleCharacter.ts';
@@ -20,6 +21,7 @@ export const createRobot = async (
   registry: Registry,
   gl: WebGL2RenderingContext,
   textures: TextureCache,
+  gltfCache: GltfCache,
   animAssets: Pick<CharacterAnimAssets, 'animGeneralGlb' | 'animMovementGlb'>,
   opts: RobotSpawnOpts,
 ) => {
@@ -32,11 +34,11 @@ export const createRobot = async (
   const entity = registry.createBare();
   entity.components[COMPONENT_KEYS.transform] = charT;
   entity.components[COMPONENT_KEYS.character] = createCharacterController();
-  entity.components[COMPONENT_KEYS.locomotionIntent] = createLocomotionIntent();
+  entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
   entity.components[ROBOT_AI_KEY] = createRobotAi(opts);
 
   const { bodyScene, characterParts, renderEntityIds, clips } = await assembleSkeletalCharacter(
-    registry, gl, textures, charT,
+    registry, gl, textures, gltfCache, charT,
     { bodyGlb: opts.bodyGlb, ...animAssets, materialPrefix: opts.materialPrefix },
   );
 

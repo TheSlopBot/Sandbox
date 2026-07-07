@@ -33,7 +33,8 @@ export {
 
 export { createCharacterController, type CharacterController } from './components/characterController.ts';
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
-export { createLocomotionIntent, type LocomotionIntent } from './components/locomotionIntent.ts';
+export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
+export { createNavGrid, markNavGridDirty, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
 export {
   createSkeletalRig,
   type SkeletalRig,
@@ -41,7 +42,8 @@ export {
   type CharacterPart,
 } from './components/skeletalRig.ts';
 
-export { loadGltf } from './assets/gltf/loader.ts';
+export { loadGltf, type LoadedGltf } from './assets/gltf/loader.ts';
+export { createGltfCache, type GltfCache } from './assets/gltf/cache.ts';
 export {
   buildRuntimeScene,
   computeSkinPalette,
@@ -52,10 +54,11 @@ export {
 export { buildRuntimeModel } from './assets/gltf/buildRuntime.ts';
 export { buildGltfMaterials } from './assets/gltf/materials.ts';
 
-export { buildNavGrid, isWalkableWorld, worldToCell, cellToWorld, type NavGrid } from './navigation/navGrid.ts';
+export { buildNavGrid, updateNavGridBlocked, isWalkableWorld, worldToCell, cellToWorld, type NavGrid } from './navigation/navGrid.ts';
 export { findPath, pickRandomObjective } from './navigation/astar.ts';
 
 export { installMovementSystem } from './systems/movementSystem.ts';
+export { installNavGridSystem } from './systems/navGridSystem.ts';
 export { installCharacterPhysicsSystem } from './systems/characterPhysicsSystem.ts';
 export { installCollisionSystem } from './systems/collisionSystem.ts';
 export { installCharacterStateSystem } from './systems/characterStateSystem.ts';
@@ -69,7 +72,7 @@ export {
   type PipelineOptions,
 } from './render/pipeline.ts';
 export { TextureCache } from './render/gl/texture.ts';
-export { createInterleavedMesh, createSkinnedMesh } from './render/gl/mesh.ts';
+export { createInterleavedMesh, createSkinnedMesh, destroyMesh } from './render/gl/mesh.ts';
 export { type Material, type DrawItem, type Camera, DIRECTIONAL_LIGHT } from './render/types.ts';
 export {
   createLoadingScreen,

@@ -19,6 +19,7 @@ Lower `order` runs first within a phase. Reserve bands:
 | Band | Phase | Use |
 |------|-------|-----|
 | 0 | update | input toggles, debug |
+| 4 | update | nav grid blocked-cell refresh when `navGrid.dirty` (`installNavGridSystem`) |
 | 5 | update | player input, AI controller |
 | 6 | update | robot AI pathfinding (sandbox `installRobotAiSystem`) |
 | 8 | update | movement (intent → velocity) |
@@ -71,3 +72,49 @@ registry.register(entity);
 Never call `register` before components are attached — `registry.create()` is an alias for `createBare()` and does not index components.
 
 Components are data-only. Behaviour lives exclusively in system installers.
+
+## Scene manager
+
+`installSceneManager` in `sandbox/src/startup/sceneManager.ts` owns level transitions:
+
+```typescript
+await sceneManager.switchTo('test');
+```
+
+Sequence: unload previous → `gltfCache.preload(urls)` → `useLevelScene` → `game.setActiveScene` → `await scene.load()`.
+
+Install on the **game registry**. Scene systems install on each ephemeral scene registry inside `createPlayableScene`.
+
+## Nav grid system
+
+`installNavGridSystem(registry)` runs at update order **4** — before robot AI (6) and movement (8).
+
+```typescript
+export const installNavGridSystem = (registry: Registry) => {
+  registry.addAction('update', () => {
+    for (const e of registry.view(COMPONENT_KEYS.navGrid)) {
+      const grid = e.components[COMPONENT_KEYS.navGrid] as NavGridComponent;
+      if (!grid.dirty) continue;
+
+      const colliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
+      updateNavGridBlocked(grid, colliders, grid.agentRadius);
+      grid.dirty = false;
+    }
+  }, 4);
+};
+```
+
+### When to mark dirty
+
+Call `markNavGridDirty(registry)` after any change to static scene colliders:
+
+| Trigger | Example |
+|---------|---------|
+| Collider added | `instantiateStaticProp` after `registry.register` |
+| Colliders removed at runtime | Destructible props, doors (future) |
+
+`unload()` destroys the nav grid entity — no `markNavGridDirty` needed on teardown.
+
+### AI pathfinding
+
+Sandbox `installRobotAiSystem` reads the scene nav grid — it does not build or cache its own. Install order: `installNavGridSystem` before `installRobotAiSystem` so blocked cells are fresh when `dirty` was set the same frame.

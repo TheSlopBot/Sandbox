@@ -35,6 +35,23 @@ const isBlockedWorld = (x: number, z: number, colliders: Collider[], margin: num
   return false;
 };
 
+export const updateNavGridBlocked = (
+  grid: NavGrid,
+  colliders: Collider[],
+  agentRadius = 0.35,
+): void => {
+  grid.blocked.fill(0);
+
+  for (let row = 0; row < grid.rows; row++) {
+    for (let col = 0; col < grid.cols; col++) {
+      const { x, z } = cellToWorld(grid, col, row);
+      if (isBlockedWorld(x, z, colliders, agentRadius)) {
+        grid.blocked[cellIndex(grid, col, row)] = 1;
+      }
+    }
+  }
+};
+
 export const buildNavGrid = (
   minX: number,
   maxX: number,
@@ -46,18 +63,11 @@ export const buildNavGrid = (
 ): NavGrid => {
   const cols = Math.max(1, Math.ceil((maxX - minX) / cellSize));
   const rows = Math.max(1, Math.ceil((maxZ - minZ) / cellSize));
-  const blocked = new Uint8Array(cols * rows);
+  const grid: NavGrid = { minX, minZ, cols, rows, cellSize, blocked: new Uint8Array(cols * rows) };
 
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const { x, z } = cellToWorld({ minX, minZ, cols, rows, cellSize, blocked }, col, row);
-      if (isBlockedWorld(x, z, colliders, agentRadius)) {
-        blocked[cellIndex({ minX, minZ, cols, rows, cellSize, blocked }, col, row)] = 1;
-      }
-    }
-  }
+  updateNavGridBlocked(grid, colliders, agentRadius);
 
-  return { minX, minZ, cols, rows, cellSize, blocked };
+  return grid;
 };
 
 export const isWalkableWorld = (grid: NavGrid, x: number, z: number, colliders: Collider[]): boolean => {
