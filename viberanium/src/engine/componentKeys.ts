@@ -1,0 +1,15 @@
+export const COMPONENT_KEYS = {
+  transform: 'transform',
+  collider: 'collider',
+  character: 'character',
+  locomotionIntent: 'locomotionIntent',
+  playerController: 'playerController',
+  aiController: 'aiController',
+  skeletalRig: 'skeletalRig',
+  cameraFollow: 'cameraFollow',
+  renderable: 'renderable',
+  skin: 'skin',
+  gltfNodeIndex: 'gltfNodeIndex',
+} as const;
+
+export type ComponentKey = (typeof COMPONENT_KEYS)[keyof typeof COMPONENT_KEYS];

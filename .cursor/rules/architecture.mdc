@@ -10,7 +10,7 @@ alwaysApply: true
 ```
 viberanium/                  # Game engine (Viberanium)
 └── src/
-    ├── engine/              # Core loop, registry, entity primitives
+    ├── engine/              # Core loop, registry, scene, entity primitives
     ├── math/                # vec3, quat, mat4 — no deps, no classes
     ├── input/               # createInput — keyboard, mouse, pointer lock
     ├── collision/           # Pure AABB/OBB math helpers (no GL, no registry)
@@ -18,25 +18,32 @@ viberanium/                  # Game engine (Viberanium)
     ├── assets/gltf/         # GLB/glTF loader, runtime scene, materials builder
     ├── render/              # WebGL2 device, passes, pipeline installer
     ├── starter/             # Optional 3rd-person kit (components + systems)
-    │   ├── components/      # characterController, cameraFollow
-    │   └── systems/         # character, camera, animation installers
+    │   ├── components/      # characterController, locomotionIntent, skeletalRig
+    │   └── systems/         # playerInput, locomotion, physics, animation installers
     └── index.ts             # Public barrel export (package entry only)
 sandbox/                     # Game content
 └── src/
-    ├── startup/             # bootstrap.ts — composition root
+    ├── startup/             # bootstrap.ts — game-level composition root
+    ├── scenes/              # useTestScene — scene registry, load/unload
     ├── player/              # createPlayer — entity assembly + asset loading
     └── world/               # ground mesh, static props
 ```
 
 Games import the engine via `import { ... } from 'viberanium'`. Game code never lives under `viberanium/`.
 
+## Game vs Scene Registry
+
+- **Game registry** (`game.registry`) — persistent entities, render pipeline, global input handlers
+- **Scene registry** (`scene.registry`) — level props, player, enemies; torn down on `scene.unload()`
+- `game.setActiveScene(scene)` manages scene transitions
+
 ## Naming Conventions
 
 | Pattern | Example | Use for |
 |---------|---------|---------|
 | `createX()` | `createTransform()` | Data factory — returns a plain object |
-| `installXSystem()` | `installCharacterSystem()` | System installer — registers actions on registry |
-| `useX()` | `useRegistry()` | Engine primitive — creates and owns internal state |
+| `installXSystem()` | `installLocomotionSystem()` | System installer — registers actions on registry |
+| `useX()` | `useRegistry()`, `useTestScene()` | Engine/game primitive — creates and owns internal state |
 | `buildX()` | `buildGltfMaterials()` | Pure transform/builder — no side effects |
 
 ## Code Style
@@ -59,4 +66,4 @@ sandbox/src/enemies/spider/
   systems/
     spiderSystem.ts   # installSpiderSystem
 ```
-Register in `sandbox/src/startup/bootstrap.ts` with a call to `installSpiderSystem(registry, staticColliders)`.
+Register the entity in a scene's `load()` and call `installSpiderSystem(scene.registry)` once when creating the scene.

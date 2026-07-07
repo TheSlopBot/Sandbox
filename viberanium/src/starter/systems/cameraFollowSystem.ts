@@ -1,5 +1,6 @@
 import { type Registry } from '../../engine/registry.ts';
 import { type Input } from '../../input/input.ts';
+import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
 import { type Transform } from '../../components/transform.ts';
 import { type Collider } from '../../components/collider.ts';
 import { type CameraFollow } from '../components/cameraFollow.ts';
@@ -18,16 +19,17 @@ const wrapTwoPi = (a: number): number => {
   return a;
 };
 
-export const installCameraSystem = (
+export const installCameraFollowSystem = (
   registry: Registry,
   pipeline: RenderPipeline,
   input: Input,
-  staticColliders: Collider[],
 ) => {
   registry.addAction('update', (ctx) => {
-    for (const e of registry.view('cameraFollow')) {
-      const cf = e.components['cameraFollow'] as CameraFollow;
-      const t = e.components['transform'] as Transform | undefined;
+    const colliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
+
+    for (const e of registry.view(COMPONENT_KEYS.cameraFollow)) {
+      const cf = e.components[COMPONENT_KEYS.cameraFollow] as CameraFollow;
+      const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       if (!t) continue;
 
       const { dx, dy } = input.mouseDelta();
@@ -51,7 +53,7 @@ export const installCameraSystem = (
 
       let dist = idealDist;
 
-      for (const s of staticColliders) {
+      for (const s of colliders) {
         if (!s.isStatic) continue;
         for (let step = MIN_DIST; step < idealDist; step += 0.25) {
           const tx = pivotX + rayX * step;

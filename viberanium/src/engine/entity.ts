@@ -8,7 +8,9 @@ export type Entity = {
   onDeregister: Array<() => void>;
 };
 
-export function createEntity(id: EntityId): Entity {
-  return { id, components: Object.create(null) as Components, onDeregister: [] };
-}
+export const createEntity = (id: EntityId): Entity => ({
+  id,
+  components: Object.create(null) as Components,
+  onDeregister: [],
+});
 

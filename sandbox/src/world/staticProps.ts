@@ -9,6 +9,7 @@ import {
   buildRuntimeModel,
   buildGltfMaterials,
   aabb,
+  COMPONENT_KEYS,
 } from 'viberanium';
 
 type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
@@ -87,7 +88,7 @@ export const instantiateStaticProp = async (
   gltfUrl: string,
   materialPrefix: string,
   opts: PropOpts = {},
-): Promise<Collider | null> => {
+): Promise<boolean> => {
   const loaded = await loadGltf(gltfUrl);
   const runtimeMeshes = buildRuntimeModel(loaded);
   const mats = buildGltfMaterials(loaded, materialPrefix, textures);
@@ -114,12 +115,12 @@ export const instantiateStaticProp = async (
       expandBoundsFromInterleaved(localMin, localMax, prim.vertices);
 
       const e = registry.create();
-      e.components['transform'] = t;
-      e.components['renderable'] = { mesh, material };
+      e.components[COMPONENT_KEYS.transform] = t;
+      e.components[COMPONENT_KEYS.renderable] = { mesh, material };
     }
   }
 
-  if (!Number.isFinite(localMin[0])) return null;
+  if (!Number.isFinite(localMin[0])) return false;
 
   if (opts.y === undefined) {
     t.position[1] = -localMin[1] * s;
@@ -134,7 +135,7 @@ export const instantiateStaticProp = async (
   };
 
   const ce = registry.create();
-  ce.components['collider'] = collider;
+  ce.components[COMPONENT_KEYS.collider] = collider;
 
-  return collider;
+  return true;
 };

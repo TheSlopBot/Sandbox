@@ -1,5 +1,6 @@
 import {
   type Registry,
+  type Entity,
   type Transform,
   createTransform,
   createSkinInstance,
@@ -12,13 +13,16 @@ import {
   TextureCache,
   loadGltf,
   buildRuntimeScene,
-  type RuntimeScene,
   buildGltfMaterials,
   m4,
   createCharacterController,
   createCameraFollow,
+  createLocomotionIntent,
+  createPlayerController,
+  createSkeletalRig,
   type AnimClips,
   type CharacterPart,
+  COMPONENT_KEYS,
 } from 'viberanium';
 
 export type PlayerAssets = {
@@ -27,11 +31,8 @@ export type PlayerAssets = {
   animMovementGlb: string;
 };
 
-export type PlayerRefs = {
-  charT: Transform;
-  bodyScene: RuntimeScene;
-  characterParts: CharacterPart[];
-  clips: AnimClips;
+export type PlayerEntity = {
+  entity: Entity;
 };
 
 const pickClip = (clips: AnimClip[], name: string): AnimClip => {
@@ -48,7 +49,7 @@ const buildSkinnedEntities = (
   gl: WebGL2RenderingContext,
   charT: Transform,
   sceneRuntime: ReturnType<typeof buildRuntimeScene>,
-  targetNodes: RuntimeScene['nodes'],
+  targetNodes: ReturnType<typeof buildRuntimeScene>['nodes'],
   mats: Material[],
 ): CharacterPart[] => {
   const characterParts: CharacterPart[] = [];
@@ -82,17 +83,17 @@ const buildSkinnedEntities = (
       if (prim.kind === 'skinned' && skinInst) {
         const mesh = createSkinnedMesh(gl, prim.vertices, prim.joints, prim.weights, prim.indices, skinInst.jointCount);
         const e = registry.create();
-        e.components['transform'] = charT;
-        e.components['skin'] = skinInst;
-        e.components['gltfNodeIndex'] = pair.nodeIndex;
-        e.components['renderable'] = { mesh, material, model: m4() };
+        e.components[COMPONENT_KEYS.transform] = charT;
+        e.components[COMPONENT_KEYS.skin] = skinInst;
+        e.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
+        e.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
         renderEntityIds.push(e.id);
       } else {
         const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
         const e = registry.create();
-        e.components['transform'] = charT;
-        e.components['gltfNodeIndex'] = pair.nodeIndex;
-        e.components['renderable'] = { mesh, material, model: m4() };
+        e.components[COMPONENT_KEYS.transform] = charT;
+        e.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
+        e.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
         renderEntityIds.push(e.id);
       }
     }
@@ -108,15 +109,17 @@ export const createPlayer = async (
   gl: WebGL2RenderingContext,
   textures: TextureCache,
   assets: PlayerAssets,
-): Promise<PlayerRefs> => {
+): Promise<PlayerEntity> => {
   const charT = createTransform();
   charT.position[1] = 1.6;
   charT.dirty = true;
 
-  const characterEntity = registry.create();
-  characterEntity.components['transform'] = charT;
-  characterEntity.components['character'] = createCharacterController();
-  characterEntity.components['cameraFollow'] = createCameraFollow();
+  const entity = registry.createBare();
+  entity.components[COMPONENT_KEYS.transform] = charT;
+  entity.components[COMPONENT_KEYS.character] = createCharacterController();
+  entity.components[COMPONENT_KEYS.locomotionIntent] = createLocomotionIntent();
+  entity.components[COMPONENT_KEYS.playerController] = createPlayerController();
+  entity.components[COMPONENT_KEYS.cameraFollow] = createCameraFollow();
 
   const [bodyLoaded, idleLoaded, moveLoaded] = await Promise.all([
     loadGltf(assets.bodyGlb),
@@ -137,7 +140,7 @@ export const createPlayer = async (
     jumpLand: pickClip(moveClips, 'jump_land'),
   };
 
-  const cc = characterEntity.components['character'] as ReturnType<typeof createCharacterController>;
+  const cc = entity.components[COMPONENT_KEYS.character] as ReturnType<typeof createCharacterController>;
   cc.jumpStartDuration = clips.jumpStart.duration;
   cc.jumpLandDuration = clips.jumpLand.duration;
 
@@ -146,5 +149,9 @@ export const createPlayer = async (
     bodyScene, bodyScene.nodes, bodyMats,
   );
 
-  return { charT, bodyScene, characterParts, clips };
+  entity.components[COMPONENT_KEYS.skeletalRig] = createSkeletalRig(
+    bodyScene, characterParts, clips,
+  );
+
+  return { entity };
 };

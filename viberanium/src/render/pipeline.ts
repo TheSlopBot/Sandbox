@@ -1,4 +1,5 @@
 import { type Registry } from '../engine/registry.ts';
+import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { createDevice, type GLDevice } from './gl/device.ts';
 import { createColorFramebuffer, type ColorFramebuffer } from './gl/colorFramebuffer.ts';
 import { createSceneFramebuffer } from './gl/framebuffer.ts';
@@ -59,10 +60,16 @@ const computeLightViewProj = (center: Vec3): Mat4 => {
   return lightViewProj;
 };
 
+export type PipelineOptions = {
+  getEntityRegistry?: () => Registry;
+};
+
 export const installRenderPipeline = (
   registry: Registry,
   canvas: HTMLCanvasElement,
+  options: PipelineOptions = {},
 ): RenderPipeline => {
+  const getEntityRegistry = options.getEntityRegistry ?? (() => registry);
   const device = createDevice(canvas);
   const gl = device.gl;
 
@@ -123,9 +130,10 @@ export const installRenderPipeline = (
     viewProj.set(_viewProj);
 
     const items: DrawItem[] = [];
-    for (const e of registry.view('renderable')) {
-      const t = e.components['transform'] as Transform | undefined;
-      const r = e.components['renderable'] as Renderable | undefined;
+    const entityRegistry = getEntityRegistry();
+    for (const e of entityRegistry.view(COMPONENT_KEYS.renderable)) {
+      const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
+      const r = e.components[COMPONENT_KEYS.renderable] as Renderable | undefined;
       if (!t || !r) continue;
       updateWorldMatrix(t);
       const model = r.model ?? t.world;
@@ -134,7 +142,7 @@ export const installRenderPipeline = (
         material: r.material,
         model,
         sortZ: t.world[14],
-        skin: e.components['skin'] as DrawItem['skin'],
+        skin: e.components[COMPONENT_KEYS.skin] as DrawItem['skin'],
       });
     }
 

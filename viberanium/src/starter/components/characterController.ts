@@ -1,4 +1,5 @@
 import { type Vec3, v3 } from '../../math/vec3.ts';
+import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
 
 export type JumpPhase = 'none' | 'start' | 'air' | 'land';
 
@@ -18,6 +19,8 @@ export type CharacterController = {
   locomotionAnimTime: number;
   moveAnimSpeed: number;
   locomotionBlend: number;
+  obstructiveColliderKeys: readonly string[];
+  wasOnGroundPrevious: boolean;
 };
 
 export const createCharacterController = (): CharacterController => ({
@@ -36,4 +39,6 @@ export const createCharacterController = (): CharacterController => ({
   locomotionAnimTime: 0,
   moveAnimSpeed: 1.5,
   locomotionBlend: 1,
+  obstructiveColliderKeys: [COMPONENT_KEYS.collider],
+  wasOnGroundPrevious: false,
 });

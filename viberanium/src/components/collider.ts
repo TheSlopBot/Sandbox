@@ -1,3 +1,4 @@
+import { type EntityId } from '../engine/entity.ts';
 import { type Vec3, v3 } from '../math/vec3.ts';
 
 export type Aabb = {
@@ -12,6 +13,7 @@ export type ObbY = {
 };
 
 export type Collider = {
+  entityId?: EntityId;
   aabb: Aabb;
   isStatic: boolean;
   obbY?: ObbY;

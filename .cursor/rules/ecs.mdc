@@ -1,0 +1,90 @@
+---
+description: ECS boundaries — entities, components, systems, registry queries, and scene separation
+alwaysApply: true
+---
+
+# ECS
+
+## Core concepts
+
+| Concept | Role | Lives in |
+|---------|------|----------|
+| **Entity** | Plain bag of components; no methods | Game `createXEntity()` factories |
+| **Component** | Data-only plain object | `viberanium/components/` or game `components/` |
+| **System** | `installXSystem(registry, ...deps)` — one concern per installer | `viberanium/starter/systems/` or game `systems/` |
+| **Scene** | Owns a scene `Registry`; load/unload level content | Game `scenes/` |
+| **Game** | Owns persistent game `Registry` + active scene | `bootstrap.ts` |
+
+## Entity assembly
+
+Entities are built by game factories, then registered by the scene:
+
+```typescript
+const entity = registry.createBare();
+entity.components[COMPONENT_KEYS.transform] = createTransform();
+entity.components[COMPONENT_KEYS.character] = createCharacterController();
+entity.components[COMPONENT_KEYS.locomotionIntent] = createLocomotionIntent();
+entity.components[COMPONENT_KEYS.playerController] = createPlayerController();
+registry.register(entity);
+```
+
+Mesh sub-entities (render parts) may use `registry.create()` for immediate registration.
+
+## Component rules
+
+- Data only — no `actions`, no registry imports, no per-frame logic
+- Use `COMPONENT_KEYS` constants — never raw string literals for component keys
+- Controllers write `locomotionIntent`; shared systems read it
+
+## System rules
+
+- One concern per `install*System` — never combine input + physics + animation
+- Query the registry each frame — never hold entity references or collider arrays
+- Install on the registry that owns the entities (scene registry for level content)
+
+## Controller pattern
+
+Player and AI characters share locomotion, physics, collision, and animation systems. Only the controller differs:
+
+| Component | Written by | Read by |
+|-----------|-----------|---------|
+| `playerController` | — (tag) | `installPlayerInputSystem` |
+| `aiController` | — (data) | `installAiControllerSystem` |
+| `locomotionIntent` | controller systems | `installLocomotionSystem` |
+| `character` | locomotion + physics | physics, state, animation |
+
+## Registry queries
+
+```typescript
+for (const e of registry.view(COMPONENT_KEYS.character)) { ... }
+
+const colliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
+```
+
+- `view(key)` — cached entity list for one component key
+- `getComponentsByName(key)` — flat list of all component instances (collision, raycasts)
+- Never pass collider arrays or entity references to system installers
+
+## Component lifecycle
+
+```typescript
+registry.addComponent(entity, COMPONENT_KEYS.collider, collider);
+registry.removeComponent(entity, COMPONENT_KEYS.collider);
+registry.deregister(entity.id);
+```
+
+`addComponent` / `removeComponent` invalidate the view cache for that key.
+
+## Scene boundaries
+
+- **Game registry** — persistent entities (inventory, global input handlers, render pipeline draw action)
+- **Scene registry** — level terrain, props, player; torn down on `scene.unload()`
+- `game.setActiveScene(scene)` unloads the previous scene before switching
+- Frame loop runs game registry actions first, then active scene registry actions
+
+## Forbidden
+
+- Monolithic systems combining input, physics, and animation
+- `registry.view('character')[0]` in bootstrap to wire a specific entity
+- Bootstrap-time `staticColliders: Collider[]` arrays passed to systems
+- Behavior logic inside component factories
