@@ -4,7 +4,7 @@ const GLYPH_WIDTH = 8;
 const GLYPH_HEIGHT = 12;
 const FONT = '10px Consolas, "Courier New", monospace';
 
-export function createGlyphAtlasTexture(gl: WebGL2RenderingContext): WebGLTexture {
+export const createGlyphAtlasTexture = (gl: WebGL2RenderingContext): WebGLTexture => {
   const atlas = document.createElement('canvas');
   atlas.width = ASCII_DENSITY.length * GLYPH_WIDTH;
   atlas.height = GLYPH_HEIGHT;
@@ -34,4 +34,4 @@ export function createGlyphAtlasTexture(gl: WebGL2RenderingContext): WebGLTextur
   gl.bindTexture(gl.TEXTURE_2D, null);
 
   return tex;
-}
+};

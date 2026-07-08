@@ -34,7 +34,7 @@ export {
 export { createCharacterController, type CharacterController } from './components/characterController.ts';
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
 export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
-export { createNavGrid, markNavGridDirty, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
+export { createNavGrid, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
 export {
   createSkeletalRig,
   type SkeletalRig,
@@ -55,6 +55,7 @@ export { buildRuntimeModel } from './assets/gltf/buildRuntime.ts';
 export { buildGltfMaterials } from './assets/gltf/materials.ts';
 
 export { buildNavGrid, updateNavGridBlocked, isWalkableWorld, worldToCell, cellToWorld, type NavGrid } from './navigation/navGrid.ts';
+export { markNavGridDirty } from './navigation/markNavGridDirty.ts';
 export { findPath, pickRandomObjective } from './navigation/astar.ts';
 
 export { installMovementSystem } from './systems/movementSystem.ts';
@@ -71,7 +72,7 @@ export {
   type PostProcessStage,
   type PipelineOptions,
 } from './render/pipeline.ts';
-export { TextureCache } from './render/gl/texture.ts';
+export { createTextureCache, type TextureCache } from './render/gl/texture.ts';
 export { createInterleavedMesh, createSkinnedMesh, destroyMesh } from './render/gl/mesh.ts';
 export { type Material, type DrawItem, type Camera, DIRECTIONAL_LIGHT } from './render/types.ts';
 export {

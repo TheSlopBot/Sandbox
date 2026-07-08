@@ -5,7 +5,7 @@ import {
   createTransform,
   createInterleavedMesh,
   destroyMesh,
-  TextureCache,
+  type TextureCache,
   type GltfCache,
   buildRuntimeModel,
   buildGltfMaterials,

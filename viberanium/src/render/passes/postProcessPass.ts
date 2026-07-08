@@ -1,38 +1,43 @@
-import { ShaderProgram } from '../gl/shader.ts';
+import { type ShaderProgram } from '../gl/shader.ts';
 
-export class PostProcessPass {
-  private readonly gl: WebGL2RenderingContext;
-  private readonly program: ShaderProgram;
-  private readonly vao: WebGLVertexArrayObject;
+export type PostProcessPass = {
+  draw: (sceneTex: WebGLTexture, width: number, height: number, targetFramebuffer?: WebGLFramebuffer | null) => void;
+  destroy: () => void;
+};
 
-  constructor(gl: WebGL2RenderingContext, program: ShaderProgram) {
-    this.gl = gl;
-    this.program = program;
+export const createPostProcessPass = (gl: WebGL2RenderingContext, program: ShaderProgram): PostProcessPass => {
+  const vao = gl.createVertexArray();
+  if (!vao) throw new Error('createVertexArray failed');
 
-    const vao = gl.createVertexArray();
-    if (!vao) throw new Error('createVertexArray failed');
-    this.vao = vao;
-  }
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    gl.deleteVertexArray(vao);
+    program.destroy();
+  };
 
-  draw(sceneTex: WebGLTexture, width: number, height: number, targetFramebuffer: WebGLFramebuffer | null = null) {
-    const gl = this.gl;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
-    gl.viewport(0, 0, width, height);
-    gl.disable(gl.DEPTH_TEST);
-    gl.disable(gl.CULL_FACE);
-    gl.disable(gl.BLEND);
+  return {
+    draw: (sceneTex, width, height, targetFramebuffer = null) => {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
+      gl.viewport(0, 0, width, height);
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+      gl.disable(gl.BLEND);
 
-    this.program.use();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-    gl.uniform1i(this.program.u('u_scene'), 0);
-    gl.uniform2f(this.program.u('u_resolution'), width, height);
+      program.use();
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+      gl.uniform1i(program.u('u_scene'), 0);
+      gl.uniform2f(program.u('u_resolution'), width, height);
 
-    gl.bindVertexArray(this.vao);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.bindVertexArray(null);
+      gl.bindVertexArray(vao);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindVertexArray(null);
 
-    gl.enable(gl.DEPTH_TEST);
-    gl.enable(gl.CULL_FACE);
-  }
-}
+      gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
+    },
+    destroy,
+  };
+};

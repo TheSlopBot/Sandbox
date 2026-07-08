@@ -3,7 +3,7 @@
   createInput,
   createGltfCache,
   installRenderPipeline,
-  TextureCache,
+  createTextureCache,
   createAsciiPostProcessStage,
 } from 'viberanium';
 import { LEVEL_CATALOG } from '../levels/catalog.ts';
@@ -23,7 +23,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
     getEntityRegistry: () => activeSceneRegistry,
   });
   const gl = pipeline.device.gl;
-  const textures = new TextureCache(gl);
+  const textures = createTextureCache(gl);
   const gltfCache = createGltfCache();
 
   const asciiStage = createAsciiPostProcessStage(gl);
@@ -55,6 +55,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
       game.stop();
       game.setActiveScene(null);
 
+      pipeline.destroy();
       sceneManager.destroy();
       removeCommit();
       removeAsciiToggle();

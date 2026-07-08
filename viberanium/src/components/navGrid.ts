@@ -1,5 +1,3 @@
-import { type Registry } from '../engine/registry.ts';
-import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type NavGrid } from '../navigation/navGrid.ts';
 
 export type NavGridComponent = NavGrid & {
@@ -30,10 +28,4 @@ export const createNavGrid = (opts: NavGridOpts): NavGridComponent => {
     agentRadius: opts.agentRadius ?? 0.35,
     dirty: true,
   };
-};
-
-export const markNavGridDirty = (registry: Registry): void => {
-  for (const e of registry.view(COMPONENT_KEYS.navGrid)) {
-    (e.components[COMPONENT_KEYS.navGrid] as NavGridComponent).dirty = true;
-  }
 };

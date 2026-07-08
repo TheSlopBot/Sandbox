@@ -4,7 +4,7 @@ export type GLDevice = {
   resize: () => void;
 };
 
-export function createDevice(canvas: HTMLCanvasElement): GLDevice {
+export const createDevice = (canvas: HTMLCanvasElement): GLDevice => {
   const gl = canvas.getContext('webgl2', {
     alpha: false,
     antialias: true,
@@ -21,7 +21,7 @@ export function createDevice(canvas: HTMLCanvasElement): GLDevice {
   gl2.enable(gl2.CULL_FACE);
   gl2.cullFace(gl2.BACK);
 
-  function resize() {
+  const resize = () => {
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     const w = Math.floor(canvas.clientWidth * dpr);
     const h = Math.floor(canvas.clientHeight * dpr);
@@ -30,8 +30,8 @@ export function createDevice(canvas: HTMLCanvasElement): GLDevice {
       canvas.height = h;
       gl2.viewport(0, 0, w, h);
     }
-  }
+  };
 
   return { gl: gl2, canvas, resize };
-}
+};
 

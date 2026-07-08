@@ -6,9 +6,10 @@ export type ColorFramebuffer = {
   resize: (w: number, h: number) => void;
   bind: () => void;
   unbind: () => void;
+  destroy: () => void;
 };
 
-export function createColorFramebuffer(gl: WebGL2RenderingContext): ColorFramebuffer {
+export const createColorFramebuffer = (gl: WebGL2RenderingContext): ColorFramebuffer => {
   const fbo = gl.createFramebuffer();
   const colorTex = gl.createTexture();
   if (!fbo || !colorTex) throw new Error('Failed to create color framebuffer');
@@ -16,7 +17,7 @@ export function createColorFramebuffer(gl: WebGL2RenderingContext): ColorFramebu
   let width = 0;
   let height = 0;
 
-  function alloc(w: number, h: number) {
+  const alloc = (w: number, h: number) => {
     width = Math.max(1, w);
     height = Math.max(1, h);
 
@@ -37,7 +38,15 @@ export function createColorFramebuffer(gl: WebGL2RenderingContext): ColorFramebu
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindTexture(gl.TEXTURE_2D, null);
-  }
+  };
+
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    gl.deleteFramebuffer(fbo);
+    gl.deleteTexture(colorTex);
+  };
 
   return {
     fbo,
@@ -56,5 +65,6 @@ export function createColorFramebuffer(gl: WebGL2RenderingContext): ColorFramebu
     unbind() {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     },
+    destroy,
   };
-}
+};

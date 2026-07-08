@@ -1,5 +1,5 @@
 import { ASCII_DENSITY, createGlyphAtlasTexture } from '../ascii/glyphAtlas.ts';
-import { ShaderProgram } from '../gl/shader.ts';
+import { createShaderProgram } from '../gl/shader.ts';
 import { loadingBokehFS, loadingBokehVS } from './loadingBokehShaders.ts';
 
 const MAX_DPR = 2;
@@ -39,7 +39,7 @@ export const createLoadingScreen = (
   if (!glCtx) throw new Error('WebGL2 unavailable for loading screen');
   const gl = glCtx;
 
-  const program = new ShaderProgram(gl, loadingBokehVS, loadingBokehFS);
+  const program = createShaderProgram(gl, loadingBokehVS, loadingBokehFS);
   const glyphTex = createGlyphAtlasTexture(gl);
   const vao = gl.createVertexArray();
   if (!vao) throw new Error('createVertexArray failed');
@@ -146,7 +146,7 @@ export const createLoadingScreen = (
       motionQuery.removeEventListener('change', onMotionPreference);
       gl.deleteTexture(glyphTex);
       gl.deleteVertexArray(vao);
-      gl.deleteProgram(program.program);
+      program.destroy();
     },
   };
 };

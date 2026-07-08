@@ -56,7 +56,7 @@ export type RuntimeScene = {
   meshNodePairs: Array<{ nodeIndex: number; meshIndex: number; skinIndex: number }>;
 };
 
-function numComponents(type: string): number {
+const numComponents = (type: string): number => {
   switch (type) {
     case 'SCALAR':
       return 1;
@@ -71,9 +71,13 @@ function numComponents(type: string): number {
     default:
       return 1;
   }
-}
+};
 
-function getAccessorView(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): { acc: NonNullable<Gltf['accessors']>[number]; view: DataView; stride: number } {
+const getAccessorView = (
+  gltf: Gltf,
+  buffers: ArrayBuffer[],
+  accessorIndex: number,
+): { acc: NonNullable<Gltf['accessors']>[number]; view: DataView; stride: number } => {
   const acc = gltf.accessors?.[accessorIndex];
   if (!acc) throw new Error(`Missing accessor ${accessorIndex}`);
   const bv = gltf.bufferViews?.[acc.bufferView];
@@ -82,9 +86,9 @@ function getAccessorView(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: numb
   const offset = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
   const stride = bv.byteStride ?? 0;
   return { acc, view: new DataView(buf, offset, bv.byteLength - (acc.byteOffset ?? 0)), stride };
-}
+};
 
-function readFloats(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Float32Array {
+const readFloats = (gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Float32Array => {
   const { acc, view, stride } = getAccessorView(gltf, buffers, accessorIndex);
   if (acc.componentType !== 5126) throw new Error(`Unsupported float componentType ${acc.componentType}`);
   const comps = numComponents(acc.type);
@@ -96,9 +100,9 @@ function readFloats(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): 
     for (let c = 0; c < comps; c++) out[o++] = view.getFloat32(base + c * 4, true);
   }
   return out;
-}
+};
 
-function readU16OrU8Vec4(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Uint16Array {
+const readU16OrU8Vec4 = (gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Uint16Array => {
   const { acc, view, stride } = getAccessorView(gltf, buffers, accessorIndex);
   if (acc.type !== 'VEC4') throw new Error(`Expected VEC4 accessor, got ${acc.type}`);
   const out = new Uint16Array(acc.count * 4);
@@ -130,9 +134,9 @@ function readU16OrU8Vec4(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: numb
       throw new Error(`Unsupported JOINTS componentType ${acc.componentType}`);
   }
   return out;
-}
+};
 
-function readWeightsVec4(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Float32Array {
+const readWeightsVec4 = (gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Float32Array => {
   const { acc, view, stride } = getAccessorView(gltf, buffers, accessorIndex);
   if (acc.type !== 'VEC4') throw new Error(`Expected VEC4 accessor, got ${acc.type}`);
   const out = new Float32Array(acc.count * 4);
@@ -175,9 +179,9 @@ function readWeightsVec4(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: numb
       throw new Error(`Unsupported WEIGHTS componentType ${acc.componentType}`);
   }
   return out;
-}
+};
 
-function readIndices(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Uint32Array {
+const readIndices = (gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Uint32Array => {
   const { acc, view, stride } = getAccessorView(gltf, buffers, accessorIndex);
   if (stride) {
     // Indices are expected tightly packed; ignore stride.
@@ -195,13 +199,11 @@ function readIndices(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number):
       throw new Error(`Unsupported index componentType ${acc.componentType}`);
   }
   return out;
-}
+};
 
-function nodeName(n: NonNullable<Gltf['nodes']>[number] | undefined, idx: number): string {
-  return n?.name ?? `node${idx}`;
-}
+const nodeName = (n: NonNullable<Gltf['nodes']>[number] | undefined, idx: number): string => n?.name ?? `node${idx}`;
 
-export function buildRuntimeScene(loaded: LoadedGltf): RuntimeScene {
+export const buildRuntimeScene = (loaded: LoadedGltf): RuntimeScene => {
   const { gltf, buffers } = loaded;
 
   // Nodes
@@ -354,9 +356,9 @@ export function buildRuntimeScene(loaded: LoadedGltf): RuntimeScene {
   }
 
   return { gltf, nodes, skins, models, meshNodePairs };
-}
+};
 
-export function updateWorldFromLocals(nodes: RuntimeNode[]): void {
+export const updateWorldFromLocals = (nodes: RuntimeNode[]): void => {
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     // If a node has a baked matrix in glTF, localM is authoritative; otherwise rebuild from TRS.
@@ -371,19 +373,19 @@ export function updateWorldFromLocals(nodes: RuntimeNode[]): void {
       m4Mul(n.worldM, nodes[n.parent].worldM, n.localM);
     }
   }
-}
+};
 
 const _invMeshWorld = m4();
 const _tmpA = m4();
 const _tmpB = m4();
 
-export function computeSkinPalette(
+export const computeSkinPalette = (
   nodes: RuntimeNode[],
   skin: RuntimeSkin,
   paletteOut: Float32Array,
   entityWorld: Mat4,
   meshWorld: Mat4,
-): void {
+): void => {
   // paletteOut layout: jointCount * 16 floats
   m4Invert(_invMeshWorld, meshWorld);
   for (let j = 0; j < skin.joints.length; j++) {
@@ -398,13 +400,13 @@ export function computeSkinPalette(
     const outM = paletteOut.subarray(outOff, outOff + 16);
     m4Mul(outM as unknown as Mat4, _tmpB, invBind);
   }
-}
+};
 
-export function buildNodeNameMap(nodes: RuntimeNode[]): Map<string, number> {
+export const buildNodeNameMap = (nodes: RuntimeNode[]): Map<string, number> => {
   const map = new Map<string, number>();
   for (let i = 0; i < nodes.length; i++) map.set(nodes[i].name, i);
   return map;
-}
+};
 
 export type RuntimePose = {
   t: Vec3[];
@@ -412,7 +414,7 @@ export type RuntimePose = {
   s: Vec3[];
 };
 
-export function snapshotPose(nodes: RuntimeNode[]): RuntimePose {
+export const snapshotPose = (nodes: RuntimeNode[]): RuntimePose => {
   const t: Vec3[] = [];
   const r: Quat[] = [];
   const s: Vec3[] = [];
@@ -422,13 +424,13 @@ export function snapshotPose(nodes: RuntimeNode[]): RuntimePose {
     s.push(v3(n.localS[0], n.localS[1], n.localS[2]));
   }
   return { t, r, s };
-}
+};
 
-export function applyPose(nodes: RuntimeNode[], pose: RuntimePose): void {
+export const applyPose = (nodes: RuntimeNode[], pose: RuntimePose): void => {
   for (let i = 0; i < nodes.length; i++) {
     nodes[i].localT.set(pose.t[i]);
     nodes[i].localS.set(pose.s[i]);
     q4Copy(nodes[i].localR, pose.r[i]);
   }
-}
+};
 

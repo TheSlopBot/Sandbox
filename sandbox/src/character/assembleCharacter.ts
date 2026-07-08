@@ -9,7 +9,7 @@ import {
   type Material,
   createInterleavedMesh,
   createSkinnedMesh,
-  TextureCache,
+  type TextureCache,
   type GltfCache,
   buildRuntimeScene,
   buildGltfMaterials,

@@ -4,7 +4,7 @@ import {
   type RenderPipeline,
   type Registry,
   type GltfCache,
-  TextureCache,
+  type TextureCache,
   useRegistry,
   installMovementSystem,
   installNavGridSystem,

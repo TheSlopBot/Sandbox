@@ -3,25 +3,25 @@ import { type Quat } from './quat.ts';
 
 export type Mat4 = Float32Array;
 
-export function m4(): Mat4 {
+export const m4 = (): Mat4 => {
   const out = new Float32Array(16);
   out[0] = 1;
   out[5] = 1;
   out[10] = 1;
   out[15] = 1;
   return out;
-}
+};
 
-export function m4Identity(out: Mat4): Mat4 {
+export const m4Identity = (out: Mat4): Mat4 => {
   out.fill(0);
   out[0] = 1;
   out[5] = 1;
   out[10] = 1;
   out[15] = 1;
   return out;
-}
+};
 
-export function m4Mul(out: Mat4, a: Mat4, b: Mat4): Mat4 {
+export const m4Mul = (out: Mat4, a: Mat4, b: Mat4): Mat4 => {
   const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
   const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
   const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
@@ -52,14 +52,14 @@ export function m4Mul(out: Mat4, a: Mat4, b: Mat4): Mat4 {
   out[14] = a02 * b30 + a12 * b31 + a22 * b32 + a32 * b33;
   out[15] = a03 * b30 + a13 * b31 + a23 * b32 + a33 * b33;
   return out;
-}
+};
 
-export function m4Copy(out: Mat4, a: Mat4): Mat4 {
+export const m4Copy = (out: Mat4, a: Mat4): Mat4 => {
   out.set(a);
   return out;
-}
+};
 
-export function m4Invert(out: Mat4, a: Mat4): Mat4 {
+export const m4Invert = (out: Mat4, a: Mat4): Mat4 => {
   // General 4x4 inverse (adapted from gl-matrix mat4.invert)
   const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
   const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
@@ -104,9 +104,9 @@ export function m4Invert(out: Mat4, a: Mat4): Mat4 {
   out[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
   out[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
   return out;
-}
+};
 
-export function m4FromTRS(out: Mat4, t: Vec3, yawRad: number, s: Vec3): Mat4 {
+export const m4FromTRS = (out: Mat4, t: Vec3, yawRad: number, s: Vec3): Mat4 => {
   const c = Math.cos(yawRad);
   const sn = Math.sin(yawRad);
   const sx = s[0], sy = s[1], sz = s[2];
@@ -131,9 +131,9 @@ export function m4FromTRS(out: Mat4, t: Vec3, yawRad: number, s: Vec3): Mat4 {
   out[14] = t[2];
   out[15] = 1;
   return out;
-}
+};
 
-export function m4FromTRSQuat(out: Mat4, t: Vec3, r: Quat, s: Vec3): Mat4 {
+export const m4FromTRSQuat = (out: Mat4, t: Vec3, r: Quat, s: Vec3): Mat4 => {
   const x = r[0], y = r[1], z = r[2], w = r[3];
   const x2 = x + x;
   const y2 = y + y;
@@ -170,9 +170,9 @@ export function m4FromTRSQuat(out: Mat4, t: Vec3, r: Quat, s: Vec3): Mat4 {
   out[14] = t[2];
   out[15] = 1;
   return out;
-}
+};
 
-export function m4Ortho(out: Mat4, left: number, right: number, bottom: number, top: number, near: number, far: number): Mat4 {
+export const m4Ortho = (out: Mat4, left: number, right: number, bottom: number, top: number, near: number, far: number): Mat4 => {
   const rl = 1 / (right - left);
   const tb = 1 / (top - bottom);
   const fn = 1 / (far - near);
@@ -193,9 +193,9 @@ export function m4Ortho(out: Mat4, left: number, right: number, bottom: number, 
   out[14] = -(far + near) * fn;
   out[15] = 1;
   return out;
-}
+};
 
-export function m4Perspective(out: Mat4, fovyRad: number, aspect: number, near: number, far: number): Mat4 {
+export const m4Perspective = (out: Mat4, fovyRad: number, aspect: number, near: number, far: number): Mat4 => {
   const f = 1.0 / Math.tan(fovyRad / 2);
   out.fill(0);
   out[0] = f / aspect;
@@ -210,14 +210,14 @@ export function m4Perspective(out: Mat4, fovyRad: number, aspect: number, near: 
     out[14] = -2 * near;
   }
   return out;
-}
+};
 
 const _f = v3();
 const _s = v3();
 const _u = v3();
 const _tmp = v3();
 
-export function m4LookAt(out: Mat4, eye: Vec3, target: Vec3, up: Vec3): Mat4 {
+export const m4LookAt = (out: Mat4, eye: Vec3, target: Vec3, up: Vec3): Mat4 => {
   v3Sub(_f, target, eye);
   v3Normalize(_f, _f);
 
@@ -250,5 +250,5 @@ export function m4LookAt(out: Mat4, eye: Vec3, target: Vec3, up: Vec3): Mat4 {
   out[14] = _tmp[2];
   out[15] = 1;
   return out;
-}
+};
 

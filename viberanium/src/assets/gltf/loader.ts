@@ -8,17 +8,15 @@ export type LoadedGltf = {
   resolvedImageUris: string[];
 };
 
-function resolveRelativeUrl(baseUrl: string, rel: string): string {
+const resolveRelativeUrl = (baseUrl: string, rel: string): string => {
   const u = new URL(baseUrl, window.location.href);
   const base = u.href.endsWith('/') ? u.href : u.href.replace(/[^/]*$/, '');
   return new URL(rel, base).href;
-}
+};
 
-function isLikelyGlb(url: string): boolean {
-  return url.toLowerCase().endsWith('.glb');
-}
+const isLikelyGlb = (url: string): boolean => url.toLowerCase().endsWith('.glb');
 
-function parseGlb(buf: ArrayBuffer): { gltf: Gltf; binChunk: ArrayBuffer | null } {
+const parseGlb = (buf: ArrayBuffer): { gltf: Gltf; binChunk: ArrayBuffer | null } => {
   const dv = new DataView(buf);
   const magic =
     String.fromCharCode(dv.getUint8(0)) +
@@ -60,9 +58,9 @@ function parseGlb(buf: ArrayBuffer): { gltf: Gltf; binChunk: ArrayBuffer | null 
   if (!jsonText) throw new Error('GLB missing JSON chunk');
   const gltf = JSON.parse(jsonText) as Gltf;
   return { gltf, binChunk: bin };
-}
+};
 
-export async function loadGltf(url: string): Promise<LoadedGltf> {
+export const loadGltf = async (url: string): Promise<LoadedGltf> => {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch glTF: ${url}`);
 
@@ -119,5 +117,5 @@ export async function loadGltf(url: string): Promise<LoadedGltf> {
   }
 
   return { url, gltf, buffers, images, resolvedImageUris };
-}
+};
 

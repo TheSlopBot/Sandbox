@@ -13,7 +13,7 @@ export type RuntimeModel = {
   primitives: RuntimePrimitive[];
 };
 
-function numComponents(type: string): number {
+const numComponents = (type: string): number => {
   switch (type) {
     case 'SCALAR':
       return 1;
@@ -28,9 +28,9 @@ function numComponents(type: string): number {
     default:
       return 1;
   }
-}
+};
 
-function getAccessorView(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): DataView {
+const getAccessorView = (gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): DataView => {
   const acc = gltf.accessors?.[accessorIndex];
   if (!acc) throw new Error(`Missing accessor ${accessorIndex}`);
   const bv = gltf.bufferViews?.[acc.bufferView];
@@ -38,9 +38,9 @@ function getAccessorView(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: numb
   const buf = buffers[bv.buffer];
   const offset = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
   return new DataView(buf, offset, bv.byteLength - (acc.byteOffset ?? 0));
-}
+};
 
-function readFloats(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Float32Array {
+const readFloats = (gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Float32Array => {
   const acc = gltf.accessors?.[accessorIndex];
   if (!acc) throw new Error(`Missing accessor ${accessorIndex}`);
   if (acc.componentType !== 5126) throw new Error(`Unsupported float componentType ${acc.componentType}`);
@@ -49,9 +49,9 @@ function readFloats(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): 
   const out = new Float32Array(acc.count * comps);
   for (let i = 0; i < out.length; i++) out[i] = view.getFloat32(i * 4, true);
   return out;
-}
+};
 
-function readIndices(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Uint32Array {
+const readIndices = (gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number): Uint32Array => {
   const acc = gltf.accessors?.[accessorIndex];
   if (!acc) throw new Error(`Missing accessor ${accessorIndex}`);
   const view = getAccessorView(gltf, buffers, accessorIndex);
@@ -67,9 +67,9 @@ function readIndices(gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number):
       throw new Error(`Unsupported index componentType ${acc.componentType}`);
   }
   return out;
-}
+};
 
-export function buildRuntimeModel(loaded: LoadedGltf): RuntimeModel[] {
+export const buildRuntimeModel = (loaded: LoadedGltf): RuntimeModel[] => {
   const { gltf, buffers } = loaded;
   const models: RuntimeModel[] = [];
 
@@ -123,5 +123,5 @@ export function buildRuntimeModel(loaded: LoadedGltf): RuntimeModel[] {
   }
 
   return models;
-}
+};
 

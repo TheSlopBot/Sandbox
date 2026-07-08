@@ -1,56 +1,62 @@
 import { DIRECTIONAL_LIGHT, type Camera, type DrawItem, type ShadowState } from '../types.ts';
-import { ShaderProgram } from '../gl/shader.ts';
+import { type ShaderProgram } from '../gl/shader.ts';
 
-export class ForwardPass {
-  private readonly lit: ShaderProgram;
-  private readonly litSkinned: ShaderProgram;
-  private readonly ground: ShaderProgram;
-  private readonly gl: WebGL2RenderingContext;
-  private readonly whiteTex: WebGLTexture;
+export type ForwardPass = {
+  draw: (camera: Camera, shadow: ShadowState, groundItem: DrawItem | null, items: DrawItem[]) => void;
+  destroy: () => void;
+};
 
-  constructor(gl: WebGL2RenderingContext, lit: ShaderProgram, litSkinned: ShaderProgram, ground: ShaderProgram) {
-    this.gl = gl;
-    this.lit = lit;
-    this.litSkinned = litSkinned;
-    this.ground = ground;
+export const createForwardPass = (
+  gl: WebGL2RenderingContext,
+  lit: ShaderProgram,
+  litSkinned: ShaderProgram,
+  ground: ShaderProgram,
+): ForwardPass => {
+  const whiteTex = gl.createTexture();
+  if (!whiteTex) throw new Error('Failed to create white texture');
 
-    const tex = gl.createTexture();
-    if (!tex) throw new Error('Failed to create white texture');
-    this.whiteTex = tex;
+  gl.bindTexture(gl.TEXTURE_2D, whiteTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
 
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
-  }
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    gl.deleteTexture(whiteTex);
+    lit.destroy();
+    litSkinned.destroy();
+    ground.destroy();
+  };
 
-  draw(camera: Camera, shadow: ShadowState, groundItem: DrawItem | null, items: DrawItem[]) {
-    const gl = this.gl;
+  return {
+    draw: (camera, shadow, groundItem, items) => {
     // Soft daytime sky tint.
     gl.clearColor(0.56, 0.66, 0.82, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    function bindShadowUniforms(p: ShaderProgram) {
+    const bindShadowUniforms = (p: ShaderProgram) => {
       gl.uniformMatrix4fv(p.u('u_lightViewProj'), false, shadow.lightViewProj);
       gl.uniform1f(p.u('u_shadowMapSize'), shadow.mapSize);
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, shadow.map);
       gl.uniform1i(p.u('u_shadowMap'), 1);
-    }
+    };
 
     const groundY = groundItem ? groundItem.model[13] : 0;
     const groundAlpha = groundItem && camera.position[1] < groundY ? 0.25 : 1.0;
     const groundIsTransparent = groundItem ? groundAlpha < 0.999 : false;
 
     if (groundItem && !groundIsTransparent) {
-      this.ground.use();
-      gl.uniformMatrix4fv(this.ground.u('u_viewProj'), false, camera.viewProj);
-      gl.uniformMatrix4fv(this.ground.u('u_model'), false, groundItem.model);
-      gl.uniform3f(this.ground.u('u_lightDir'), DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
-      gl.uniform1f(this.ground.u('u_alpha'), 1.0);
-      bindShadowUniforms(this.ground);
+      ground.use();
+      gl.uniformMatrix4fv(ground.u('u_viewProj'), false, camera.viewProj);
+      gl.uniformMatrix4fv(ground.u('u_model'), false, groundItem.model);
+      gl.uniform3f(ground.u('u_lightDir'), DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
+      gl.uniform1f(ground.u('u_alpha'), 1.0);
+      bindShadowUniforms(ground);
       gl.bindVertexArray(groundItem.mesh.vao);
       gl.disable(gl.BLEND);
       gl.disable(gl.CULL_FACE);
@@ -78,8 +84,7 @@ export class ForwardPass {
     let lastVao: WebGLVertexArrayObject | null = null;
     let lastProgram: ShaderProgram | null = null;
 
-    const self = this;
-    function useProgram(p: ShaderProgram) {
+    const useProgram = (p: ShaderProgram) => {
       if (lastProgram === p) return;
       lastProgram = p;
       p.use();
@@ -91,10 +96,10 @@ export class ForwardPass {
       // Force rebinding state
       lastTex = null;
       lastVao = null;
-    }
+    };
 
-    function bindItem(it: DrawItem) {
-      const program = it.skin ? self.litSkinned : self.lit;
+    const bindItem = (it: DrawItem) => {
+      const program = it.skin ? litSkinned : lit;
       useProgram(program);
       gl.uniformMatrix4fv(program.u('u_model'), false, it.model);
       gl.uniform4f(
@@ -108,7 +113,7 @@ export class ForwardPass {
         const count = Math.min(64, it.skin.jointCount);
         gl.uniformMatrix4fv(program.u('u_joints'), false, it.skin.palette.subarray(0, count * 16));
       }
-      const desiredTex = it.material.baseColorTex ?? self.whiteTex;
+      const desiredTex = it.material.baseColorTex ?? whiteTex;
       if (desiredTex !== lastTex) {
         lastTex = desiredTex;
         gl.activeTexture(gl.TEXTURE0);
@@ -119,7 +124,7 @@ export class ForwardPass {
         lastVao = it.mesh.vao;
         gl.bindVertexArray(lastVao);
       }
-    }
+    };
 
     // Opaque pass
     gl.disable(gl.BLEND);
@@ -129,12 +134,12 @@ export class ForwardPass {
     }
 
     if (groundItem && groundIsTransparent) {
-      this.ground.use();
-      gl.uniformMatrix4fv(this.ground.u('u_viewProj'), false, camera.viewProj);
-      gl.uniformMatrix4fv(this.ground.u('u_model'), false, groundItem.model);
-      gl.uniform3f(this.ground.u('u_lightDir'), DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
-      gl.uniform1f(this.ground.u('u_alpha'), groundAlpha);
-      bindShadowUniforms(this.ground);
+      ground.use();
+      gl.uniformMatrix4fv(ground.u('u_viewProj'), false, camera.viewProj);
+      gl.uniformMatrix4fv(ground.u('u_model'), false, groundItem.model);
+      gl.uniform3f(ground.u('u_lightDir'), DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
+      gl.uniform1f(ground.u('u_alpha'), groundAlpha);
+      bindShadowUniforms(ground);
       gl.bindVertexArray(groundItem.mesh.vao);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -156,6 +161,8 @@ export class ForwardPass {
     gl.depthMask(true);
 
     gl.bindVertexArray(null);
-  }
-}
+    },
+    destroy,
+  };
+};
 

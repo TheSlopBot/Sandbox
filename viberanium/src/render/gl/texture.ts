@@ -1,37 +1,38 @@
 export type TextureHandle = WebGLTexture;
 
-export class TextureCache {
-  private readonly cache = new Map<string, TextureHandle>();
-  private readonly pending = new Map<string, Promise<TextureHandle>>();
-  private readonly gl: WebGL2RenderingContext;
+export type TextureCache = {
+  getOrCreate: (uri: string, image: ImageBitmap) => TextureHandle;
+  getOrLoad: (uri: string) => Promise<TextureHandle>;
+  destroy: () => void;
+};
 
-  constructor(gl: WebGL2RenderingContext) {
-    this.gl = gl;
-  }
+export const createTextureCache = (gl: WebGL2RenderingContext): TextureCache => {
+  const cache = new Map<string, TextureHandle>();
+  const pending = new Map<string, Promise<TextureHandle>>();
 
-  getOrCreate(uri: string, image: ImageBitmap): TextureHandle {
-    const existing = this.cache.get(uri);
+  const getOrCreate = (uri: string, image: ImageBitmap): TextureHandle => {
+    const existing = cache.get(uri);
     if (existing) return existing;
-    const tex = this.gl.createTexture();
+    const tex = gl.createTexture();
     if (!tex) throw new Error('createTexture failed');
-    this.gl.bindTexture(this.gl.TEXTURE_2D, tex);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
-    this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, 0);
-    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, image);
-    this.gl.generateMipmap(this.gl.TEXTURE_2D);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
-    this.cache.set(uri, tex);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    cache.set(uri, tex);
     return tex;
-  }
+  };
 
-  getOrLoad = async (uri: string): Promise<TextureHandle> => {
-    const existing = this.cache.get(uri);
+  const getOrLoad = async (uri: string): Promise<TextureHandle> => {
+    const existing = cache.get(uri);
     if (existing) return existing;
 
-    const inFlight = this.pending.get(uri);
+    const inFlight = pending.get(uri);
     if (inFlight) return inFlight;
 
     const load = (async () => {
@@ -39,15 +40,27 @@ export class TextureCache {
       if (!res.ok) throw new Error(`Failed to fetch texture: ${uri}`);
       const blob = await res.blob();
       const image = await createImageBitmap(blob);
-      return this.getOrCreate(uri, image);
+      return getOrCreate(uri, image);
     })();
 
-    this.pending.set(uri, load);
+    pending.set(uri, load);
     try {
       return await load;
     } finally {
-      this.pending.delete(uri);
+      pending.delete(uri);
     }
   };
-}
+
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+
+    for (const tex of cache.values()) gl.deleteTexture(tex);
+    cache.clear();
+    pending.clear();
+  };
+
+  return { getOrCreate, getOrLoad, destroy };
+};
 

@@ -1,6 +1,6 @@
 import { type LoadedGltf } from './loader.ts';
 import { type Material } from '../../render/types.ts';
-import { TextureCache } from '../../render/gl/texture.ts';
+import { type TextureCache } from '../../render/gl/texture.ts';
 
 export const buildGltfMaterials = (
   loaded: LoadedGltf,

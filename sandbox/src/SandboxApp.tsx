@@ -96,9 +96,6 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
             <div className="row">
               <span className="k">FPS</span> <span id="fps">...</span>
             </div>
-            <div className="row">
-              <span className="k">Preview</span> F1
-            </div>
           </>
         )}
       </div>

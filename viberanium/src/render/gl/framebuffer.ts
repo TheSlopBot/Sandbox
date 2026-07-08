@@ -7,9 +7,10 @@ export type SceneFramebuffer = {
   bind: () => void;
   resolve: () => void;
   bindDefault: () => void;
+  destroy: () => void;
 };
 
-export function createSceneFramebuffer(gl: WebGL2RenderingContext, requestedSamples = 4): SceneFramebuffer {
+export const createSceneFramebuffer = (gl: WebGL2RenderingContext, requestedSamples = 4): SceneFramebuffer => {
   const msaaFbo = gl.createFramebuffer();
   const resolveFbo = gl.createFramebuffer();
   const colorTex = gl.createTexture();
@@ -25,7 +26,7 @@ export function createSceneFramebuffer(gl: WebGL2RenderingContext, requestedSamp
   let width = 0;
   let height = 0;
 
-  function alloc(w: number, h: number) {
+  const alloc = (w: number, h: number) => {
     width = Math.max(1, w);
     height = Math.max(1, h);
 
@@ -62,7 +63,18 @@ export function createSceneFramebuffer(gl: WebGL2RenderingContext, requestedSamp
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindTexture(gl.TEXTURE_2D, null);
     gl.bindRenderbuffer(gl.RENDERBUFFER, null);
-  }
+  };
+
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    gl.deleteFramebuffer(msaaFbo);
+    gl.deleteFramebuffer(resolveFbo);
+    gl.deleteTexture(colorTex);
+    gl.deleteRenderbuffer(colorRb);
+    gl.deleteRenderbuffer(depthRb);
+  };
 
   return {
     colorTex,
@@ -88,5 +100,6 @@ export function createSceneFramebuffer(gl: WebGL2RenderingContext, requestedSamp
     bindDefault() {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     },
+    destroy,
   };
-}
+};

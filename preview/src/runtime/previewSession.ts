@@ -3,7 +3,8 @@ import {
   type Material,
   type Registry,
   type RenderPipeline,
-  TextureCache,
+  type TextureCache,
+  createTextureCache,
   buildGltfMaterials,
   buildRetargetedClips,
   buildRuntimeModel,
@@ -305,7 +306,7 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
   });
 
   const gl = pipeline.device.gl;
-  const textures = new TextureCache(gl);
+  const textures = createTextureCache(gl);
   const gltfCache = createGltfCache();
 
   const orbitEnt = sceneRegistry.createBare();
@@ -669,6 +670,7 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
       removeOrbitSystem();
       game.stop();
       game.setActiveScene(null);
+      pipeline.destroy();
       unload();
     },
   };

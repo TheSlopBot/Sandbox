@@ -7,11 +7,11 @@ export const destroyMesh = (gl: WebGL2RenderingContext, mesh: Mesh): void => {
   gl.deleteVertexArray(mesh.vao);
 };
 
-export function createInterleavedMesh(
+export const createInterleavedMesh = (
   gl: WebGL2RenderingContext,
   vertices: Float32Array,
   indices: Uint32Array,
-): Mesh {
+): Mesh => {
   // layout: position.xyz normal.xyz uv.xy (8 floats)
   const vao = gl.createVertexArray();
   const vbo = gl.createBuffer();
@@ -41,18 +41,18 @@ export function createInterleavedMesh(
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
   return { vao, indexCount: indices.length };
-}
+};
 
 export type SkinnedMesh = Mesh & { jointCount: number };
 
-export function createSkinnedMesh(
+export const createSkinnedMesh = (
   gl: WebGL2RenderingContext,
   vertices: Float32Array, // pos/nrm/uv
   joints: Uint16Array, // 4 per vertex
   weights: Float32Array, // 4 per vertex
   indices: Uint32Array,
   jointCount: number,
-): SkinnedMesh {
+): SkinnedMesh => {
   const vao = gl.createVertexArray();
   const vbo = gl.createBuffer();
   const jbo = gl.createBuffer();
@@ -93,5 +93,5 @@ export function createSkinnedMesh(
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
   return { vao, indexCount: indices.length, jointCount };
-}
+};
 

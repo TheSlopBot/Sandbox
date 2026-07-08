@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SandboxApp } from '../../sandbox/src/SandboxApp.tsx';
-import { PreviewApp } from '../../preview/src/PreviewApp.tsx';
+import { SandboxApp } from 'sandbox';
+import { PreviewApp } from 'preview';
 
 type ActiveApp = 'sandbox' | 'preview';
 

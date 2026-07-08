@@ -4,7 +4,7 @@ import {
   createCharacterController,
   createMovementIntent,
   createSkeletalRig,
-  TextureCache,
+  type TextureCache,
   type GltfCache,
   COMPONENT_KEYS,
 } from 'viberanium';

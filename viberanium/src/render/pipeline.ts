@@ -4,10 +4,10 @@ import { createDevice, type GLDevice } from './gl/device.ts';
 import { createColorFramebuffer, type ColorFramebuffer } from './gl/colorFramebuffer.ts';
 import { createSceneFramebuffer } from './gl/framebuffer.ts';
 import { createShadowFramebuffer } from './gl/shadowFramebuffer.ts';
-import { ShaderProgram } from './gl/shader.ts';
-import { ForwardPass } from './passes/forwardPass.ts';
-import { PostProcessPass } from './passes/postProcessPass.ts';
-import { ShadowPass } from './passes/shadowPass.ts';
+import { createShaderProgram } from './gl/shader.ts';
+import { createForwardPass } from './passes/forwardPass.ts';
+import { createPostProcessPass } from './passes/postProcessPass.ts';
+import { createShadowPass } from './passes/shadowPass.ts';
 import { shadowDepthVS, shadowDepthSkinnedVS, shadowDepthFS } from './shaders/shadow.ts';
 import { litTexturedVS, litSkinnedVS, litTexturedFS } from './shaders/lit.ts';
 import { groundVS, groundFS } from './shaders/ground.ts';
@@ -22,6 +22,7 @@ export type PostProcessStage = {
   readonly name: string;
   enabled: boolean;
   draw: (inputTex: WebGLTexture, w: number, h: number, outputFbo: WebGLFramebuffer | null) => void;
+  destroy?: () => void;
 };
 
 export type RenderPipeline = {
@@ -32,6 +33,7 @@ export type RenderPipeline = {
   clearGround: () => void;
   addPostProcess: (stage: PostProcessStage) => () => void;
   getPostProcessStages: () => ReadonlyArray<PostProcessStage>;
+  destroy: () => void;
 };
 
 const _proj = m4();
@@ -74,18 +76,18 @@ export const installRenderPipeline = (
   const device = createDevice(canvas);
   const gl = device.gl;
 
-  const forwardPass = new ForwardPass(
+  const forwardPass = createForwardPass(
     gl,
-    new ShaderProgram(gl, litTexturedVS, litTexturedFS),
-    new ShaderProgram(gl, litSkinnedVS, litTexturedFS),
-    new ShaderProgram(gl, groundVS, groundFS),
+    createShaderProgram(gl, litTexturedVS, litTexturedFS),
+    createShaderProgram(gl, litSkinnedVS, litTexturedFS),
+    createShaderProgram(gl, groundVS, groundFS),
   );
-  const shadowPass = new ShadowPass(
+  const shadowPass = createShadowPass(
     gl,
-    new ShaderProgram(gl, shadowDepthVS, shadowDepthFS),
-    new ShaderProgram(gl, shadowDepthSkinnedVS, shadowDepthFS),
+    createShaderProgram(gl, shadowDepthVS, shadowDepthFS),
+    createShaderProgram(gl, shadowDepthSkinnedVS, shadowDepthFS),
   );
-  const tonePass = new PostProcessPass(gl, new ShaderProgram(gl, fullscreenVS, toneColorFS));
+  const tonePass = createPostProcessPass(gl, createShaderProgram(gl, fullscreenVS, toneColorFS));
 
   const sceneFbo = createSceneFramebuffer(gl);
   const shadowFbo = createShadowFramebuffer(gl, 2048);
@@ -119,7 +121,7 @@ export const installRenderPipeline = (
   const clearGround = () => { groundItem = null; };
 
   let lastDt = 1 / 60;
-  registry.addAction('draw', () => {
+  const removeDraw = registry.addAction('draw', () => {
     device.resize();
     const w = device.canvas.width;
     const h = device.canvas.height;
@@ -189,7 +191,28 @@ export const installRenderPipeline = (
     if (fpsEl) fpsEl.textContent = `${Math.round(1 / Math.max(1e-6, lastDt))}`;
   }, 0);
 
-  registry.addAction('commit', (ctx) => { lastDt = ctx.dt; }, 100);
+  const removeCommit = registry.addAction('commit', (ctx) => { lastDt = ctx.dt; }, 100);
+
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+
+    removeDraw();
+    removeCommit();
+
+    for (const s of postStages) s.destroy?.();
+    postStages.length = 0;
+
+    forwardPass.destroy();
+    shadowPass.destroy();
+    tonePass.destroy();
+
+    sceneFbo.destroy();
+    shadowFbo.destroy();
+    pingFbos[0].destroy();
+    pingFbos[1].destroy();
+  };
 
   return {
     device,
@@ -202,8 +225,10 @@ export const installRenderPipeline = (
       return () => {
         const idx = postStages.indexOf(stage);
         if (idx >= 0) postStages.splice(idx, 1);
+        stage.destroy?.();
       };
     },
     getPostProcessStages: () => postStages,
+    destroy,
   };
 };

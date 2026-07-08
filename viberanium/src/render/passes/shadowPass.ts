@@ -1,20 +1,23 @@
 import { type DrawItem } from '../types.ts';
-import { ShaderProgram } from '../gl/shader.ts';
+import { type ShaderProgram } from '../gl/shader.ts';
 import { type Mat4 } from '../../math/mat4.ts';
 
-export class ShadowPass {
-  private readonly gl: WebGL2RenderingContext;
-  private readonly depth: ShaderProgram;
-  private readonly depthSkinned: ShaderProgram;
+export type ShadowPass = {
+  draw: (lightViewProj: Mat4, groundItem: DrawItem | null, items: DrawItem[]) => void;
+  destroy: () => void;
+};
 
-  constructor(gl: WebGL2RenderingContext, depth: ShaderProgram, depthSkinned: ShaderProgram) {
-    this.gl = gl;
-    this.depth = depth;
-    this.depthSkinned = depthSkinned;
-  }
+export const createShadowPass = (gl: WebGL2RenderingContext, depth: ShaderProgram, depthSkinned: ShaderProgram): ShadowPass => {
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    depth.destroy();
+    depthSkinned.destroy();
+  };
 
-  draw(lightViewProj: Mat4, groundItem: DrawItem | null, items: DrawItem[]) {
-    const gl = this.gl;
+  return {
+    draw: (lightViewProj, groundItem, items) => {
     gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(2.0, 4.0);
@@ -32,17 +35,16 @@ export class ShadowPass {
     let lastProgram: ShaderProgram | null = null;
     let lastVao: WebGLVertexArrayObject | null = null;
 
-    const self = this;
-    function useProgram(p: ShaderProgram) {
+    const useProgram = (p: ShaderProgram) => {
       if (lastProgram === p) return;
       lastProgram = p;
       p.use();
       gl.uniformMatrix4fv(p.u('u_lightViewProj'), false, lightViewProj);
       lastVao = null;
-    }
+    };
 
-    function drawItem(it: DrawItem) {
-      const program = it.skin ? self.depthSkinned : self.depth;
+    const drawItem = (it: DrawItem) => {
+      const program = it.skin ? depthSkinned : depth;
       useProgram(program);
       gl.uniformMatrix4fv(program.u('u_model'), false, it.model);
       if (it.skin) {
@@ -54,7 +56,7 @@ export class ShadowPass {
         gl.bindVertexArray(lastVao);
       }
       gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
-    }
+    };
 
     if (groundItem) {
       drawItem(groundItem);
@@ -68,5 +70,7 @@ export class ShadowPass {
 
     gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.bindVertexArray(null);
-  }
-}
+    },
+    destroy,
+  };
+};

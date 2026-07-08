@@ -4,9 +4,10 @@ export type ShadowFramebuffer = {
   size: number;
   bind: () => void;
   unbind: () => void;
+  destroy: () => void;
 };
 
-export function createShadowFramebuffer(gl: WebGL2RenderingContext, size = 1024): ShadowFramebuffer {
+export const createShadowFramebuffer = (gl: WebGL2RenderingContext, size = 1024): ShadowFramebuffer => {
   const fbo = gl.createFramebuffer();
   const depthTex = gl.createTexture();
   if (!fbo || !depthTex) throw new Error('Failed to create shadow framebuffer');
@@ -32,6 +33,14 @@ export function createShadowFramebuffer(gl: WebGL2RenderingContext, size = 1024)
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    gl.deleteFramebuffer(fbo);
+    gl.deleteTexture(depthTex);
+  };
+
   return {
     fbo,
     depthTex,
@@ -43,5 +52,6 @@ export function createShadowFramebuffer(gl: WebGL2RenderingContext, size = 1024)
     unbind() {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     },
+    destroy,
   };
-}
+};

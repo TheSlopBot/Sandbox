@@ -4,7 +4,7 @@ import {
   type Input,
   type RenderPipeline,
   type GltfCache,
-  TextureCache,
+  type TextureCache,
 } from 'viberanium';
 import { type SceneDeps } from '../scenes/playableScene.ts';
 import { useLevelScene } from '../levels/useLevelScene.ts';
