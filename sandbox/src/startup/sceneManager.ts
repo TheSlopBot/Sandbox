@@ -9,7 +9,6 @@ import {
 import { type SceneDeps } from '../scenes/playableScene.ts';
 import { useLevelScene } from '../levels/useLevelScene.ts';
 import { collectLevelAssetUrls, type LevelDefinition } from '../levels/catalog.ts';
-import { type LevelLoadingGate } from './levelLoadingGate.ts';
 
 export type SceneManagerDeps = {
   game: Game;
@@ -20,7 +19,6 @@ export type SceneManagerDeps = {
   gl: WebGL2RenderingContext;
   catalog: Record<string, LevelDefinition>;
   setActiveSceneRegistry: (registry: Registry) => void;
-  loadingGate?: LevelLoadingGate;
 };
 
 export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDeps) => {
@@ -42,7 +40,6 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     if (!definition) throw new Error(`Unknown level: ${levelId}`);
 
     switching = true;
-    deps.loadingGate?.show();
 
     deps.game.setActiveScene(null);
     currentLevelId = null;
@@ -57,7 +54,6 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     await scene.load();
 
     switching = false;
-    deps.loadingGate?.hide();
   };
 
   gameRegistry.addAction('update', () => {

@@ -64,7 +64,7 @@ viberanium/src/
 
 sandbox/src/
   levels/       catalog, assets, useLevelScene
-  startup/      bootstrap, sceneManager, levelLoadingGate
+  startup/      bootstrap, sceneManager
   scenes/       createPlayableScene (generic load/unload factory)
   player/       feature slice: player.ts
   robot/        feature slice: robot.ts, robot AI system
