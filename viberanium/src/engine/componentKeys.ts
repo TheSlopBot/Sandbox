@@ -9,6 +9,7 @@ export const COMPONENT_KEYS = {
   renderable: 'renderable',
   skin: 'skin',
   gltfNodeIndex: 'gltfNodeIndex',
+  gltfProp: 'gltfProp',
 } as const;
 
 export type ComponentKey = (typeof COMPONENT_KEYS)[keyof typeof COMPONENT_KEYS];

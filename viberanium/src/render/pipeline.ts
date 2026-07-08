@@ -185,7 +185,7 @@ export const installRenderPipeline = (
     for (const e of entityRegistry.view(COMPONENT_KEYS.renderable)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const r = e.components[COMPONENT_KEYS.renderable] as Renderable | undefined;
-      if (!t || !r) continue;
+      if (!t || !r || r.visible === false) continue;
 
       updateWorldMatrix(t);
       const model = r.model ?? t.world;

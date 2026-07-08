@@ -37,10 +37,14 @@ export { createMovementIntent, type MovementIntent } from './components/movement
 export { createNavGrid, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
 export {
   createSkeletalRig,
+  createAttachmentOffset,
+  setRigAttachmentVisible,
   type SkeletalRig,
   type AnimClips,
   type CharacterPart,
+  type RigAttachment,
 } from './components/skeletalRig.ts';
+export { createGltfProp, type GltfProp } from './components/gltfProp.ts';
 
 export { loadGltf, type LoadedGltf } from './assets/gltf/loader.ts';
 export { createGltfCache, type GltfCache } from './assets/gltf/cache.ts';
@@ -68,6 +72,7 @@ export {
   installSkeletalAnimationSystem,
   type SkeletalAnimationOptions,
 } from './systems/skeletalAnimationSystem.ts';
+export { installGltfPropSystem } from './systems/gltfPropSystem.ts';
 
 export {
   installRenderPipeline,

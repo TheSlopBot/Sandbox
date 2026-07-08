@@ -32,7 +32,7 @@ export const createPlayer = async (
   entity.components[PLAYER_CONTROLLER_KEY] = createPlayerController();
   entity.components[COMPONENT_KEYS.cameraFollow] = createCameraFollow();
 
-  const { bodyScene, characterParts, renderEntityIds, clips } = await assembleSkeletalCharacter(
+  const { bodyScene, characterParts, renderEntityIds, clips, attachments } = await assembleSkeletalCharacter(
     registry, gl, textures, gltfCache, charT, assets,
   );
 
@@ -41,7 +41,7 @@ export const createPlayer = async (
   cc.jumpLandDuration = clips.jumpLand.duration;
 
   entity.components[COMPONENT_KEYS.skeletalRig] = createSkeletalRig(
-    bodyScene, characterParts, renderEntityIds, clips,
+    bodyScene, characterParts, renderEntityIds, clips, -0.55, attachments,
   );
 
   return { entity };

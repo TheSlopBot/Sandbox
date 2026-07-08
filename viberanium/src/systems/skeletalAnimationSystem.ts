@@ -30,11 +30,42 @@ const skipChanceForDist = (dist: number) => {
 };
 
 const setRigCastShadow = (registry: Registry, rig: SkeletalRig, castShadow: boolean) => {
-  for (const renderId of rig.renderEntityIds) {
+  const ids = [...rig.renderEntityIds];
+  for (const attachment of rig.attachments) ids.push(...attachment.renderEntityIds);
+
+  for (const renderId of ids) {
     const re = registry.get(renderId);
     if (!re) continue;
     const r = re.components[COMPONENT_KEYS.renderable] as Renderable | undefined;
     if (r) r.castShadow = castShadow;
+  }
+};
+
+const updateRigAttachments = (
+  registry: Registry,
+  rig: SkeletalRig,
+  renderRootWorld: Float32Array,
+  bodyScene: SkeletalRig['bodyScene'],
+  attachBoneWorld: Float32Array,
+  attachRootWorld: Float32Array,
+) => {
+  for (const attachment of rig.attachments) {
+    const boneWorld = bodyScene.nodes[attachment.boneNodeIndex]?.worldM;
+    if (!boneWorld) continue;
+
+    m4Mul(attachBoneWorld, renderRootWorld, boneWorld);
+    m4Mul(attachRootWorld, attachBoneWorld, attachment.localOffset);
+
+    for (const renderId of attachment.renderEntityIds) {
+      const re = registry.get(renderId);
+      if (!re) continue;
+
+      const r = re.components[COMPONENT_KEYS.renderable] as Renderable | undefined;
+      const nodeIndex = re.components[COMPONENT_KEYS.gltfNodeIndex] as number;
+      if (!r?.model) continue;
+
+      m4Mul(r.model as Float32Array, attachRootWorld, attachment.scene.nodes[nodeIndex]!.worldM);
+    }
   }
 };
 
@@ -45,6 +76,8 @@ export const installSkeletalAnimationSystem = (
   const bindPoseCache = new WeakMap<SkeletalRig, ReturnType<typeof snapshotPose>>();
   const renderRootByRig = new WeakMap<SkeletalRig, Float32Array>();
   const _meshWorld = m4();
+  const _attachBoneWorld = m4();
+  const _attachRootWorld = m4();
   const getLodOrigin = options.getLodOrigin;
 
   return registry.addAction('update', (ctx) => {
@@ -89,6 +122,15 @@ export const installSkeletalAnimationSystem = (
           if (!r?.model) continue;
           m4Mul(r.model as Float32Array, renderRootWorld, rig.bodyScene.nodes[nodeIndex]!.worldM);
         }
+
+        updateRigAttachments(
+          registry,
+          rig,
+          renderRootWorld,
+          rig.bodyScene,
+          _attachBoneWorld,
+          _attachRootWorld,
+        );
         continue;
       }
 
@@ -145,6 +187,15 @@ export const installSkeletalAnimationSystem = (
         m4Mul(_meshWorld, renderRootWorld, bodyScene.nodes[si.rootNodeIndex]!.worldM);
         computeSkinPalette(bodyScene.nodes, si.skin, si.palette, renderRootWorld, _meshWorld);
       }
+
+      updateRigAttachments(
+        registry,
+        rig,
+        renderRootWorld,
+        bodyScene,
+        _attachBoneWorld,
+        _attachRootWorld,
+      );
     }
   }, 20);
 };

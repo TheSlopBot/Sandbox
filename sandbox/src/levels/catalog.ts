@@ -4,6 +4,7 @@ import {
   ROBOT_ONE_GLB,
   COMBAT_MECH_GLB,
   SPACE_RANGER_GLB,
+  SPACE_RANGER_ATTACHMENT_URLS,
   ANIM_GENERAL_GLB,
   ANIM_MOVEMENT_GLB,
 } from './assets.ts';
@@ -139,6 +140,7 @@ export const LEVEL_CATALOG: Record<string, LevelDefinition> = {
 
 export const collectLevelAssetUrls = (definition: LevelDefinition): string[] => {
   const urls = new Set<string>([ROBOT_ONE_GLB, ANIM_GENERAL_GLB, ANIM_MOVEMENT_GLB, SPACE_RANGER_GLB]);
+  for (const url of SPACE_RANGER_ATTACHMENT_URLS) urls.add(url);
 
   for (const prop of definition.props) urls.add(prop.url);
   for (const robot of definition.robots ?? []) urls.add(robot.bodyGlb);

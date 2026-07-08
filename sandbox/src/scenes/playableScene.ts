@@ -13,6 +13,7 @@ import {
   installCharacterStateSystem,
   installCameraFollowSystem,
   installSkeletalAnimationSystem,
+  installGltfPropSystem,
   createNavGrid,
   COMPONENT_KEYS,
 } from 'viberanium';
@@ -22,6 +23,7 @@ import { createGroundMesh } from '../world/ground.ts';
 import { installTestAiSystem } from '../npcs/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../player/systems/playerInputSystem.ts';
 import { SPACE_RANGER_GLB, ANIM_GENERAL_GLB, ANIM_MOVEMENT_GLB } from '../levels/assets.ts';
+import { SPACE_RANGER_ATTACHMENTS } from '../character/spaceRangerAttachments.ts';
 import { type LevelNavGridConfig } from '../levels/catalog.ts';
 
 export type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
@@ -58,6 +60,7 @@ export const createPlayableScene = (
   installSkeletalAnimationSystem(registry, {
     getLodOrigin: () => deps.pipeline.camera.position,
   });
+  installGltfPropSystem(registry);
 
   const addProp: AddProp = async (url, prefix, opts = {}) => {
     await instantiateStaticProp(deps.gl, registry, deps.textures, deps.gltfCache, url, prefix, opts);
@@ -77,7 +80,7 @@ export const createPlayableScene = (
 
     const { entity } = await createPlayer(
       registry, deps.gl, deps.textures, deps.gltfCache,
-      { bodyGlb: SPACE_RANGER_GLB, animGeneralGlb: ANIM_GENERAL_GLB, animMovementGlb: ANIM_MOVEMENT_GLB, materialPrefix: 'spaceranger_body' },
+      { bodyGlb: SPACE_RANGER_GLB, animGeneralGlb: ANIM_GENERAL_GLB, animMovementGlb: ANIM_MOVEMENT_GLB, materialPrefix: 'spaceranger_body', attachments: SPACE_RANGER_ATTACHMENTS },
     );
     registry.register(entity);
   };

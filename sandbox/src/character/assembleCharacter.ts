@@ -16,8 +16,20 @@ import {
   m4,
   type AnimClips,
   type CharacterPart,
+  type RigAttachment,
+  createAttachmentOffset,
   COMPONENT_KEYS,
 } from 'viberanium';
+
+export type CharacterAttachmentDef = {
+  id: string;
+  gltfUrl: string;
+  materialPrefix: string;
+  boneName: string;
+  offsetT?: [number, number, number];
+  offsetR?: [number, number, number, number];
+  offsetS?: [number, number, number];
+};
 
 export type CharacterAnimAssets = {
   bodyGlb: string;
@@ -25,6 +37,7 @@ export type CharacterAnimAssets = {
   animMovementGlb: string;
   materialPrefix: string;
   baseColorTextureUrl?: string;
+  attachments?: CharacterAttachmentDef[];
 };
 
 const pickClip = (clips: AnimClip[], name: string): AnimClip => {
@@ -101,6 +114,66 @@ const buildSkinnedEntities = (
   return { characterParts, renderEntityIds };
 };
 
+const findBoneNodeIndex = (nodes: ReturnType<typeof buildRuntimeScene>['nodes'], boneName: string): number => {
+  for (let i = 0; i < nodes.length; i++) {
+    if (nodes[i].name === boneName) return i;
+  }
+
+  throw new Error(`Missing bone '${boneName}' on character rig`);
+};
+
+const assembleAttachments = async (
+  registry: Registry,
+  gl: WebGL2RenderingContext,
+  textures: TextureCache,
+  gltfCache: GltfCache,
+  charT: Transform,
+  bodyScene: ReturnType<typeof buildRuntimeScene>,
+  defs: CharacterAttachmentDef[],
+): Promise<RigAttachment[]> => {
+  const attachments: RigAttachment[] = [];
+
+  for (const def of defs) {
+    const loaded = await gltfCache.getOrLoad(def.gltfUrl);
+    const scene = buildRuntimeScene(loaded);
+    const mats = buildGltfMaterials(loaded, def.materialPrefix, textures);
+    const boneNodeIndex = findBoneNodeIndex(bodyScene.nodes, def.boneName);
+    const localOffset = createAttachmentOffset(def.offsetT, def.offsetR, def.offsetS);
+    const renderEntityIds: number[] = [];
+
+    for (const pair of scene.meshNodePairs) {
+      const model = scene.models[pair.meshIndex];
+      if (!model) continue;
+
+      for (const prim of model.primitives) {
+        if (prim.kind === 'skinned') continue;
+
+        const material = prim.materialIndex >= 0 && prim.materialIndex < mats.length
+          ? mats[prim.materialIndex]
+          : mats[0];
+        const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+        const e = registry.createBare();
+        e.components[COMPONENT_KEYS.transform] = charT;
+        e.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
+        e.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4(), visible: true };
+        registry.register(e);
+        renderEntityIds.push(e.id);
+      }
+    }
+
+    attachments.push({
+      id: def.id,
+      scene,
+      boneNodeIndex,
+      localOffset,
+      renderEntityIds,
+      visible: true,
+    });
+  }
+
+  return attachments;
+};
+
 export const assembleSkeletalCharacter = async (
   registry: Registry,
   gl: WebGL2RenderingContext,
@@ -108,7 +181,7 @@ export const assembleSkeletalCharacter = async (
   gltfCache: GltfCache,
   charT: Transform,
   assets: CharacterAnimAssets,
-): Promise<{ bodyScene: ReturnType<typeof buildRuntimeScene>; characterParts: CharacterPart[]; renderEntityIds: number[]; clips: AnimClips }> => {
+): Promise<{ bodyScene: ReturnType<typeof buildRuntimeScene>; characterParts: CharacterPart[]; renderEntityIds: number[]; clips: AnimClips; attachments: RigAttachment[] }> => {
   const [bodyLoaded, idleLoaded, moveLoaded] = await Promise.all([
     gltfCache.getOrLoad(assets.bodyGlb),
     gltfCache.getOrLoad(assets.animGeneralGlb),
@@ -136,7 +209,11 @@ export const assembleSkeletalCharacter = async (
     bodyScene, bodyScene.nodes, bodyMats,
   );
 
-  return { bodyScene, characterParts, renderEntityIds, clips };
+  const attachments = assets.attachments?.length
+    ? await assembleAttachments(registry, gl, textures, gltfCache, charT, bodyScene, assets.attachments)
+    : [];
+
+  return { bodyScene, characterParts, renderEntityIds, clips, attachments };
 };
 
 export type AssembledCharacter = {

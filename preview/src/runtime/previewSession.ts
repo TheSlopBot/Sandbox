@@ -7,16 +7,17 @@ import {
   createTextureCache,
   buildGltfMaterials,
   buildRetargetedClips,
-  buildRuntimeModel,
   buildRuntimeScene,
   createCharacterController,
   createGltfCache,
+  createGltfProp,
   createInterleavedMesh,
   createSkinInstance,
   createSkinnedMesh,
   createTransform,
   destroyMesh,
   installRenderPipeline,
+  installGltfPropSystem,
   installSkeletalAnimationSystem,
   m4,
   useGame,
@@ -168,7 +169,7 @@ const installOrbitInput = (canvas: HTMLCanvasElement, orbit: PreviewOrbit, isAct
     if (e.button !== 0 && e.button !== 2) return;
 
     orbit.dragging = true;
-    orbit.dragButton = e.button === 2 ? 2 : 0;
+    orbit.dragButton = e.button;
     activePointerId = e.pointerId;
     orbit.lastX = e.clientX;
     orbit.lastY = e.clientY;
@@ -206,7 +207,7 @@ const installOrbitInput = (canvas: HTMLCanvasElement, orbit: PreviewOrbit, isAct
     orbit.lastX = e.clientX;
     orbit.lastY = e.clientY;
 
-    if (orbit.dragButton === 2) {
+    if (orbit.dragButton) {
       orbit.pendingDx += dx;
       orbit.pendingDy += dy;
       return;
@@ -342,6 +343,7 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
   let currentClipsByName = new Map<string, ReturnType<typeof buildRetargetedClips>[number]>();
   let characterEntityId: number | null = null;
   let removeSkeletalSystem: (() => void) | null = null;
+  let removeGltfPropSystem: (() => void) | null = null;
   let loadGeneration = 0;
   let activeMaterials: Material[] = [];
   let textureVariants: PreviewTextureVariant[] = [];
@@ -375,6 +377,11 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
     if (removeSkeletalSystem) {
       removeSkeletalSystem();
       removeSkeletalSystem = null;
+    }
+
+    if (removeGltfPropSystem) {
+      removeGltfPropSystem();
+      removeGltfPropSystem = null;
     }
 
     pipeline.clearGround();
@@ -439,26 +446,15 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
     const rootT = createTransform();
     rootT.dirty = true;
     const bounds = createEmptyBounds();
-    let runtimeModels: ReturnType<typeof buildRuntimeModel> | null = null;
 
-    if (hasSkin) {
-      for (const pair of runtimeScene.meshNodePairs) {
-        const model = runtimeScene.models[pair.meshIndex];
-        if (!model) continue;
+    for (const pair of runtimeScene.meshNodePairs) {
+      const model = runtimeScene.models[pair.meshIndex];
+      if (!model) continue;
 
-        const nodeWorld = runtimeScene.nodes[pair.nodeIndex]?.worldM;
+      const nodeWorld = runtimeScene.nodes[pair.nodeIndex]?.worldM;
 
-        for (const prim of model.primitives) {
-          expandBoundsFromInterleaved(bounds, prim.vertices, nodeWorld);
-        }
-      }
-    } else {
-      runtimeModels = buildRuntimeModel(loaded);
-
-      for (const rm of runtimeModels) {
-        for (const prim of rm.primitives) {
-          expandBoundsFromInterleaved(bounds, prim.vertices);
-        }
+      for (const prim of model.primitives) {
+        expandBoundsFromInterleaved(bounds, prim.vertices, nodeWorld);
       }
     }
 
@@ -540,6 +536,7 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
         renderEntityIds,
         clips,
         visualYOffset: 0,
+        attachments: [],
       };
 
       entity.components[COMPONENT_KEYS.skeletalRig] = rig;
@@ -562,18 +559,35 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
       };
     }
 
-    for (const rm of runtimeModels ?? []) {
-      for (const prim of rm.primitives) {
-        const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+    const renderEntityIds: number[] = [];
+
+    for (const pair of runtimeScene.meshNodePairs) {
+      const model = runtimeScene.models[pair.meshIndex];
+      if (!model) continue;
+
+      for (const prim of model.primitives) {
         const material = prim.materialIndex >= 0 && prim.materialIndex < mats.length ? mats[prim.materialIndex] : mats[0];
 
-        const e = sceneRegistry.createBare();
-        e.components[COMPONENT_KEYS.transform] = rootT;
-        e.components[COMPONENT_KEYS.renderable] = { mesh, material };
-        e.onDeregister.push(() => destroyMesh(gl, mesh));
-        sceneRegistry.register(e);
+        if (prim.kind === 'skinned' && pair.skinIndex >= 0) continue;
+
+        const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+        const re = sceneRegistry.createBare();
+        re.components[COMPONENT_KEYS.transform] = rootT;
+        re.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
+        re.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
+        re.onDeregister.push(() => destroyMesh(gl, mesh));
+        sceneRegistry.register(re);
+        renderEntityIds.push(re.id);
       }
     }
+
+    const propRoot = sceneRegistry.createBare();
+    propRoot.components[COMPONENT_KEYS.transform] = rootT;
+    propRoot.components[COMPONENT_KEYS.gltfProp] = createGltfProp(runtimeScene, renderEntityIds);
+    sceneRegistry.register(propRoot);
+
+    if (removeGltfPropSystem) removeGltfPropSystem();
+    removeGltfPropSystem = installGltfPropSystem(sceneRegistry);
 
     return {
       kind: 'StaticProp',

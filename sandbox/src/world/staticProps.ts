@@ -7,9 +7,11 @@ import {
   destroyMesh,
   type TextureCache,
   type GltfCache,
-  buildRuntimeModel,
+  buildRuntimeScene,
   buildGltfMaterials,
+  createGltfProp,
   aabb,
+  m4,
   COMPONENT_KEYS,
   markNavGridDirty,
 } from 'viberanium';
@@ -20,9 +22,23 @@ const expandBoundsFromInterleaved = (
   min: [number, number, number],
   max: [number, number, number],
   vertices: Float32Array,
+  worldM?: Float32Array,
 ) => {
   for (let i = 0; i < vertices.length; i += 8) {
-    const x = vertices[i]!, y = vertices[i + 1]!, z = vertices[i + 2]!;
+    const lx = vertices[i]!;
+    const ly = vertices[i + 1]!;
+    const lz = vertices[i + 2]!;
+
+    let x = lx;
+    let y = ly;
+    let z = lz;
+
+    if (worldM) {
+      x = worldM[0]! * lx + worldM[4]! * ly + worldM[8]! * lz + worldM[12]!;
+      y = worldM[1]! * lx + worldM[5]! * ly + worldM[9]! * lz + worldM[13]!;
+      z = worldM[2]! * lx + worldM[6]! * ly + worldM[10]! * lz + worldM[14]!;
+    }
+
     if (x < min[0]) min[0] = x;
     if (y < min[1]) min[1] = y;
     if (z < min[2]) min[2] = z;
@@ -93,7 +109,7 @@ export const instantiateStaticProp = async (
   opts: PropOpts = {},
 ): Promise<boolean> => {
   const loaded = await gltfCache.getOrLoad(gltfUrl);
-  const runtimeMeshes = buildRuntimeModel(loaded);
+  const scene = buildRuntimeScene(loaded);
   const mats = buildGltfMaterials(loaded, materialPrefix, textures);
 
   const t = createTransform();
@@ -107,25 +123,40 @@ export const instantiateStaticProp = async (
 
   const localMin: [number, number, number] = [Infinity, Infinity, Infinity];
   const localMax: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  const renderEntityIds: number[] = [];
 
-  for (const rm of runtimeMeshes) {
-    for (const prim of rm.primitives) {
+  for (const pair of scene.meshNodePairs) {
+    const model = scene.models[pair.meshIndex];
+    if (!model) continue;
+
+    const nodeWorld = scene.nodes[pair.nodeIndex]?.worldM;
+
+    for (const prim of model.primitives) {
+      if (prim.kind === 'skinned') continue;
+
       const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
       const material: Material = prim.materialIndex >= 0 && prim.materialIndex < mats.length
         ? mats[prim.materialIndex]
         : mats[0];
 
-      expandBoundsFromInterleaved(localMin, localMax, prim.vertices);
+      expandBoundsFromInterleaved(localMin, localMax, prim.vertices, nodeWorld);
 
       const e = registry.createBare();
       e.components[COMPONENT_KEYS.transform] = t;
-      e.components[COMPONENT_KEYS.renderable] = { mesh, material };
+      e.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
+      e.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
       e.onDeregister.push(() => destroyMesh(gl, mesh));
       registry.register(e);
+      renderEntityIds.push(e.id);
     }
   }
 
   if (!Number.isFinite(localMin[0])) return false;
+
+  const root = registry.createBare();
+  root.components[COMPONENT_KEYS.transform] = t;
+  root.components[COMPONENT_KEYS.gltfProp] = createGltfProp(scene, renderEntityIds);
+  registry.register(root);
 
   if (opts.y === undefined) {
     t.position[1] = -localMin[1] * s;

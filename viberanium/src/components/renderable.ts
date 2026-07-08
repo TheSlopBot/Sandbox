@@ -5,5 +5,6 @@ export type Renderable = {
   mesh: { vao: WebGLVertexArrayObject; indexCount: number };
   material: Material;
   model?: Mat4;
+  visible?: boolean;
   castShadow?: boolean;
 };

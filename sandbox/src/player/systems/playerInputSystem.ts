@@ -5,6 +5,8 @@ import {
   type CameraFollow,
   type MovementIntent,
   type CharacterController,
+  type SkeletalRig,
+  setRigAttachmentVisible,
   COMPONENT_KEYS,
   v3Set,
 } from 'viberanium';
@@ -38,6 +40,12 @@ export const installPlayerInputSystem = (registry: Registry, input: Input) => {
         cc.movementAnimTime = 0;
         cc.movementBlend = 1;
         t.dirty = true;
+      }
+
+      if (input.pressed(pc.toggleHelmetKey)) {
+        const rig = e.components[COMPONENT_KEYS.skeletalRig] as SkeletalRig | undefined;
+        const helmet = rig?.attachments.find((attachment) => attachment.id === 'helmet');
+        if (helmet) setRigAttachmentVisible(registry, helmet, !helmet.visible);
       }
 
       let mx = 0;
