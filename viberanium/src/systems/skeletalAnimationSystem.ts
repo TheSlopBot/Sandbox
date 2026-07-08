@@ -12,7 +12,7 @@ export const installSkeletalAnimationSystem = (registry: Registry) => {
   const bindPoseCache = new WeakMap<SkeletalRig, ReturnType<typeof snapshotPose>>();
   const _meshWorld = m4();
 
-  registry.addAction('update', (ctx) => {
+  return registry.addAction('update', (ctx) => {
     for (const e of registry.view(COMPONENT_KEYS.skeletalRig)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;

@@ -9,10 +9,11 @@
 import { LEVEL_CATALOG } from '../levels/catalog.ts';
 import { installSceneManager } from './sceneManager.ts';
 
-export const bootstrap = async () => {
-  const canvas = document.querySelector<HTMLCanvasElement>('#game');
-  if (!canvas) throw new Error('Missing #game canvas');
+export type SandboxSession = {
+  unload: () => void;
+};
 
+export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSession> => {
   const game = useGame();
   const input = createInput(window, canvas);
 
@@ -26,9 +27,9 @@ export const bootstrap = async () => {
   const gltfCache = createGltfCache();
 
   const asciiStage = createAsciiPostProcessStage(gl);
-  pipeline.addPostProcess(asciiStage);
+  const removeAsciiStage = pipeline.addPostProcess(asciiStage);
 
-  game.registry.addAction('update', () => {
+  const removeAsciiToggle = game.registry.addAction('update', () => {
     if (input.pressed('KeyT')) asciiStage.enabled = !asciiStage.enabled;
   }, 0);
 
@@ -45,7 +46,21 @@ export const bootstrap = async () => {
 
   await sceneManager.switchTo('test');
 
-  game.registry.addAction('commit', () => { input.commitFrame(); }, 0);
+  const removeCommit = game.registry.addAction('commit', () => { input.commitFrame(); }, 0);
 
   game.start();
+
+  return {
+    unload: () => {
+      game.stop();
+      game.setActiveScene(null);
+
+      sceneManager.destroy();
+      removeCommit();
+      removeAsciiToggle();
+      removeAsciiStage();
+
+      input.destroy();
+    },
+  };
 };

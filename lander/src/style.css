@@ -1,0 +1,19 @@
+.lander-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #0b1116;
+  color: #d9e2ea;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.app-layer {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.app-layer[data-active='true'] {
+  display: block;
+}
+

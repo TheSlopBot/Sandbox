@@ -101,7 +101,7 @@ export const LEVEL_CATALOG: Record<string, LevelDefinition> = {
 };
 
 export const collectLevelAssetUrls = (definition: LevelDefinition): string[] => {
-  const urls = new Set<string>([SPACE_RANGER_GLB, ANIM_GENERAL_GLB, ANIM_MOVEMENT_GLB]);
+  const urls = new Set<string>([ROBOT_ONE_GLB, ANIM_GENERAL_GLB, ANIM_MOVEMENT_GLB, SPACE_RANGER_GLB]);
 
   for (const prop of definition.props) urls.add(prop.url);
   for (const robot of definition.robots ?? []) urls.add(robot.bodyGlb);

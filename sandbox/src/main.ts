@@ -25,7 +25,10 @@ const main = async () => {
   const loadingScreen = createLoadingScreen(loadingCanvas, { colors: LOADING_COLORS });
 
   try {
-    await bootstrap();
+    const gameCanvas = document.querySelector<HTMLCanvasElement>('#game');
+    if (!gameCanvas) throw new Error('Missing #game canvas');
+
+    await bootstrap(gameCanvas);
     await fadeOutLoadingScreen(loadingOverlay);
     document.body.classList.remove('is-loading');
   } catch (err) {

@@ -1,0 +1,56 @@
+---
+description: React component and hook conventions
+globs: **/features/**/*.{js,jsx}
+alwaysApply: false
+---
+
+# React
+
+**Agent:** Put components and hooks in `src/features/<domain>/`; arrow components, named React imports, effects only for external sync.
+
+## Files
+
+| Kind | Path / name |
+|------|-------------|
+| Component + JSX | `src/features/<domain>/PascalCase.jsx` — `export default` |
+| Custom hook | `src/features/<domain>/useName.js` — colocated |
+| Feature CSS | Colocated `.css` — master theme tokens only; no cross-feature class refs |
+
+## Components
+
+- `const PascalCase = (...) =>` at module top level — never nested inside another component.
+- Named imports from `'react'` only — no default `React`.
+- Pure render: no prop/state mutation or side effects in render body.
+- Hooks before any early return; only in components or custom hooks.
+- Never call a component as a function — JSX only.
+- Destructure props in the parameter list — every identifier in the render body must be a destructured prop, import, or local. Fallback chains (`foo ?? bar`) require **both** names in scope; a bare prop name throws `ReferenceError`.
+
+## Event handlers
+
+`const handleSubmit = () => {}` — `handle` + action; arrow only per `javascript.mdc`.
+
+## JSX
+
+`className` not `class`; camelCase DOM attrs; self-close void tags; multiline `return (` … `)`; stable `key` from data — never index or `Math.random()`. Notification lists: `key={entry.id}`.
+
+## Effects — when not to use `useEffect`
+
+| Situation | Do instead |
+|-----------|------------|
+| Derived value from props/state | Compute in render |
+| Filtered/transformed list | Render; `useMemo` if expensive |
+| User action | Event handler |
+| Notify parent of child change | Parent callback in same handler |
+| Reset child when prop identity changes | `key={id}` on child |
+| Chained state-setting Effects | Single handler or render calc |
+| Form POST on interaction | Submit handler |
+
+**Use `useEffect` for:** external subscriptions (browser APIs, widgets), display analytics, sync outside React state. Prefer plain render calc; `useMemo` only when profiled.
+
+## Bootstrap
+
+Wrap root in `<StrictMode>` in `src/main.jsx`.
+
+## Styling
+
+Master CSS at app entry (`src/index.css` / `src/scss/theme.scss`). Co-located feature CSS may use master classes/variables only. Scrollbar theming → master CSS only. Inline `style` must never be used.

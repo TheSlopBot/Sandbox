@@ -17,6 +17,7 @@ export const groundFS = `#version 300 es
 precision highp float;
 in vec3 v_worldPos;
 uniform vec3 u_lightDir;
+uniform float u_alpha;
 ${shadowSamplingGLSL}
 out vec4 outColor;
 
@@ -47,6 +48,6 @@ void main() {
   float shadow = sampleShadow(v_worldPos, n, u_lightDir);
   col *= mix(vec3(0.55), vec3(1.0), shadow);
 
-  outColor = vec4(col, 1.0);
+  outColor = vec4(col, u_alpha);
 }
 `;

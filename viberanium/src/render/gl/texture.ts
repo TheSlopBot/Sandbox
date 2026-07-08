@@ -2,6 +2,7 @@ export type TextureHandle = WebGLTexture;
 
 export class TextureCache {
   private readonly cache = new Map<string, TextureHandle>();
+  private readonly pending = new Map<string, Promise<TextureHandle>>();
   private readonly gl: WebGL2RenderingContext;
 
   constructor(gl: WebGL2RenderingContext) {
@@ -25,5 +26,28 @@ export class TextureCache {
     this.cache.set(uri, tex);
     return tex;
   }
+
+  getOrLoad = async (uri: string): Promise<TextureHandle> => {
+    const existing = this.cache.get(uri);
+    if (existing) return existing;
+
+    const inFlight = this.pending.get(uri);
+    if (inFlight) return inFlight;
+
+    const load = (async () => {
+      const res = await fetch(uri);
+      if (!res.ok) throw new Error(`Failed to fetch texture: ${uri}`);
+      const blob = await res.blob();
+      const image = await createImageBitmap(blob);
+      return this.getOrCreate(uri, image);
+    })();
+
+    this.pending.set(uri, load);
+    try {
+      return await load;
+    } finally {
+      this.pending.delete(uri);
+    }
+  };
 }
 

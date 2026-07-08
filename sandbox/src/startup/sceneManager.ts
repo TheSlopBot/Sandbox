@@ -24,6 +24,7 @@ export type SceneManagerDeps = {
 export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDeps) => {
   let currentLevelId: string | null = null;
   let switching = false;
+  let removeUpdateAction: (() => void) | null = null;
 
   const sceneDeps = (): SceneDeps => ({
     gl: deps.gl,
@@ -56,7 +57,7 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     switching = false;
   };
 
-  gameRegistry.addAction('update', () => {
+  removeUpdateAction = gameRegistry.addAction('update', () => {
     if (switching) return;
     if (deps.input.pressed('Digit1')) void switchTo('test');
     if (deps.input.pressed('Digit2')) void switchTo('alt');
@@ -66,5 +67,9 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     switchTo,
     getCurrentLevelId: () => currentLevelId,
     isSwitching: () => switching,
+    destroy: () => {
+      if (removeUpdateAction) removeUpdateAction();
+      removeUpdateAction = null;
+    },
   };
 };

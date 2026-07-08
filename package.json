@@ -2,16 +2,20 @@
   "name": "sandbox-monorepo",
   "private": true,
   "workspaces": [
+    "lander",
     "sandbox",
+    "preview",
     "viberanium"
   ],
   "scripts": {
-    "dev": "npm run dev -w sandbox",
-    "build": "npm run build -w sandbox",
-    "preview": "npm run preview -w sandbox",
-    "typecheck": "npm run typecheck -w viberanium && npm run typecheck -w sandbox"
+    "dev": "npm run dev -w lander",
+    "build": "npm run build -w lander",
+    "preview": "npm run preview -w lander",
+    "typecheck": "npm run typecheck -w viberanium && npm run typecheck -w sandbox && npm run typecheck -w preview && npm run typecheck -w lander",
+    "sync:kaykit": "node ./scripts/sync-kaykit-assets.mjs"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.2",
     "typescript": "~6.0.2",
     "vite": "^8.1.1"
   }
