@@ -15,6 +15,7 @@ import { fullscreenVS, toneColorFS } from './shaders/post.ts';
 import { DIRECTIONAL_LIGHT, type Camera, type DrawItem } from './types.ts';
 import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type Renderable } from '../components/renderable.ts';
+import { type SkinInstance } from '../components/skin.ts';
 import { type Mat4, m4, m4LookAt, m4Mul, m4Ortho, m4Perspective } from '../math/mat4.ts';
 import { type Vec3, v3, v3Copy, v3Normalize, v3Set } from '../math/vec3.ts';
 
@@ -35,6 +36,10 @@ export type RenderPipeline = {
   getPostProcessStages: () => ReadonlyArray<PostProcessStage>;
   destroy: () => void;
 };
+
+const CULL_FORWARD_DIST = 90;
+const CULL_SHADOW_DIST = 28;
+const FPS_UPDATE_INTERVAL_S = 0.25;
 
 const _proj = m4();
 const _view = m4();
@@ -61,6 +66,12 @@ const computeLightViewProj = (center: Vec3): Mat4 => {
   m4Mul(_lightViewProj, _lightProj, _lightView);
   lightViewProj.set(_lightViewProj);
   return lightViewProj;
+};
+
+const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
+  const dx = ax - bx;
+  const dz = az - bz;
+  return dx * dx + dz * dz;
 };
 
 export type PipelineOptions = {
@@ -115,12 +126,39 @@ export const installRenderPipeline = (
       material: { name: 'ground', baseColorTex: null, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE' },
       model: g.model,
       sortZ: 0,
+      castShadow: true,
     };
   };
 
   const clearGround = () => { groundItem = null; };
 
+  const forwardItems: DrawItem[] = [];
+  const shadowItems: DrawItem[] = [];
+  const itemPool: DrawItem[] = [];
+  let itemPoolUsed = 0;
+
+  const acquireItem = (): DrawItem => {
+    if (itemPoolUsed < itemPool.length) {
+      return itemPool[itemPoolUsed++];
+    }
+    const item: DrawItem = {
+      mesh: { vao: null as unknown as WebGLVertexArrayObject, indexCount: 0 },
+      material: { name: '', baseColorTex: null, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE' },
+      model: m4(),
+      sortZ: 0,
+      castShadow: true,
+      skin: { palette: new Float32Array(0), jointCount: 0 },
+    };
+    itemPool.push(item);
+    itemPoolUsed++;
+    return item;
+  };
+
   let lastDt = 1 / 60;
+  let fpsEl: HTMLSpanElement | null | undefined;
+  let fpsAccum = 0;
+  let lastShownFps = -1;
+
   const removeDraw = registry.addAction('draw', () => {
     device.resize();
     const w = device.canvas.width;
@@ -134,32 +172,57 @@ export const installRenderPipeline = (
     m4Mul(_viewProj, _proj, _view);
     viewProj.set(_viewProj);
 
-    const items: DrawItem[] = [];
+    forwardItems.length = 0;
+    shadowItems.length = 0;
+    itemPoolUsed = 0;
+
+    const camX = camera.position[0];
+    const camZ = camera.position[2];
+    const forwardDist2 = CULL_FORWARD_DIST * CULL_FORWARD_DIST;
+    const shadowDist2 = CULL_SHADOW_DIST * CULL_SHADOW_DIST;
     const entityRegistry = getEntityRegistry();
+
     for (const e of entityRegistry.view(COMPONENT_KEYS.renderable)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const r = e.components[COMPONENT_KEYS.renderable] as Renderable | undefined;
       if (!t || !r) continue;
+
       updateWorldMatrix(t);
       const model = r.model ?? t.world;
-      items.push({
-        mesh: r.mesh,
-        material: r.material,
-        model,
-        sortZ: t.world[14],
-        skin: e.components[COMPONENT_KEYS.skin] as DrawItem['skin'],
-      });
+      const x = model[12];
+      const z = model[14];
+      const d2 = distSqXZ(x, z, camX, camZ);
+      if (d2 > forwardDist2) continue;
+
+      const item = acquireItem();
+      item.mesh = r.mesh;
+      item.material = r.material;
+      item.model = model;
+      item.sortZ = model[14];
+      const skin = e.components[COMPONENT_KEYS.skin] as SkinInstance | undefined;
+      if (skin) {
+        if (!item.skin) item.skin = { palette: skin.palette, jointCount: skin.jointCount };
+        else {
+          item.skin.palette = skin.palette;
+          item.skin.jointCount = skin.jointCount;
+        }
+      } else {
+        item.skin = undefined;
+      }
+      item.castShadow = r.castShadow !== false && d2 <= shadowDist2;
+      forwardItems.push(item);
+      if (item.castShadow) shadowItems.push(item);
     }
 
     const lvp = computeLightViewProj(target);
 
     shadowFbo.bind();
-    shadowPass.draw(lvp, groundItem, items);
+    shadowPass.draw(lvp, groundItem, shadowItems);
     shadowFbo.unbind();
 
     sceneFbo.resize(w, h);
     sceneFbo.bind();
-    forwardPass.draw(camera, { lightViewProj: lvp, map: shadowFbo.depthTex, mapSize: shadowFbo.size }, groundItem, items);
+    forwardPass.draw(camera, { lightViewProj: lvp, map: shadowFbo.depthTex, mapSize: shadowFbo.size }, groundItem, forwardItems);
     sceneFbo.resolve();
     sceneFbo.bindDefault();
     gl.viewport(0, 0, w, h);
@@ -187,8 +250,18 @@ export const installRenderPipeline = (
       }
     }
 
-    const fpsEl = document.querySelector<HTMLSpanElement>('#fps');
-    if (fpsEl) fpsEl.textContent = `${Math.round(1 / Math.max(1e-6, lastDt))}`;
+    fpsAccum += lastDt;
+    if (fpsAccum >= FPS_UPDATE_INTERVAL_S) {
+      fpsAccum = 0;
+      if (fpsEl === undefined) fpsEl = document.querySelector<HTMLSpanElement>('#fps');
+      if (fpsEl) {
+        const fps = Math.round(1 / Math.max(1e-6, lastDt));
+        if (fps !== lastShownFps) {
+          lastShownFps = fps;
+          fpsEl.textContent = `${fps}`;
+        }
+      }
+    }
   }, 0);
 
   const removeCommit = registry.addAction('commit', (ctx) => { lastDt = ctx.dt; }, 100);

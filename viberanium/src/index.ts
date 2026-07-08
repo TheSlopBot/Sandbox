@@ -64,7 +64,10 @@ export { installCharacterPhysicsSystem } from './systems/characterPhysicsSystem.
 export { installCollisionSystem } from './systems/collisionSystem.ts';
 export { installCharacterStateSystem } from './systems/characterStateSystem.ts';
 export { installCameraFollowSystem } from './systems/cameraFollowSystem.ts';
-export { installSkeletalAnimationSystem } from './systems/skeletalAnimationSystem.ts';
+export {
+  installSkeletalAnimationSystem,
+  type SkeletalAnimationOptions,
+} from './systems/skeletalAnimationSystem.ts';
 
 export {
   installRenderPipeline,

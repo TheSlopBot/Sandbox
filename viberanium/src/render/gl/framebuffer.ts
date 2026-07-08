@@ -27,8 +27,12 @@ export const createSceneFramebuffer = (gl: WebGL2RenderingContext, requestedSamp
   let height = 0;
 
   const alloc = (w: number, h: number) => {
-    width = Math.max(1, w);
-    height = Math.max(1, h);
+    const nextW = Math.max(1, w);
+    const nextH = Math.max(1, h);
+    if (nextW === width && nextH === height) return;
+
+    width = nextW;
+    height = nextH;
 
     gl.bindRenderbuffer(gl.RENDERBUFFER, colorRb);
     gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.RGBA8, width, height);

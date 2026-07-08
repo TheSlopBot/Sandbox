@@ -13,6 +13,7 @@ export type DrawItem = {
   model: Mat4;
   sortZ: number;
   skin?: { palette: Float32Array; jointCount: number };
+  castShadow: boolean;
 };
 
 export type Camera = {

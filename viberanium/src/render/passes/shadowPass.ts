@@ -16,15 +16,28 @@ export const createShadowPass = (gl: WebGL2RenderingContext, depth: ShaderProgra
     depthSkinned.destroy();
   };
 
+  const opaque: DrawItem[] = [];
+  const jointViewCache = new WeakMap<Float32Array, Float32Array>();
+
+  const jointsView = (palette: Float32Array, jointCount: number) => {
+    const floats = Math.min(64, jointCount) * 16;
+    let view = jointViewCache.get(palette);
+    if (!view || view.length !== floats) {
+      view = palette.subarray(0, floats);
+      jointViewCache.set(palette, view);
+    }
+    return view;
+  };
+
   return {
     draw: (lightViewProj, groundItem, items) => {
     gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(2.0, 4.0);
 
-    const opaque: DrawItem[] = [];
+    opaque.length = 0;
     for (const it of items) {
-      if (it.material.alphaMode !== 'BLEND') opaque.push(it);
+      if (it.material.alphaMode !== 'BLEND' && it.castShadow) opaque.push(it);
     }
 
     opaque.sort((a, b) => {
@@ -48,8 +61,7 @@ export const createShadowPass = (gl: WebGL2RenderingContext, depth: ShaderProgra
       useProgram(program);
       gl.uniformMatrix4fv(program.u('u_model'), false, it.model);
       if (it.skin) {
-        const count = Math.min(64, it.skin.jointCount);
-        gl.uniformMatrix4fv(program.u('u_joints'), false, it.skin.palette.subarray(0, count * 16));
+        gl.uniformMatrix4fv(program.u('u_joints'), false, jointsView(it.skin.palette, it.skin.jointCount));
       }
       if (it.mesh.vao !== lastVao) {
         lastVao = it.mesh.vao;

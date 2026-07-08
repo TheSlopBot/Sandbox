@@ -55,7 +55,9 @@ export const createPlayableScene = (
   installCollisionSystem(registry);
   installCharacterStateSystem(registry);
   installCameraFollowSystem(registry, deps.pipeline, deps.input);
-  installSkeletalAnimationSystem(registry);
+  installSkeletalAnimationSystem(registry, {
+    getLodOrigin: () => deps.pipeline.camera.position,
+  });
 
   const addProp: AddProp = async (url, prefix, opts = {}) => {
     await instantiateStaticProp(deps.gl, registry, deps.textures, deps.gltfCache, url, prefix, opts);

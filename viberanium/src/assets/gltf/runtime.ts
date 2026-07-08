@@ -378,6 +378,7 @@ export const updateWorldFromLocals = (nodes: RuntimeNode[]): void => {
 const _invMeshWorld = m4();
 const _tmpA = m4();
 const _tmpB = m4();
+const _paletteJoint = m4();
 
 export const computeSkinPalette = (
   nodes: RuntimeNode[],
@@ -386,19 +387,15 @@ export const computeSkinPalette = (
   entityWorld: Mat4,
   meshWorld: Mat4,
 ): void => {
-  // paletteOut layout: jointCount * 16 floats
   m4Invert(_invMeshWorld, meshWorld);
   for (let j = 0; j < skin.joints.length; j++) {
     const nodeIdx = skin.joints[j];
     const jointLocalWorld = nodes[nodeIdx].worldM;
-    // jointWorld = entityWorld * jointLocalWorld
     m4Mul(_tmpA, entityWorld, jointLocalWorld);
-    // jointMatrix = invMeshWorld * jointWorld * inverseBind
     m4Mul(_tmpB, _invMeshWorld, _tmpA);
     const invBind = skin.inverseBind[j];
-    const outOff = j * 16;
-    const outM = paletteOut.subarray(outOff, outOff + 16);
-    m4Mul(outM as unknown as Mat4, _tmpB, invBind);
+    m4Mul(_paletteJoint, _tmpB, invBind);
+    paletteOut.set(_paletteJoint, j * 16);
   }
 };
 

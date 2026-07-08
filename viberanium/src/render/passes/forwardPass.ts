@@ -32,9 +32,22 @@ export const createForwardPass = (
     ground.destroy();
   };
 
+  const opaque: DrawItem[] = [];
+  const transparent: DrawItem[] = [];
+  const jointViewCache = new WeakMap<Float32Array, Float32Array>();
+
+  const jointsView = (palette: Float32Array, jointCount: number) => {
+    const floats = Math.min(64, jointCount) * 16;
+    let view = jointViewCache.get(palette);
+    if (!view || view.length !== floats) {
+      view = palette.subarray(0, floats);
+      jointViewCache.set(palette, view);
+    }
+    return view;
+  };
+
   return {
     draw: (camera, shadow, groundItem, items) => {
-    // Soft daytime sky tint.
     gl.clearColor(0.56, 0.66, 0.82, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -64,20 +77,18 @@ export const createForwardPass = (
       gl.enable(gl.CULL_FACE);
     }
 
-    const opaque: DrawItem[] = [];
-    const transparent: DrawItem[] = [];
+    opaque.length = 0;
+    transparent.length = 0;
     for (const it of items) {
       (it.material.alphaMode === 'BLEND' ? transparent : opaque).push(it);
     }
 
-    // Sort opaque by material then mesh to reduce state changes
     opaque.sort((a, b) => {
       if (a.material.baseColorTex !== b.material.baseColorTex) return a.material.baseColorTex ? 1 : -1;
       if (a.mesh.vao !== b.mesh.vao) return a.mesh.vao > b.mesh.vao ? 1 : -1;
       return 0;
     });
 
-    // Back-to-front for transparent
     transparent.sort((a, b) => b.sortZ - a.sortZ);
 
     let lastTex: WebGLTexture | null = null;
@@ -93,7 +104,6 @@ export const createForwardPass = (
       gl.uniform3f(p.u('u_ambient'), DIRECTIONAL_LIGHT.ambient[0], DIRECTIONAL_LIGHT.ambient[1], DIRECTIONAL_LIGHT.ambient[2]);
       gl.uniform3f(p.u('u_lightColor'), DIRECTIONAL_LIGHT.color[0], DIRECTIONAL_LIGHT.color[1], DIRECTIONAL_LIGHT.color[2]);
       bindShadowUniforms(p);
-      // Force rebinding state
       lastTex = null;
       lastVao = null;
     };
@@ -110,8 +120,7 @@ export const createForwardPass = (
         it.material.baseColorFactor[3],
       );
       if (it.skin) {
-        const count = Math.min(64, it.skin.jointCount);
-        gl.uniformMatrix4fv(program.u('u_joints'), false, it.skin.palette.subarray(0, count * 16));
+        gl.uniformMatrix4fv(program.u('u_joints'), false, jointsView(it.skin.palette, it.skin.jointCount));
       }
       const desiredTex = it.material.baseColorTex ?? whiteTex;
       if (desiredTex !== lastTex) {
@@ -126,7 +135,6 @@ export const createForwardPass = (
       }
     };
 
-    // Opaque pass
     gl.disable(gl.BLEND);
     for (const it of opaque) {
       bindItem(it);
@@ -150,7 +158,6 @@ export const createForwardPass = (
       gl.depthMask(true);
     }
 
-    // Transparent pass
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
@@ -165,4 +172,3 @@ export const createForwardPass = (
     destroy,
   };
 };
-

@@ -18,8 +18,12 @@ export const createColorFramebuffer = (gl: WebGL2RenderingContext): ColorFramebu
   let height = 0;
 
   const alloc = (w: number, h: number) => {
-    width = Math.max(1, w);
-    height = Math.max(1, h);
+    const nextW = Math.max(1, w);
+    const nextH = Math.max(1, h);
+    if (nextW === width && nextH === height) return;
+
+    width = nextW;
+    height = nextH;
 
     gl.bindTexture(gl.TEXTURE_2D, colorTex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
