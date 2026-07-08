@@ -22,7 +22,7 @@ viberanium/                  # Game engine (Viberanium)
     └── index.ts             # Public barrel export (package entry only)
 sandbox/                     # Game content
 └── src/
-    ├── startup/             # bootstrap, sceneManager, levelLoadingGate
+    ├── startup/             # bootstrap, sceneManager
     ├── levels/              # catalog, assets, useLevelScene
     ├── scenes/              # createPlayableScene — generic load/unload factory
     ├── player/              # createPlayer — entity assembly + asset loading

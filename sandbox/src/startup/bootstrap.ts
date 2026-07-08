@@ -8,7 +8,6 @@
 } from 'viberanium';
 import { LEVEL_CATALOG } from '../levels/catalog.ts';
 import { installSceneManager } from './sceneManager.ts';
-import { createLevelLoadingGate } from './levelLoadingGate.ts';
 
 export const bootstrap = async () => {
   const canvas = document.querySelector<HTMLCanvasElement>('#game');
@@ -25,7 +24,6 @@ export const bootstrap = async () => {
   const gl = pipeline.device.gl;
   const textures = new TextureCache(gl);
   const gltfCache = createGltfCache();
-  const loadingGate = createLevelLoadingGate();
 
   const asciiStage = createAsciiPostProcessStage(gl);
   pipeline.addPostProcess(asciiStage);
@@ -43,7 +41,6 @@ export const bootstrap = async () => {
     gl,
     catalog: LEVEL_CATALOG,
     setActiveSceneRegistry: (registry) => { activeSceneRegistry = registry; },
-    loadingGate,
   });
 
   await sceneManager.switchTo('test');

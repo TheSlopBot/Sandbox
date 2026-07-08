@@ -11,7 +11,7 @@ alwaysApply: false
 - **Catalog is cheap; scenes are ephemeral** — level metadata stays in memory; `Scene` objects are created on entry and discarded on exit
 - **Only the active level owns runtime state** — one scene registry, one nav grid, one set of entities at a time
 - **Parsed assets are cached; GL meshes are not** — `GltfCache` dedupes fetch/parse by URL across level visits; each spawn still builds its own GPU meshes
-- **Transitions are async** — preload assets, then `load()`; gate input with `switching` and optional loading UI
+- **Transitions are async** — preload assets, then `load()`; gate input with `switching`
 
 ## Layout
 
@@ -24,7 +24,6 @@ sandbox/src/levels/
 sandbox/src/startup/
   bootstrap.ts         # game + pipeline + session caches; delegates to scene manager
   sceneManager.ts      # switchTo(levelId) — unload, preload, create scene, load
-  levelLoadingGate.ts  # body.is-loading toggle during transitions
 
 sandbox/src/scenes/
   playableScene.ts  # generic factory: systems, load/unload lifecycle
@@ -63,14 +62,12 @@ Pass both through `SceneDeps`. Load glTF via `gltfCache.getOrLoad(url)` — neve
 
 ```
 switchTo(levelId)
-  → loadingGate.show()
   → game.setActiveScene(null)        // sync unload; drop previous Scene
   → gltfCache.preload(urls)          // fetch/parse; hits cache on revisit
   → scene = useLevelScene(deps, def) // new registry + systems
   → game.setActiveScene(scene)
   → setActiveSceneRegistry(scene.registry)
   → await scene.load()               // nav grid, ground, props, NPCs, player
-  → loadingGate.hide()
 ```
 
 `installSceneManager` owns transition policy. Bootstrap wires caches and calls `switchTo` for the initial level before `game.start()`.
