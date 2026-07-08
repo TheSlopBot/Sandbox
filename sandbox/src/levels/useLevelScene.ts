@@ -1,6 +1,7 @@
 import { type Registry, type Scene } from 'viberanium';
 import { createPlayableScene, type SceneDeps } from '../scenes/playableScene.ts';
-import { createRobot } from '../robot/robot.ts';
+import { createRobot } from '../npcs/robot.ts';
+import { createCombatMech } from '../npcs/combatMech.ts';
 import { ANIM_GENERAL_GLB, ANIM_MOVEMENT_GLB } from './assets.ts';
 import { type LevelDefinition } from './catalog.ts';
 
@@ -11,12 +12,19 @@ export const useLevelScene = (deps: SceneDeps, definition: LevelDefinition): Sce
     }
   };
 
-  const spawnNpcs = definition.robots?.length
+  const hasNpcs = (definition.robots?.length ?? 0) > 0 || (definition.combatMechs?.length ?? 0) > 0;
+
+  const spawnNpcs = hasNpcs
     ? async (registry: Registry, sceneDeps: SceneDeps) => {
         const anim = { animGeneralGlb: ANIM_GENERAL_GLB, animMovementGlb: ANIM_MOVEMENT_GLB };
 
-        for (const robot of definition.robots!) {
+        for (const robot of definition.robots ?? []) {
           const { entity } = await createRobot(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, anim, robot);
+          registry.register(entity);
+        }
+
+        for (const mech of definition.combatMechs ?? []) {
+          const { entity } = await createCombatMech(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, mech);
           registry.register(entity);
         }
       }

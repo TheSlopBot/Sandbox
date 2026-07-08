@@ -67,7 +67,7 @@ sandbox/src/
   startup/      bootstrap, sceneManager
   scenes/       createPlayableScene (generic load/unload factory)
   player/       feature slice: player.ts
-  robot/        feature slice: robot.ts, robot AI system
+  npcs/         feature slice: robot.ts, combatMech.ts, test AI system
   world/        ground, staticProps (gltfCache + markNavGridDirty)
 ```
 

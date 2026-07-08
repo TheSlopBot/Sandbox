@@ -19,7 +19,7 @@ import {
 import { instantiateStaticProp } from '../world/staticProps.ts';
 import { createPlayer } from '../player/player.ts';
 import { createGroundMesh } from '../world/ground.ts';
-import { installRobotAiSystem } from '../robot/systems/robotAiSystem.ts';
+import { installTestAiSystem } from '../npcs/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../player/systems/playerInputSystem.ts';
 import { SPACE_RANGER_GLB, ANIM_GENERAL_GLB, ANIM_MOVEMENT_GLB } from '../levels/assets.ts';
 import { type LevelNavGridConfig } from '../levels/catalog.ts';
@@ -49,7 +49,7 @@ export const createPlayableScene = (
 
   installPlayerInputSystem(registry, deps.input);
   installNavGridSystem(registry);
-  installRobotAiSystem(registry);
+  installTestAiSystem(registry);
   installMovementSystem(registry);
   installCharacterPhysicsSystem(registry);
   installCollisionSystem(registry);

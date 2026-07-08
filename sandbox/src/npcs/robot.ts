@@ -9,9 +9,9 @@ import {
   COMPONENT_KEYS,
 } from 'viberanium';
 import { assembleSkeletalCharacter, type CharacterAnimAssets } from '../character/assembleCharacter.ts';
-import { createRobotAi, ROBOT_AI_KEY, type RobotAiOpts } from './components/robotAi.ts';
+import { createTestAi, TEST_AI_KEY, type TestAiOpts } from './components/testAi.ts';
 
-export type RobotSpawnOpts = RobotAiOpts & {
+export type RobotSpawnOpts = TestAiOpts & {
   bodyGlb: string;
   materialPrefix: string;
   y?: number;
@@ -35,7 +35,7 @@ export const createRobot = async (
   entity.components[COMPONENT_KEYS.transform] = charT;
   entity.components[COMPONENT_KEYS.character] = createCharacterController();
   entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
-  entity.components[ROBOT_AI_KEY] = createRobotAi(opts);
+  entity.components[TEST_AI_KEY] = createTestAi(opts);
 
   const { bodyScene, characterParts, renderEntityIds, clips } = await assembleSkeletalCharacter(
     registry, gl, textures, gltfCache, charT,

@@ -1,17 +1,17 @@
 import { v3, type Vec3 } from 'viberanium';
 
-export const ROBOT_AI_KEY = 'robotAi';
+export const TEST_AI_KEY = 'testAi';
 
-export type RobotPathWaypoint = { x: number; z: number };
+export type TestPathWaypoint = { x: number; z: number };
 
-export type RobotAiState = 'navigating' | 'pausing';
+export type TestAiState = 'navigating' | 'pausing';
 
-export type RobotAi = {
+export type TestAi = {
   target: Vec3;
-  path: RobotPathWaypoint[];
+  path: TestPathWaypoint[];
   pathIndex: number;
   objectiveRadius: number;
-  state: RobotAiState;
+  state: TestAiState;
   pauseRemaining: number;
   pauseMin: number;
   pauseMax: number;
@@ -24,7 +24,7 @@ export type RobotAi = {
   jumpChance: number;
 };
 
-export type RobotAiOpts = {
+export type TestAiOpts = {
   x: number;
   z: number;
   roamMinX?: number;
@@ -35,7 +35,7 @@ export type RobotAiOpts = {
   pauseMax?: number;
 };
 
-export const createRobotAi = (opts: RobotAiOpts): RobotAi => ({
+export const createTestAi = (opts: TestAiOpts): TestAi => ({
   target: v3(opts.x, 0, opts.z),
   path: [],
   pathIndex: 0,

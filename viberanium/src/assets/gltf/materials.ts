@@ -6,6 +6,7 @@ export const buildGltfMaterials = (
   loaded: LoadedGltf,
   prefix: string,
   textures: TextureCache,
+  baseColorOverride: WebGLTexture | null = null,
 ): Material[] => {
   const mats: Material[] = [];
   const gltfMats = loaded.gltf.materials ?? [];
@@ -15,9 +16,9 @@ export const buildGltfMaterials = (
     const pbr = gm.pbrMetallicRoughness;
     const baseFactor = pbr?.baseColorFactor ?? [1, 1, 1, 1];
     const texIndex = pbr?.baseColorTexture?.index;
-    let baseTex: WebGLTexture | null = null;
+    let baseTex: WebGLTexture | null = baseColorOverride;
 
-    if (texIndex !== undefined && texIndex >= 0) {
+    if (!baseTex && texIndex !== undefined && texIndex >= 0) {
       const tex = loaded.gltf.textures?.[texIndex];
       const src = tex?.source ?? -1;
       if (src >= 0 && loaded.images[src]) {
@@ -34,9 +35,10 @@ export const buildGltfMaterials = (
   }
 
   if (mats.length === 0) {
-    const fallbackTex = loaded.images[0]
-      ? textures.getOrCreate(loaded.resolvedImageUris[0], loaded.images[0])
-      : null;
+    const fallbackTex = baseColorOverride
+      ?? (loaded.images[0]
+        ? textures.getOrCreate(loaded.resolvedImageUris[0], loaded.images[0])
+        : null);
     mats.push({ name: `${prefix}_default`, baseColorTex: fallbackTex, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE' });
   }
 

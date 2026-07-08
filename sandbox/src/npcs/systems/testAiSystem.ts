@@ -10,7 +10,7 @@ import {
   pickRandomObjective,
   v3Set,
 } from 'viberanium';
-import { ROBOT_AI_KEY, type RobotAi } from '../components/robotAi.ts';
+import { TEST_AI_KEY, type TestAi } from '../components/testAi.ts';
 
 const WAYPOINT_RADIUS = 0.45;
 const OBJECTIVE_MIN_DIST = 3;
@@ -25,7 +25,7 @@ const getSceneNavGrid = (registry: Registry): NavGrid | null => {
 };
 
 const assignObjective = (
-  robot: RobotAi,
+  ai: TestAi,
   colliders: Collider[],
   grid: NavGrid,
   fromX: number,
@@ -34,20 +34,20 @@ const assignObjective = (
   const objective = pickRandomObjective(grid, colliders, fromX, fromZ, OBJECTIVE_MIN_DIST, OBJECTIVE_MAX_DIST);
   if (!objective) return false;
 
-  robot.target[0] = objective.x;
-  robot.target[2] = objective.z;
+  ai.target[0] = objective.x;
+  ai.target[2] = objective.z;
   const path = findPath(grid, fromX, fromZ, objective.x, objective.z);
-  robot.path = path ?? [{ x: objective.x, z: objective.z }];
-  robot.pathIndex = 0;
-  robot.state = 'navigating';
+  ai.path = path ?? [{ x: objective.x, z: objective.z }];
+  ai.pathIndex = 0;
+  ai.state = 'navigating';
   return true;
 };
 
-const beginPause = (robot: RobotAi) => {
-  robot.state = 'pausing';
-  robot.path = [];
-  robot.pathIndex = 0;
-  robot.pauseRemaining = robot.pauseMin + Math.random() * (robot.pauseMax - robot.pauseMin);
+const beginPause = (ai: TestAi) => {
+  ai.state = 'pausing';
+  ai.path = [];
+  ai.pathIndex = 0;
+  ai.pauseRemaining = ai.pauseMin + Math.random() * (ai.pauseMax - ai.pauseMin);
 };
 
 const steerToward = (
@@ -68,64 +68,64 @@ const steerToward = (
   }
 };
 
-export const installRobotAiSystem = (registry: Registry) => {
+export const installTestAiSystem = (registry: Registry) => {
   registry.addAction('update', (ctx) => {
     const grid = getSceneNavGrid(registry);
     if (!grid) return;
 
     const colliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
 
-    for (const e of registry.view(ROBOT_AI_KEY)) {
+    for (const e of registry.view(TEST_AI_KEY)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
       const intent = e.components[COMPONENT_KEYS.movementIntent] as MovementIntent | undefined;
-      const robot = e.components[ROBOT_AI_KEY] as RobotAi;
+      const ai = e.components[TEST_AI_KEY] as TestAi;
       if (!t || !cc || !intent) continue;
 
-      if (robot.state === 'pausing') {
-        robot.pauseRemaining -= ctx.dt;
+      if (ai.state === 'pausing') {
+        ai.pauseRemaining -= ctx.dt;
         v3Set(intent.desiredVelocity, 0, 0, 0);
         intent.jumpRequested = false;
-        if (robot.pauseRemaining <= 0) {
-          robot.pauseRemaining = 0;
-          assignObjective(robot, colliders, grid, t.position[0], t.position[2]);
+        if (ai.pauseRemaining <= 0) {
+          ai.pauseRemaining = 0;
+          assignObjective(ai, colliders, grid, t.position[0], t.position[2]);
         }
         continue;
       }
 
-      if (robot.path.length === 0) {
-        assignObjective(robot, colliders, grid, t.position[0], t.position[2]);
-        if (robot.path.length === 0) {
+      if (ai.path.length === 0) {
+        assignObjective(ai, colliders, grid, t.position[0], t.position[2]);
+        if (ai.path.length === 0) {
           v3Set(intent.desiredVelocity, 0, 0, 0);
           intent.jumpRequested = false;
           continue;
         }
       }
 
-      const waypoint = robot.path[robot.pathIndex]!;
+      const waypoint = ai.path[ai.pathIndex]!;
       const distToWaypoint = Math.hypot(waypoint.x - t.position[0], waypoint.z - t.position[2]);
-      const atLastWaypoint = robot.pathIndex >= robot.path.length - 1;
-      const distToObjective = Math.hypot(robot.target[0] - t.position[0], robot.target[2] - t.position[2]);
+      const atLastWaypoint = ai.pathIndex >= ai.path.length - 1;
+      const distToObjective = Math.hypot(ai.target[0] - t.position[0], ai.target[2] - t.position[2]);
 
-      if (atLastWaypoint && distToObjective <= robot.objectiveRadius) {
-        beginPause(robot);
+      if (atLastWaypoint && distToObjective <= ai.objectiveRadius) {
+        beginPause(ai);
         v3Set(intent.desiredVelocity, 0, 0, 0);
         intent.jumpRequested = false;
         continue;
       }
 
-      if (distToWaypoint <= WAYPOINT_RADIUS && robot.pathIndex < robot.path.length - 1) {
-        robot.pathIndex += 1;
+      if (distToWaypoint <= WAYPOINT_RADIUS && ai.pathIndex < ai.path.length - 1) {
+        ai.pathIndex += 1;
       }
 
-      const active = robot.path[robot.pathIndex]!;
+      const active = ai.path[ai.pathIndex]!;
       steerToward(intent, cc, t.position[0], t.position[2], active.x, active.z);
 
-      robot.jumpTimer -= ctx.dt;
-      if (cc.onGround && robot.jumpTimer <= 0) {
-        robot.jumpTimer = robot.jumpCooldown;
-        robot.jumpCooldown = 3 + Math.random() * 5;
-        intent.jumpRequested = Math.random() < robot.jumpChance;
+      ai.jumpTimer -= ctx.dt;
+      if (cc.onGround && ai.jumpTimer <= 0) {
+        ai.jumpTimer = ai.jumpCooldown;
+        ai.jumpCooldown = 3 + Math.random() * 5;
+        intent.jumpRequested = Math.random() < ai.jumpChance;
       } else {
         intent.jumpRequested = false;
       }

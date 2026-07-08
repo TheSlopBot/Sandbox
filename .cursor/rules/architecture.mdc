@@ -26,7 +26,7 @@ sandbox/                     # Game content
     ├── levels/              # catalog, assets, useLevelScene
     ├── scenes/              # createPlayableScene — generic load/unload factory
     ├── player/              # createPlayer — entity assembly + asset loading
-    ├── robot/               # createRobot — NPC assembly + robot AI system
+    ├── npcs/                # createRobot, createCombatMech — NPC assembly + test AI system
     └── world/               # ground mesh, static props
 ```
 

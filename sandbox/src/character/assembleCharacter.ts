@@ -24,6 +24,7 @@ export type CharacterAnimAssets = {
   animGeneralGlb: string;
   animMovementGlb: string;
   materialPrefix: string;
+  baseColorTextureUrl?: string;
 };
 
 const pickClip = (clips: AnimClip[], name: string): AnimClip => {
@@ -115,7 +116,10 @@ export const assembleSkeletalCharacter = async (
   ]);
 
   const bodyScene = buildRuntimeScene(bodyLoaded);
-  const bodyMats = buildGltfMaterials(bodyLoaded, assets.materialPrefix, textures);
+  const baseColorOverride = assets.baseColorTextureUrl
+    ? await textures.getOrLoad(assets.baseColorTextureUrl)
+    : null;
+  const bodyMats = buildGltfMaterials(bodyLoaded, assets.materialPrefix, textures, baseColorOverride);
   const idleClips = buildRetargetedClips(idleLoaded, bodyScene.nodes);
   const moveClips = buildRetargetedClips(moveLoaded, bodyScene.nodes);
 

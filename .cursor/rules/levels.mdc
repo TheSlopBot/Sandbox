@@ -40,10 +40,11 @@ export type LevelDefinition = {
   navGrid: LevelNavGridConfig;
   props: LevelPropSpawn[];
   robots?: LevelRobotSpawn[];
+  combatMechs?: LevelCombatMechSpawn[];
 };
 ```
 
-Add entries to `LEVEL_CATALOG` in `catalog.ts`. `collectLevelAssetUrls(definition)` gathers all glTF URLs needed for preload (props, robots, player body, shared animation rigs).
+Add entries to `LEVEL_CATALOG` in `catalog.ts`. `collectLevelAssetUrls(definition)` gathers all glTF URLs needed for preload (props, robots, combat mechs, player body, shared animation rigs).
 
 Custom scripted levels can still call `createPlayableScene` directly; catalog-driven levels use `useLevelScene(deps, definition)`.
 

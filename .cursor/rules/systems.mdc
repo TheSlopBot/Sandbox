@@ -21,7 +21,7 @@ Lower `order` runs first within a phase. Reserve bands:
 | 0 | update | input toggles, debug |
 | 4 | update | nav grid blocked-cell refresh when `navGrid.dirty` (`installNavGridSystem`) |
 | 5 | update | player input, AI controller |
-| 6 | update | robot AI pathfinding (sandbox `installRobotAiSystem`) |
+| 6 | update | test AI pathfinding (sandbox `installTestAiSystem`) |
 | 8 | update | movement (intent → velocity) |
 | 10 | update | character physics (gravity, integration) |
 | 12 | update | collision helpers (used by physics) |
@@ -87,7 +87,7 @@ Install on the **game registry**. Scene systems install on each ephemeral scene 
 
 ## Nav grid system
 
-`installNavGridSystem(registry)` runs at update order **4** — before robot AI (6) and movement (8).
+`installNavGridSystem(registry)` runs at update order **4** — before test AI (6) and movement (8).
 
 ```typescript
 export const installNavGridSystem = (registry: Registry) => {
@@ -117,4 +117,4 @@ Call `markNavGridDirty(registry)` after any change to static scene colliders:
 
 ### AI pathfinding
 
-Sandbox `installRobotAiSystem` reads the scene nav grid — it does not build or cache its own. Install order: `installNavGridSystem` before `installRobotAiSystem` so blocked cells are fresh when `dirty` was set the same frame.
+Sandbox `installTestAiSystem` reads the scene nav grid — it does not build or cache its own. Install order: `installNavGridSystem` before `installTestAiSystem` so blocked cells are fresh when `dirty` was set the same frame.

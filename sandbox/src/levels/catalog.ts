@@ -2,10 +2,12 @@ import {
   CUBE_SMALL,
   CUBE_LARGE,
   ROBOT_ONE_GLB,
+  COMBAT_MECH_GLB,
   SPACE_RANGER_GLB,
   ANIM_GENERAL_GLB,
   ANIM_MOVEMENT_GLB,
 } from './assets.ts';
+import { type CombatMechVariant } from '../npcs/combatMech.ts';
 
 export type LevelPropSpawn = {
   url: string;
@@ -18,6 +20,13 @@ export type LevelRobotSpawn = {
   z: number;
   bodyGlb: string;
   materialPrefix: string;
+  y?: number;
+};
+
+export type LevelCombatMechSpawn = {
+  x: number;
+  z: number;
+  variant?: CombatMechVariant;
   y?: number;
 };
 
@@ -35,6 +44,7 @@ export type LevelDefinition = {
   navGrid: LevelNavGridConfig;
   props: LevelPropSpawn[];
   robots?: LevelRobotSpawn[];
+  combatMechs?: LevelCombatMechSpawn[];
 };
 
 const DEFAULT_NAV_GRID: LevelNavGridConfig = {
@@ -43,6 +53,35 @@ const DEFAULT_NAV_GRID: LevelNavGridConfig = {
   minZ: -18,
   maxZ: 18,
   cellSize: 1.0,
+};
+
+const createSeededRng = (seed: number) => {
+  let state = seed >>> 0;
+
+  return () => {
+    state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+};
+
+const buildCombatMechPerfSpawns = (count: number): LevelCombatMechSpawn[] => {
+  const rng = createSeededRng(20260708);
+  const margin = 1.5;
+  const minX = DEFAULT_NAV_GRID.minX + margin;
+  const maxX = DEFAULT_NAV_GRID.maxX - margin;
+  const minZ = DEFAULT_NAV_GRID.minZ + margin;
+  const maxZ = DEFAULT_NAV_GRID.maxZ - margin;
+  const mechs: LevelCombatMechSpawn[] = [];
+
+  for (let i = 0; i < count; i++) {
+    mechs.push({
+      x: minX + rng() * (maxX - minX),
+      z: minZ + rng() * (maxZ - minZ),
+      variant: i >= count / 2 ? 'alt' : 'primary',
+    });
+  }
+
+  return mechs;
 };
 
 export const LEVEL_TEST: LevelDefinition = {
@@ -90,9 +129,7 @@ export const LEVEL_ALT: LevelDefinition = {
     { url: CUBE_LARGE, prefix: 'proto_large', opts: { x: 0.0, z: 10.0, yaw: -Math.PI / 2 } },
     { url: CUBE_LARGE, prefix: 'proto_large', opts: { x: -12.0, z: 8.0, yaw: Math.PI / 3 } },
   ],
-  robots: [
-    { x: -14, z: 12, bodyGlb: ROBOT_ONE_GLB, materialPrefix: 'robot_one' },
-  ],
+  combatMechs: buildCombatMechPerfSpawns(100),
 };
 
 export const LEVEL_CATALOG: Record<string, LevelDefinition> = {
@@ -105,6 +142,7 @@ export const collectLevelAssetUrls = (definition: LevelDefinition): string[] => 
 
   for (const prop of definition.props) urls.add(prop.url);
   for (const robot of definition.robots ?? []) urls.add(robot.bodyGlb);
+  if (definition.combatMechs?.length) urls.add(COMBAT_MECH_GLB);
 
   return [...urls];
 };
