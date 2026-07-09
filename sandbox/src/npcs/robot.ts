@@ -1,16 +1,12 @@
 import {
   type Registry,
-  createTransform,
-  createCharacterController,
-  createMovementIntent,
   type TextureCache,
   type GltfCache,
-  COMPONENT_KEYS,
 } from 'viberanium';
-import { loadSkeletalCharacter } from '../character/loadSkeletalCharacter.ts';
-import { spawnSkeletalCharacter } from '../character/spawnSkeletalCharacter.ts';
 import { createKaykitMediumDef } from '../character/defs/kaykitMedium.ts';
-import { createTestAi, TEST_AI_KEY, type TestAiOpts } from './components/testAi.ts';
+import { createRobot as createRobotComponent, ROBOT_KEY } from './components/robot.ts';
+import { type TestAiOpts } from './components/testAi.ts';
+import { spawnTestNpc } from './spawnTestNpc.ts';
 
 export type RobotSpawnOpts = TestAiOpts & {
   bodyGlb: string;
@@ -24,28 +20,9 @@ export const createRobot = async (
   textures: TextureCache,
   gltfCache: GltfCache,
   opts: RobotSpawnOpts,
-) => {
-  const charT = createTransform();
-  charT.position[0] = opts.x;
-  charT.position[1] = opts.y ?? 1.6;
-  charT.position[2] = opts.z;
-  charT.dirty = true;
-
-  const entity = registry.createBare();
-  entity.components[COMPONENT_KEYS.transform] = charT;
-  entity.components[COMPONENT_KEYS.character] = createCharacterController();
-  entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
-  entity.components[TEST_AI_KEY] = createTestAi(opts);
-
-  const def = createKaykitMediumDef(opts.bodyGlb, opts.materialPrefix);
-  const loaded = await loadSkeletalCharacter({ gl, textures, gltfCache }, def);
-
-  spawnSkeletalCharacter(registry, entity, loaded, { gl });
-
-  const cc = entity.components[COMPONENT_KEYS.character] as ReturnType<typeof createCharacterController>;
-  cc.moveSpeed = 3.8;
-
-  registry.register(entity);
-
-  return { entity };
-};
+) =>
+  spawnTestNpc(registry, gl, textures, gltfCache, createKaykitMediumDef(opts.bodyGlb, opts.materialPrefix), {
+    ...opts,
+    tagKey: ROBOT_KEY,
+    tag: createRobotComponent(),
+  });

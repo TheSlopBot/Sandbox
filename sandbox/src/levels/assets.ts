@@ -3,6 +3,8 @@ export const KAYKIT = `${import.meta.env.BASE_URL}assets/kaykit`;
 export const CUBE_SMALL = `${KAYKIT}/KayKit Prototype Bits 1.1/Assets/gltf/Cube_Prototype_Small.gltf`;
 export const CUBE_LARGE = `${KAYKIT}/KayKit Prototype Bits 1.1/Assets/gltf/Cube_Prototype_Large_B.gltf`;
 
+export const DUMMY_GLB = `${KAYKIT}/KayKit Prototype Bits 1.1/Character/Dummy.glb`;
+
 export const ROBOT_ONE_GLB = `${KAYKIT}/KayKit Mystery Monthly Series 4/12 - June 2024 - Robot/characters/Robot_One.glb`;
 
 export const COMBAT_MECH_GLB = `${KAYKIT}/KayKit Mystery Monthly Series 5/1 - July 2024 - Combat Mech/characters/CombatMech.glb`;

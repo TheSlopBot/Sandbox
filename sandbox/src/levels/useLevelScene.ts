@@ -2,6 +2,7 @@ import { type Registry, type Scene } from 'viberanium';
 import { createPlayableScene, type SceneDeps } from '../scenes/playableScene.ts';
 import { createRobot } from '../npcs/robot.ts';
 import { createCombatMech } from '../npcs/combatMech.ts';
+import { createDummyNpc } from '../npcs/dummy.ts';
 import { type LevelDefinition } from './catalog.ts';
 
 export const useLevelScene = (deps: SceneDeps, definition: LevelDefinition): Scene => {
@@ -11,7 +12,10 @@ export const useLevelScene = (deps: SceneDeps, definition: LevelDefinition): Sce
     }
   };
 
-  const hasNpcs = (definition.robots?.length ?? 0) > 0 || (definition.combatMechs?.length ?? 0) > 0;
+  const hasNpcs =
+    (definition.robots?.length ?? 0) > 0
+    || (definition.combatMechs?.length ?? 0) > 0
+    || (definition.dummies?.length ?? 0) > 0;
 
   const spawnNpcs = hasNpcs
     ? async (registry: Registry, sceneDeps: SceneDeps) => {
@@ -21,6 +25,10 @@ export const useLevelScene = (deps: SceneDeps, definition: LevelDefinition): Sce
 
         for (const mech of definition.combatMechs ?? []) {
           await createCombatMech(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, mech);
+        }
+
+        for (const dummy of definition.dummies ?? []) {
+          await createDummyNpc(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, dummy);
         }
       }
     : undefined;
