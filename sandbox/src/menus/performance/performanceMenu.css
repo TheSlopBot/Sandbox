@@ -1,0 +1,105 @@
+.performance-menu {
+  position: absolute;
+  left: var(--space-md);
+  top: var(--space-md);
+  width: min(280px, calc(100vw - var(--space-md) * 2));
+  padding: var(--space-md);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-primary);
+  user-select: none;
+  pointer-events: auto;
+  opacity: 1;
+  transition: opacity var(--duration-normal) var(--ease-standard);
+}
+
+.performance-menu[data-visible='false'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.performance-menu__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.performance-menu__title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.performance-menu__fps {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.performance-menu__fps-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.performance-menu__fps-value {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-primary);
+}
+
+.performance-menu__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.performance-menu__row {
+  display: grid;
+  grid-template-columns: 72px 1fr 44px;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.performance-menu__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.performance-menu__value {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.performance-menu__range {
+  width: 100%;
+  accent-color: var(--accent-primary);
+}
+
+.performance-menu__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.performance-menu__toggle input {
+  accent-color: var(--accent-primary);
+}
+
+.performance-menu__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--accent-danger);
+}
