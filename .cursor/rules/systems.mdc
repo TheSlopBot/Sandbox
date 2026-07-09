@@ -78,7 +78,7 @@ Components are data-only. Behaviour lives exclusively in system installers.
 
 ## Scene manager
 
-`installSceneManager` in `sandbox/src/startup/sceneManager.ts` owns level transitions:
+`installSceneManager` in `sandbox/src/globals/sceneManager.ts` owns level transitions:
 
 ```typescript
 await sceneManager.switchTo('test');
@@ -113,7 +113,7 @@ Call `markNavGridDirty(registry)` after any change to static scene colliders:
 
 | Trigger | Example |
 |---------|---------|
-| Collider added | `instantiateStaticProp` after `registry.register` |
+| Collider added | `instantiateProp` after `registry.register` |
 | Colliders removed at runtime | Destructible props, doors (future) |
 
 `unload()` destroys the nav grid entity — no `markNavGridDirty` needed on teardown.

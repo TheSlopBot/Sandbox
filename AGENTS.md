@@ -66,34 +66,42 @@ viberanium/src/
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/
-  character/    defs/, loadSkeletalCharacter, spawnSkeletalCharacter
-  levels/       catalog, assets, useLevelScene
-  startup/      bootstrap, sceneManager
-  scenes/       createPlayableScene
-  player/       createPlayer, playerController, attachment tags
-  npcs/         robot, combatMech, test AI
-  world/        ground, staticProps
+  catalog/      assets, animations, characters, levels, keys, types, ui
+  entities/     actor/, player/, enemies/
+  scenes/common/  createPlayableScene, useLevelScene, ground, prop
+  globals/      bootstrap, sceneManager
+  menus/        performance menu, future overlays
+  ui/           app/SandboxApp, theme/style.css
 ```
 
-Feature code lives in its own slice folder under the game package. Do not add logic to `startup/bootstrap.ts` beyond composition wiring.
+Feature code lives in its own slice folder under `entities/`. Do not add logic to `globals/bootstrap.ts` beyond composition wiring.
+
+### Catalog vs entities
+
+- **catalog/** — declarative data only (URLs, defs, level spawns, component keys). No registry writes.
+- **entities/** — factories (`createPlayer`, `spawnActor`), components, systems.
+- **scenes/common/** — level plumbing (`instantiateProp`, `createPlayableScene`).
+
+See `.cursor/rules/sandbox-structure.mdc` for the full layout contract.
 
 ### Skeletal characters
 
-1. Define assets in `character/defs/*.ts`
-2. `loadSkeletalCharacter(deps, def)` — returns model, meshDraws, clips, attachment data
+1. Define assets in `catalog/characters/*.ts`
+2. `loadSkeletalCharacter(deps, def)` in `entities/actor/` — returns model, meshDraws, clips, attachment data
 3. `spawnSkeletalCharacter(registry, entity, loaded)` — components + hierarchy children
 4. Game factory adds gameplay components, then `registry.register(entity)`
 
 ### Levels & assets
 
-- Add levels as `LevelDefinition` entries in `sandbox/src/levels/catalog.ts`
-- Preload via `collectUrlsFromDef` for each character def used in the level
+- Add levels as `LevelDefinition` entries in `catalog/levels/`
+- Register in `catalog/levels/registry.ts`
+- Preload via `collectLevelAssetUrls` in `catalog/levels/collectAssetUrls.ts`
 - `scene.load()` creates level content; `scene.unload()` destroys everything on the scene registry
 
-See `.cursor/rules/levels.mdc` and `.cursor/rules/ecs.mdc` for full patterns.
+See `.cursor/rules/levels.mdc`, `.cursor/rules/sandbox-structure.mdc`, and `.cursor/rules/ecs.mdc` for full patterns.
 
 ---
 
 ## File system notes
 
-When creating new files under `sandbox/src/player/` (or any game subdirectory), use the Shell tool with `Set-Content` if the Write tool does not produce the file on disk — Cursor's virtual FS may not flush new files in this path automatically.
+When creating new files under `sandbox/src/entities/` (or any game subdirectory), use the Shell tool with `Set-Content` if the Write tool does not produce the file on disk — Cursor's virtual FS may not flush new files in this path automatically.

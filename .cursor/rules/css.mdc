@@ -12,7 +12,7 @@ alwaysApply: false
 
 | Location | Owns |
 |----------|------|
-| Master CSS (`sandbox/src/style.css`) | Tokens, reset, scrollbars, `color-scheme`, global typography |
+| Master CSS (`sandbox/src/ui/theme/style.css`) | Tokens, reset, scrollbars, `color-scheme`, global typography |
 | Feature CSS (colocated) | BEM layout and component modifiers — **tokens only** |
 | TSX inline `style` | Dynamic values only (bar width, position) — camelCase keys |
 
