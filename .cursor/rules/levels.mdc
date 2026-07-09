@@ -1,6 +1,6 @@
 ---
 description: Level catalog, asset caching, and ephemeral scene load/unload lifecycle
-globs: sandbox/src/levels/**,sandbox/src/startup/**,sandbox/src/scenes/**,viberanium/src/assets/**
+globs: sandbox/src/catalog/**,sandbox/src/globals/**,sandbox/src/scenes/**,viberanium/src/assets/**
 alwaysApply: false
 ---
 
@@ -16,28 +16,33 @@ alwaysApply: false
 ## Layout
 
 ```
-sandbox/src/character/
-  defs/           # SkeletalCharacterDef entries (spaceRanger, kaykitMedium helpers)
-  types.ts        # def types + collectUrlsFromDef()
+sandbox/src/catalog/
+  assets/           # glTF/texture URL constants (kaykit.ts)
+  animations/       # anim pack + clip maps (kaykitMedium.ts)
+  characters/       # SkeletalCharacterDef entries
+  levels/           # test.ts, alt.ts, registry.ts, collectAssetUrls.ts
+  types/            # LevelDefinition, SkeletalCharacterDef shapes
+  keys/             # GAME_COMPONENT_KEYS
+
+sandbox/src/entities/actor/
   loadSkeletalCharacter.ts   # async load — no registry writes
   spawnSkeletalCharacter.ts  # attach components + bone-attachment children
+  spawnActor.ts              # generic skeletal entity spawn
 
-sandbox/src/levels/
-  assets.ts       # shared model/animation URL constants (incl. attachment URLs)
-  catalog.ts      # LevelDefinition entries + collectLevelAssetUrls()
-  useLevelScene.ts  # catalog entry → createPlayableScene()
-
-sandbox/src/startup/
+sandbox/src/globals/
   bootstrap.ts         # game + pipeline + session caches; delegates to scene manager
   sceneManager.ts      # switchTo(levelId) — unload, preload, create scene, load
 
-sandbox/src/scenes/
-  playableScene.ts  # generic factory: systems, load/unload lifecycle
+sandbox/src/scenes/common/
+  createPlayableScene.ts  # generic factory: systems, load/unload lifecycle
+  useLevelScene.ts        # catalog entry → createPlayableScene
+  prop.ts                 # instantiateProp — static prop spawn (not catalog)
+  ground.ts
 ```
 
 ## Level catalog
 
-Levels are **data**, not one TypeScript file per level:
+Levels are **data** in `catalog/levels/`:
 
 ```typescript
 export type LevelDefinition = {
@@ -47,16 +52,17 @@ export type LevelDefinition = {
   props: LevelPropSpawn[];
   robots?: LevelRobotSpawn[];
   combatMechs?: LevelCombatMechSpawn[];
+  dummies?: LevelDummySpawn[];
 };
 ```
 
-Add entries to `LEVEL_CATALOG` in `catalog.ts`. `collectLevelAssetUrls(definition)` gathers glTF URLs via `collectUrlsFromDef()` for player/NPC defs plus level props and spawns.
+Add entries to `LEVEL_CATALOG` in `catalog/levels/registry.ts`. `collectLevelAssetUrls(definition)` in `catalog/levels/collectAssetUrls.ts` gathers glTF URLs from character catalogs plus level props and spawns.
 
-Custom scripted levels can still call `createPlayableScene` directly; catalog-driven levels use `useLevelScene(deps, definition)`.
+Custom scripted levels can call `createPlayableScene` directly; catalog-driven levels use `useLevelScene(deps, definition)`.
 
 ## Session asset caches (bootstrap)
 
-Created once in `bootstrap.ts`, shared across all levels:
+Created once in `globals/bootstrap.ts`, shared across all levels:
 
 | Cache | Location | Caches |
 |-------|----------|--------|
@@ -92,9 +98,9 @@ Nav grid is **not** persistent across load/unload cycles. `markNavGridDirty(regi
 
 ## Adding a new level
 
-1. Add prop/robot layout to `catalog.ts` as a `LevelDefinition`
-2. Register in `LEVEL_CATALOG`
-3. Wire entry point in `sceneManager` (keyboard, level picker, portal, etc.)
+1. Add spawn data to `catalog/levels/<id>.ts` as a `LevelDefinition`
+2. Register in `catalog/levels/registry.ts`
+3. Wire entry point in `globals/sceneManager.ts` (keyboard, level picker, portal, etc.)
 4. No new scene TypeScript file required unless the level needs custom spawn logic
 
 ## GL cleanup on unload
@@ -108,3 +114,4 @@ Static prop render entities register `onDeregister` handlers that call `destroyM
 - Caching GPU meshes in `GltfCache` — cache parsed glTF only
 - Keeping nav grid entities across `unload()` — grid is level content
 - Blocking the main thread with sync fetch — preload before `scene.load()`
+- Putting spawn factories (`instantiateProp`, `spawnActor`) in `catalog/`

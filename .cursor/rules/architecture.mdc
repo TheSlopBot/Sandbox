@@ -22,13 +22,13 @@ viberanium/                  # Game engine (Viberanium)
     └── index.ts             # Public barrel export (package entry only)
 sandbox/                     # Game content
 └── src/
-    ├── startup/             # bootstrap, sceneManager
-    ├── levels/              # catalog, assets, useLevelScene
-    ├── scenes/              # createPlayableScene — generic load/unload factory
-    ├── character/           # defs, loadSkeletalCharacter, spawnSkeletalCharacter
-    ├── player/              # createPlayer — gameplay components + spawn wiring
-    ├── npcs/                # createRobot, createCombatMech — NPC assembly + test AI system
-    └── world/               # ground mesh, static props
+    ├── catalog/             # declarative registries: assets, animations, characters, levels, keys
+    ├── entities/            # actor, player, enemies — factories, components, systems
+    ├── scenes/common/       # createPlayableScene, useLevelScene, ground, prop
+    ├── globals/             # bootstrap, sceneManager
+    ├── menus/               # React overlay menus (performance, …)
+    ├── ui/                  # SandboxApp shell + theme CSS
+    └── SandboxApp.tsx       # package entry re-export
 ```
 
 Games import the engine via `import { ... } from 'viberanium'`. Game code never lives under `viberanium/`.
@@ -63,22 +63,22 @@ Session-scoped caches (`GltfCache`, `TextureCache`) live in bootstrap and surviv
 
 ## Adding New Features
 
-Follow the manaburn-barcrawl pattern — add a feature folder under the game package:
+Follow the manaburn-barcrawl pattern — add a feature folder under `entities/enemies/`:
 ```
-sandbox/src/enemies/spider/
-  spider.ts           # createSpiderEntity
+sandbox/src/entities/enemies/spider/
+  createSpider.ts
   components/
     spiderAI.ts
   systems/
-    spiderSystem.ts   # installSpiderSystem
+    spiderSystem.ts
 ```
-Register spawn logic in a `LevelDefinition` or custom `spawnNpcs` callback. Install feature systems in `createPlayableScene` (or a scene variant) once per scene instance.
+Register spawn logic in `catalog/levels/` and `useLevelScene`. Add `GAME_COMPONENT_KEYS.spiderAi` in `catalog/keys/components.ts`. Install feature systems in `createPlayableScene` once per scene instance.
 
 When adding geometry that blocks pathfinding, register a static `collider` and call `markNavGridDirty(scene.registry)`.
 
 ## Skeletal characters
 
-Declarative defs in `sandbox/src/character/defs/` → `loadSkeletalCharacter` (data only) → `spawnSkeletalCharacter` (registry writes).
+Declarative defs in `catalog/characters/` → `loadSkeletalCharacter` (data only) → `spawnSkeletalCharacter` (registry writes) via `entities/actor/`.
 
 Root entity holds `skeletalModel`, `meshDraws`, `animationClipMap`, `animationStateMachine`, and `children`. Attachments (helmet, jetpack, blade) are **child entities** with `childOf` + `boneAttachment` + `meshDraws` — never orphan body render sub-entities or shared `Transform` refs.
 

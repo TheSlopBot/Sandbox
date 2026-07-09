@@ -131,7 +131,7 @@ Bounds come from `LevelDefinition.navGrid` in the level catalog.
 ### Dirty rebuild contract
 
 - **Do not** rebuild the nav grid every update — only when `navGrid.dirty` is true
-- **Do** call `markNavGridDirty(registry)` when static colliders are added or removed during an active level (e.g. `instantiateStaticProp`, runtime destructibles)
+- **Do** call `markNavGridDirty(registry)` when static colliders are added or removed during an active level (e.g. `instantiateProp`, runtime destructibles)
 - AI systems read the scene grid via `registry.view(COMPONENT_KEYS.navGrid)` — never build or cache their own grid
 
 ## Forbidden

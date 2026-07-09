@@ -1,0 +1,89 @@
+---
+description: Sandbox folder layout — catalog, entities, scenes, globals, ui, menus
+globs: sandbox/src/**
+alwaysApply: true
+---
+
+# Sandbox Directory Structure
+
+All game content lives under `sandbox/src/`. **Never** add game logic to `viberanium/`.
+
+## Layout
+
+```
+sandbox/src/
+├── SandboxApp.tsx          # package entry re-export only
+├── catalog/                # declarative data — lists, maps, registries (no spawn logic)
+│   ├── types/              # LevelDefinition, SkeletalCharacterDef shapes
+│   ├── assets/             # glTF/texture URL constants
+│   ├── animations/         # anim pack + clip name maps (e.g. kaykitMedium)
+│   ├── characters/         # SkeletalCharacterDef entries
+│   ├── levels/             # level spawn data + LEVEL_CATALOG registry
+│   ├── keys/               # GAME_COMPONENT_KEYS, attachment tag maps
+│   └── ui/                 # theme tokens (loading colors, etc.)
+├── entities/               # factories, components, systems
+│   ├── actor/              # shared skeletal spawn pipeline
+│   ├── player/             # createPlayer, playerController, input system
+│   └── enemies/            # robot, combatMech, dummy + testAi
+├── scenes/
+│   └── common/             # createPlayableScene, useLevelScene, ground, prop
+├── globals/                # bootstrap, sceneManager (session autoloads)
+├── menus/                  # standalone React overlays (performance menu, …)
+└── ui/
+    ├── app/                # SandboxApp shell
+    └── theme/              # style.css + design tokens
+```
+
+## Catalog rule
+
+A file belongs in `catalog/` when it is **primarily declarative data** consumed elsewhere:
+
+| Belongs in `catalog/` | Belongs outside `catalog/` |
+|-----------------------|----------------------------|
+| URL/path constants | `loadSkeletalCharacter`, `spawnActor` |
+| `Record<id, Definition>` maps | `installTestAiSystem` |
+| Clip name maps | `createPlayer` |
+| `SkeletalCharacterDef` instances | `instantiateProp` |
+| `GAME_COMPONENT_KEYS` | Component `createX()` factories |
+| Level spawn layouts | Scene `load()` / `unload()` |
+
+`catalog/` may import `catalog/*` and `viberanium` types. **`catalog/` must not import from `entities/`, `scenes/`, or `globals/`.**
+
+Engine `COMPONENT_KEYS` stays in `viberanium`. Sandbox-specific keys live in `catalog/keys/components.ts`.
+
+## Entity rule
+
+| Folder | Role |
+|--------|------|
+| `entities/actor/` | `loadSkeletalCharacter`, `spawnSkeletalCharacter`, `spawnActor`, `buildKaykitMediumDef` |
+| `entities/player/` | `createPlayer`, player components + `installPlayerInputSystem` |
+| `entities/enemies/<kind>/` | `createRobot`, `createCombatMech`, … + shared `components/`, `systems/` |
+
+New enemies follow `entities/enemies/spider/` with `createSpider.ts`, `components/`, `systems/`.
+
+## Scenes rule
+
+- `scenes/common/createPlayableScene.ts` — installs scene systems once; `load()` / `unload()` lifecycle
+- `scenes/common/useLevelScene.ts` — maps `LevelDefinition` → playable scene
+- `scenes/common/prop.ts` — `instantiateProp` (static glTF prop spawn factory; **not** catalog)
+- `scenes/common/ground.ts` — ground mesh for render pipeline
+
+Per-level custom logic: add `scenes/<levelId>/` only when catalog data is insufficient.
+
+## Globals rule
+
+`globals/bootstrap.ts` and `globals/sceneManager.ts` are session composition only — no entity factories, no level spawn data.
+
+## UI / menus rule
+
+- `ui/app/SandboxApp.tsx` — React shell; imports `globals/bootstrap`
+- `menus/` — overlay components (e.g. `menus/performance/PerformanceMenu.tsx`)
+- Master CSS: `ui/theme/style.css`; feature CSS colocated with components
+
+## Forbidden
+
+- Barrel `index.ts` anywhere under `sandbox/src/`
+- Catalog files with registry writes or `install*System`
+- `startup/`, `levels/`, `character/`, `npcs/`, `world/` paths (removed — use structure above)
+- Component key strings outside `catalog/keys/` (except `viberanium` `COMPONENT_KEYS`)
+- `staticProps.ts` — use `scenes/common/prop.ts` + `instantiateProp`
