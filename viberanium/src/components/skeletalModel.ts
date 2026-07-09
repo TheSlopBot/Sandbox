@@ -3,6 +3,7 @@ import { type RuntimeScene } from '../assets/gltf/runtime.ts';
 export type SkeletalModel = {
   bodyScene: RuntimeScene;
   visualYOffset: number;
+  poseDirty: boolean;
 };
 
 export const createSkeletalModel = (
@@ -11,4 +12,5 @@ export const createSkeletalModel = (
 ): SkeletalModel => ({
   bodyScene,
   visualYOffset,
+  poseDirty: true,
 });

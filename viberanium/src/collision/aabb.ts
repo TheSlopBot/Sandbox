@@ -21,3 +21,41 @@ export const makeAabb = (
   min: new Float32Array([posX - hx, posY - hy, posZ - hz]),
   max: new Float32Array([posX + hx, posY + hy, posZ + hz]),
 });
+
+export const rayAabbDistance = (
+  ox: number,
+  oy: number,
+  oz: number,
+  dx: number,
+  dy: number,
+  dz: number,
+  minX: number,
+  minY: number,
+  minZ: number,
+  maxX: number,
+  maxY: number,
+  maxZ: number,
+  maxDist: number,
+): number => {
+  const invX = dx !== 0 ? 1 / dx : Number.POSITIVE_INFINITY;
+  const invY = dy !== 0 ? 1 / dy : Number.POSITIVE_INFINITY;
+  const invZ = dz !== 0 ? 1 / dz : Number.POSITIVE_INFINITY;
+
+  let tMin = ((invX >= 0 ? minX : maxX) - ox) * invX;
+  let tMax = ((invX >= 0 ? maxX : minX) - ox) * invX;
+
+  const tyMin = ((invY >= 0 ? minY : maxY) - oy) * invY;
+  const tyMax = ((invY >= 0 ? maxY : minY) - oy) * invY;
+  if (tMin > tyMax || tyMin > tMax) return Number.POSITIVE_INFINITY;
+  if (tyMin > tMin) tMin = tyMin;
+  if (tyMax < tMax) tMax = tyMax;
+
+  const tzMin = ((invZ >= 0 ? minZ : maxZ) - oz) * invZ;
+  const tzMax = ((invZ >= 0 ? maxZ : minZ) - oz) * invZ;
+  if (tMin > tzMax || tzMin > tMax) return Number.POSITIVE_INFINITY;
+  if (tzMin > tMin) tMin = tzMin;
+  if (tzMax < tMax) tMax = tzMax;
+
+  if (tMax < 0 || tMin > maxDist) return Number.POSITIVE_INFINITY;
+  return tMin >= 0 ? tMin : 0;
+};

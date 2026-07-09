@@ -17,7 +17,7 @@ type DeepPartial<T> = {
 export const DEFAULT_ENGINE_OPTIMIZATION: EngineOptimizationOptions = {
   shadowCullDist: 60,
   forwardCullDist: 100,
-  skeletonLod: { skipStartDist: 0, freezeDist: 80, baseRate: 0 },
+  skeletonLod: { skipStartDist: 18, freezeDist: 45, baseRate: 0 },
 };
 
 const validateOptimization = (options: EngineOptimizationOptions) => {

@@ -9,14 +9,16 @@ import {
   resolveAabbVsObbHorizontal,
 } from '../collision/obb.ts';
 
+const _obstacles: Collider[] = [];
+
 export const getObstacles = (registry: Registry, keys: readonly string[]): Collider[] => {
-  const result: Collider[] = [];
+  _obstacles.length = 0;
   for (const key of keys) {
     for (const c of registry.getComponentsByName(key)) {
-      result.push(c as Collider);
+      _obstacles.push(c as Collider);
     }
   }
-  return result;
+  return _obstacles;
 };
 
 export const resolveHorizontalCollisions = (

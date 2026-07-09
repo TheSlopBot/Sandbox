@@ -360,18 +360,32 @@ export const buildRuntimeScene = (loaded: LoadedGltf): RuntimeScene => {
 
 export const updateWorldFromLocals = (nodes: RuntimeNode[]): void => {
   for (let i = 0; i < nodes.length; i++) {
-    const n = nodes[i];
-    // If a node has a baked matrix in glTF, localM is authoritative; otherwise rebuild from TRS.
-    // We rebuild every frame because animation modifies TRS.
+    const n = nodes[i]!;
     m4FromTRSQuat(n.localM, n.localT, n.localR, n.localS);
   }
   for (let i = 0; i < nodes.length; i++) {
-    const n = nodes[i];
+    const n = nodes[i]!;
     if (n.parent < 0) {
       n.worldM.set(n.localM);
     } else {
-      m4Mul(n.worldM, nodes[n.parent].worldM, n.localM);
+      m4Mul(n.worldM, nodes[n.parent]!.worldM, n.localM);
     }
+  }
+};
+
+export const updateWorldFromLocalsDirty = (nodes: RuntimeNode[], dirtyLocals: Uint8Array): void => {
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]!;
+    const localDirty = dirtyLocals[i] === 1;
+    if (localDirty) m4FromTRSQuat(n.localM, n.localT, n.localR, n.localS);
+
+    const parent = n.parent;
+    const worldDirty = localDirty || (parent >= 0 && dirtyLocals[parent] === 1);
+    if (!worldDirty) continue;
+
+    dirtyLocals[i] = 1;
+    if (parent < 0) n.worldM.set(n.localM);
+    else m4Mul(n.worldM, nodes[parent]!.worldM, n.localM);
   }
 };
 
@@ -388,13 +402,12 @@ export const computeSkinPalette = (
   meshWorld: Mat4,
 ): void => {
   m4Invert(_invMeshWorld, meshWorld);
+  m4Mul(_tmpA, _invMeshWorld, entityWorld);
+
   for (let j = 0; j < skin.joints.length; j++) {
-    const nodeIdx = skin.joints[j];
-    const jointLocalWorld = nodes[nodeIdx].worldM;
-    m4Mul(_tmpA, entityWorld, jointLocalWorld);
-    m4Mul(_tmpB, _invMeshWorld, _tmpA);
-    const invBind = skin.inverseBind[j];
-    m4Mul(_paletteJoint, _tmpB, invBind);
+    const jointLocalWorld = nodes[skin.joints[j]!].worldM;
+    m4Mul(_tmpB, _tmpA, jointLocalWorld);
+    m4Mul(_paletteJoint, _tmpB, skin.inverseBind[j]!);
     paletteOut.set(_paletteJoint, j * 16);
   }
 };

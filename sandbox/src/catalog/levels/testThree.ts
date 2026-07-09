@@ -42,5 +42,5 @@ export const TEST_THREE: LevelDefinition = {
     maxZ: GROUND_HALF_EXTENT,
     cellSize: 2,
   },
-  props: buildScatteredPropSpawns(PROP_STRESS_ASSETS, 80, GROUND_HALF_EXTENT, 20260710),
+  props: buildScatteredPropSpawns(PROP_STRESS_ASSETS, 160, GROUND_HALF_EXTENT, 20260710),
 };

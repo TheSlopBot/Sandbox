@@ -13,6 +13,7 @@ export const installStaticModelSystem = (registry: Registry) =>
       const staticModel = e.components[COMPONENT_KEYS.staticModel] as StaticModel | undefined;
       const renderGroup = e.components[COMPONENT_KEYS.renderGroup] as RenderGroup | undefined;
       if (!t || !staticModel || !renderGroup) continue;
+      if (!t.dirty) continue;
 
       updateWorldMatrix(t);
 

@@ -20,16 +20,17 @@ export const obbIntersectsAabb = (obb: ObbY, aabb: Aabb): boolean => {
 
   const relX = cx - obb.center[0];
   const relZ = cz - obb.center[2];
-  const p = rotateY(relX, relZ, -obb.yaw);
-
   const c = Math.cos(obb.yaw);
   const s = Math.sin(obb.yaw);
+  const px = relX * c - relZ * s;
+  const pz = relX * s + relZ * c;
+
   const projHx = Math.abs(c) * hx + Math.abs(s) * hz;
   const projHz = Math.abs(s) * hx + Math.abs(c) * hz;
 
   return (
-    Math.abs(p.x) <= obb.halfExtents[0] + projHx &&
-    Math.abs(p.z) <= obb.halfExtents[2] + projHz &&
+    Math.abs(px) <= obb.halfExtents[0] + projHx &&
+    Math.abs(pz) <= obb.halfExtents[2] + projHz &&
     Math.abs(cy - obb.center[1]) <= obb.halfExtents[1] + hy
   );
 };

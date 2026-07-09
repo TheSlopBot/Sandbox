@@ -1,10 +1,53 @@
 export type Mesh = {
   vao: WebGLVertexArrayObject;
   indexCount: number;
+  boundsMin: readonly [number, number, number];
+  boundsMax: readonly [number, number, number];
+  boundsCenter: readonly [number, number, number];
+  boundsRadius: number;
 };
 
 export const destroyMesh = (gl: WebGL2RenderingContext, mesh: Mesh): void => {
   gl.deleteVertexArray(mesh.vao);
+};
+
+const computeBounds = (
+  vertices: Float32Array,
+): {
+  min: [number, number, number];
+  max: [number, number, number];
+  center: [number, number, number];
+  radius: number;
+} => {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < vertices.length; i += 8) {
+    const x = vertices[i + 0]!;
+    const y = vertices[i + 1]!;
+    const z = vertices[i + 2]!;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (z < minZ) minZ = z;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+    if (z > maxZ) maxZ = z;
+  }
+
+  if (!Number.isFinite(minX)) {
+    return { min: [0, 0, 0], max: [0, 0, 0], center: [0, 0, 0], radius: 0 };
+  }
+
+  const cx = (minX + maxX) * 0.5;
+  const cy = (minY + maxY) * 0.5;
+  const cz = (minZ + maxZ) * 0.5;
+  const radius = Math.hypot(maxX - cx, maxY - cy, maxZ - cz);
+
+  return { min: [minX, minY, minZ], max: [maxX, maxY, maxZ], center: [cx, cy, cz], radius };
 };
 
 export const createInterleavedMesh = (
@@ -40,7 +83,16 @@ export const createInterleavedMesh = (
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
-  return { vao, indexCount: indices.length };
+  const bounds = computeBounds(vertices);
+
+  return {
+    vao,
+    indexCount: indices.length,
+    boundsMin: bounds.min,
+    boundsMax: bounds.max,
+    boundsCenter: bounds.center,
+    boundsRadius: bounds.radius,
+  };
 };
 
 export type SkinnedMesh = Mesh & { jointCount: number };
@@ -92,6 +144,16 @@ export const createSkinnedMesh = (
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
-  return { vao, indexCount: indices.length, jointCount };
+  const bounds = computeBounds(vertices);
+
+  return {
+    vao,
+    indexCount: indices.length,
+    jointCount,
+    boundsMin: bounds.min,
+    boundsMax: bounds.max,
+    boundsCenter: bounds.center,
+    boundsRadius: bounds.radius,
+  };
 };
 

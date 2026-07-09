@@ -1,8 +1,7 @@
 import { type LoadedGltf } from '../assets/gltf/loader.ts';
 import { type Gltf } from '../assets/gltf/types.ts';
 import { type RuntimeNode, buildNodeNameMap } from '../assets/gltf/runtime.ts';
-import { v3 } from '../math/vec3.ts';
-import { q4, q4Slerp, q4Normalize } from '../math/quat.ts';
+import { q4, q4Slerp } from '../math/quat.ts';
 
 type ChannelPath = 'translation' | 'rotation' | 'scale';
 
@@ -17,6 +16,26 @@ export type AnimClip = {
   name: string;
   duration: number;
   channels: AnimChannel[];
+  animatedNodes?: number[];
+};
+
+const clipAnimatedNodes = new WeakMap<AnimClip, number[]>();
+
+export const getClipAnimatedNodes = (clip: AnimClip): number[] => {
+  const cached = clip.animatedNodes ?? clipAnimatedNodes.get(clip);
+  if (cached) return cached;
+
+  const seen = new Set<number>();
+  const nodes: number[] = [];
+  for (const ch of clip.channels) {
+    if (seen.has(ch.targetNodeIndex)) continue;
+    seen.add(ch.targetNodeIndex);
+    nodes.push(ch.targetNodeIndex);
+  }
+
+  clip.animatedNodes = nodes;
+  clipAnimatedNodes.set(clip, nodes);
+  return nodes;
 };
 
 const numComponents = (type: string): number => {
@@ -99,8 +118,6 @@ const findKeyframe = (times: Float32Array, t: number): number => {
 const _qa = q4();
 const _qb = q4();
 const _qout = q4();
-const _va = v3();
-const _vb = v3();
 
 export const sampleClipToNodes = (
   clip: AnimClip,
@@ -111,6 +128,7 @@ export const sampleClipToNodes = (
 ): void => {
   const w = Math.max(0, Math.min(1, weight));
   if (w <= 0) return;
+  const fullWeight = w >= 0.999;
   let t = Math.max(0, time);
   if (clip.duration > 0) {
     t = loop ? ((t % clip.duration) + clip.duration) % clip.duration : Math.min(t, clip.duration);
@@ -124,20 +142,33 @@ export const sampleClipToNodes = (
     if (times.length === 1) {
       const base = 0;
       if (ch.path === 'translation') {
-        _va[0] = ch.values[base]; _va[1] = ch.values[base + 1]; _va[2] = ch.values[base + 2];
-        n.localT[0] += (_va[0] - n.localT[0]) * w;
-        n.localT[1] += (_va[1] - n.localT[1]) * w;
-        n.localT[2] += (_va[2] - n.localT[2]) * w;
+        if (fullWeight) {
+          n.localT[0] = ch.values[base];
+          n.localT[1] = ch.values[base + 1];
+          n.localT[2] = ch.values[base + 2];
+        } else {
+          n.localT[0] += (ch.values[base] - n.localT[0]) * w;
+          n.localT[1] += (ch.values[base + 1] - n.localT[1]) * w;
+          n.localT[2] += (ch.values[base + 2] - n.localT[2]) * w;
+        }
       } else if (ch.path === 'scale') {
-        _va[0] = ch.values[base]; _va[1] = ch.values[base + 1]; _va[2] = ch.values[base + 2];
-        n.localS[0] += (_va[0] - n.localS[0]) * w;
-        n.localS[1] += (_va[1] - n.localS[1]) * w;
-        n.localS[2] += (_va[2] - n.localS[2]) * w;
+        if (fullWeight) {
+          n.localS[0] = ch.values[base];
+          n.localS[1] = ch.values[base + 1];
+          n.localS[2] = ch.values[base + 2];
+        } else {
+          n.localS[0] += (ch.values[base] - n.localS[0]) * w;
+          n.localS[1] += (ch.values[base + 1] - n.localS[1]) * w;
+          n.localS[2] += (ch.values[base + 2] - n.localS[2]) * w;
+        }
+      } else if (fullWeight) {
+        n.localR[0] = ch.values[base];
+        n.localR[1] = ch.values[base + 1];
+        n.localR[2] = ch.values[base + 2];
+        n.localR[3] = ch.values[base + 3];
       } else {
         _qa[0] = ch.values[base]; _qa[1] = ch.values[base + 1]; _qa[2] = ch.values[base + 2]; _qa[3] = ch.values[base + 3];
-        q4Normalize(_qa, _qa);
-        q4Slerp(_qout, n.localR, _qa, w);
-        n.localR.set(_qout);
+        q4Slerp(n.localR, n.localR, _qa, w);
       }
       continue;
     }
@@ -150,25 +181,30 @@ export const sampleClipToNodes = (
     if (ch.path === 'translation' || ch.path === 'scale') {
       const base0 = i * 3;
       const base1 = (i + 1) * 3;
-      _va[0] = ch.values[base0]; _va[1] = ch.values[base0 + 1]; _va[2] = ch.values[base0 + 2];
-      _vb[0] = ch.values[base1]; _vb[1] = ch.values[base1 + 1]; _vb[2] = ch.values[base1 + 2];
-      const x = _va[0] + (_vb[0] - _va[0]) * alpha;
-      const y = _va[1] + (_vb[1] - _va[1]) * alpha;
-      const z = _va[2] + (_vb[2] - _va[2]) * alpha;
+      const x = ch.values[base0] + (ch.values[base1] - ch.values[base0]) * alpha;
+      const y = ch.values[base0 + 1] + (ch.values[base1 + 1] - ch.values[base0 + 1]) * alpha;
+      const z = ch.values[base0 + 2] + (ch.values[base1 + 2] - ch.values[base0 + 2]) * alpha;
       const dst = ch.path === 'translation' ? n.localT : n.localS;
-      dst[0] += (x - dst[0]) * w;
-      dst[1] += (y - dst[1]) * w;
-      dst[2] += (z - dst[2]) * w;
+      if (fullWeight) {
+        dst[0] = x;
+        dst[1] = y;
+        dst[2] = z;
+      } else {
+        dst[0] += (x - dst[0]) * w;
+        dst[1] += (y - dst[1]) * w;
+        dst[2] += (z - dst[2]) * w;
+      }
     } else {
       const base0 = i * 4;
       const base1 = (i + 1) * 4;
       _qa[0] = ch.values[base0]; _qa[1] = ch.values[base0 + 1]; _qa[2] = ch.values[base0 + 2]; _qa[3] = ch.values[base0 + 3];
       _qb[0] = ch.values[base1]; _qb[1] = ch.values[base1 + 1]; _qb[2] = ch.values[base1 + 2]; _qb[3] = ch.values[base1 + 3];
-      q4Normalize(_qa, _qa);
-      q4Normalize(_qb, _qb);
-      q4Slerp(_qout, _qa, _qb, alpha);
-      q4Slerp(_qout, n.localR, _qout, w);
-      n.localR.set(_qout);
+      if (fullWeight) {
+        q4Slerp(n.localR, _qa, _qb, alpha);
+      } else {
+        q4Slerp(_qout, _qa, _qb, alpha);
+        q4Slerp(n.localR, n.localR, _qout, w);
+      }
     }
   }
 };

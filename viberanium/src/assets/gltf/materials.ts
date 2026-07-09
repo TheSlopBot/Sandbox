@@ -31,6 +31,7 @@ export const buildGltfMaterials = (
       baseColorTex: baseTex,
       baseColorFactor: [baseFactor[0], baseFactor[1], baseFactor[2], baseFactor[3]],
       alphaMode: (gm.alphaMode ?? 'OPAQUE') === 'BLEND' ? 'BLEND' : 'OPAQUE',
+      doubleSided: gm.doubleSided === true,
     });
   }
 

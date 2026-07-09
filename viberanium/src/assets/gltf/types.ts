@@ -26,6 +26,7 @@ export type Gltf = {
     };
     alphaMode?: 'OPAQUE' | 'MASK' | 'BLEND';
     alphaCutoff?: number;
+    doubleSided?: boolean;
   }>;
   meshes?: Array<{
     primitives: Array<{

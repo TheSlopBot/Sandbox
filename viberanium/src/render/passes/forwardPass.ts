@@ -6,6 +6,17 @@ export type ForwardPass = {
   destroy: () => void;
 };
 
+const skinSortIds = new WeakMap<Float32Array, number>();
+let nextSkinSortId = 1;
+const skinSortId = (palette: Float32Array) => {
+  let id = skinSortIds.get(palette);
+  if (id === undefined) {
+    id = nextSkinSortId++;
+    skinSortIds.set(palette, id);
+  }
+  return id;
+};
+
 export const createForwardPass = (
   gl: WebGL2RenderingContext,
   lit: ShaderProgram,
@@ -84,9 +95,16 @@ export const createForwardPass = (
     }
 
     opaque.sort((a, b) => {
+      const aSkin = a.skin?.palette;
+      const bSkin = b.skin?.palette;
+      if (aSkin !== bSkin) {
+        if (!aSkin) return -1;
+        if (!bSkin) return 1;
+        return skinSortId(aSkin) - skinSortId(bSkin);
+      }
       if (a.material.baseColorTex !== b.material.baseColorTex) return a.material.baseColorTex ? 1 : -1;
       if (a.mesh.vao !== b.mesh.vao) return a.mesh.vao > b.mesh.vao ? 1 : -1;
-      return 0;
+      return a.sortZ - b.sortZ;
     });
 
     transparent.sort((a, b) => b.sortZ - a.sortZ);
@@ -94,6 +112,8 @@ export const createForwardPass = (
     let lastTex: WebGLTexture | null = null;
     let lastVao: WebGLVertexArrayObject | null = null;
     let lastProgram: ShaderProgram | null = null;
+    let lastJoints: Float32Array | null = null;
+    let lastBaseColor: DrawItem['material']['baseColorFactor'] | null = null;
 
     const useProgram = (p: ShaderProgram) => {
       if (lastProgram === p) return;
@@ -106,21 +126,30 @@ export const createForwardPass = (
       bindShadowUniforms(p);
       lastTex = null;
       lastVao = null;
+      lastJoints = null;
+      lastBaseColor = null;
     };
 
     const bindItem = (it: DrawItem) => {
       const program = it.skin ? litSkinned : lit;
       useProgram(program);
       gl.uniformMatrix4fv(program.u('u_model'), false, it.model);
-      gl.uniform4f(
-        program.u('u_baseColorFactor'),
-        it.material.baseColorFactor[0],
-        it.material.baseColorFactor[1],
-        it.material.baseColorFactor[2],
-        it.material.baseColorFactor[3],
-      );
+      if (it.material.baseColorFactor !== lastBaseColor) {
+        lastBaseColor = it.material.baseColorFactor;
+        gl.uniform4f(
+          program.u('u_baseColorFactor'),
+          lastBaseColor[0],
+          lastBaseColor[1],
+          lastBaseColor[2],
+          lastBaseColor[3],
+        );
+      }
       if (it.skin) {
-        gl.uniformMatrix4fv(program.u('u_joints'), false, jointsView(it.skin.palette, it.skin.jointCount));
+        const joints = jointsView(it.skin.palette, it.skin.jointCount);
+        if (joints !== lastJoints) {
+          lastJoints = joints;
+          gl.uniformMatrix4fv(program.u('u_joints'), false, joints);
+        }
       }
       const desiredTex = it.material.baseColorTex ?? whiteTex;
       if (desiredTex !== lastTex) {
@@ -135,9 +164,18 @@ export const createForwardPass = (
       }
     };
 
+    let lastDoubleSided = false;
+    const applyCull = (doubleSided: boolean) => {
+      if (doubleSided === lastDoubleSided) return;
+      lastDoubleSided = doubleSided;
+      if (doubleSided) gl.disable(gl.CULL_FACE);
+      else gl.enable(gl.CULL_FACE);
+    };
+
     gl.disable(gl.BLEND);
     for (const it of opaque) {
       bindItem(it);
+      applyCull(it.material.doubleSided === true);
       gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
     }
 
@@ -163,10 +201,12 @@ export const createForwardPass = (
     gl.depthMask(false);
     for (const it of transparent) {
       bindItem(it);
+      applyCull(it.material.doubleSided === true);
       gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
     }
     gl.depthMask(true);
 
+    if (lastDoubleSided) gl.enable(gl.CULL_FACE);
     gl.bindVertexArray(null);
     },
     destroy,

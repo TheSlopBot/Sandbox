@@ -7,6 +7,17 @@ export type ShadowPass = {
   destroy: () => void;
 };
 
+const skinSortIds = new WeakMap<Float32Array, number>();
+let nextSkinSortId = 1;
+const skinSortId = (palette: Float32Array) => {
+  let id = skinSortIds.get(palette);
+  if (id === undefined) {
+    id = nextSkinSortId++;
+    skinSortIds.set(palette, id);
+  }
+  return id;
+};
+
 export const createShadowPass = (gl: WebGL2RenderingContext, depth: ShaderProgram, depthSkinned: ShaderProgram): ShadowPass => {
   let destroyed = false;
   const destroy = () => {
@@ -41,12 +52,20 @@ export const createShadowPass = (gl: WebGL2RenderingContext, depth: ShaderProgra
     }
 
     opaque.sort((a, b) => {
+      const aSkin = a.skin?.palette;
+      const bSkin = b.skin?.palette;
+      if (aSkin !== bSkin) {
+        if (!aSkin) return -1;
+        if (!bSkin) return 1;
+        return skinSortId(aSkin) - skinSortId(bSkin);
+      }
       if (a.mesh.vao !== b.mesh.vao) return a.mesh.vao > b.mesh.vao ? 1 : -1;
       return 0;
     });
 
     let lastProgram: ShaderProgram | null = null;
     let lastVao: WebGLVertexArrayObject | null = null;
+    let lastJoints: Float32Array | null = null;
 
     const useProgram = (p: ShaderProgram) => {
       if (lastProgram === p) return;
@@ -54,6 +73,7 @@ export const createShadowPass = (gl: WebGL2RenderingContext, depth: ShaderProgra
       p.use();
       gl.uniformMatrix4fv(p.u('u_lightViewProj'), false, lightViewProj);
       lastVao = null;
+      lastJoints = null;
     };
 
     const drawItem = (it: DrawItem) => {
@@ -61,12 +81,18 @@ export const createShadowPass = (gl: WebGL2RenderingContext, depth: ShaderProgra
       useProgram(program);
       gl.uniformMatrix4fv(program.u('u_model'), false, it.model);
       if (it.skin) {
-        gl.uniformMatrix4fv(program.u('u_joints'), false, jointsView(it.skin.palette, it.skin.jointCount));
+        const joints = jointsView(it.skin.palette, it.skin.jointCount);
+        if (joints !== lastJoints) {
+          lastJoints = joints;
+          gl.uniformMatrix4fv(program.u('u_joints'), false, joints);
+        }
       }
       if (it.mesh.vao !== lastVao) {
         lastVao = it.mesh.vao;
         gl.bindVertexArray(lastVao);
       }
+      if (it.material.doubleSided === true) gl.disable(gl.CULL_FACE);
+      else gl.enable(gl.CULL_FACE);
       gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
     };
 
@@ -74,7 +100,6 @@ export const createShadowPass = (gl: WebGL2RenderingContext, depth: ShaderProgra
       drawItem(groundItem);
     }
 
-    gl.disable(gl.CULL_FACE);
     for (const it of opaque) {
       drawItem(it);
     }

@@ -5,10 +5,18 @@ export type Material = {
   baseColorTex: WebGLTexture | null;
   baseColorFactor: [number, number, number, number];
   alphaMode: 'OPAQUE' | 'BLEND';
+  doubleSided?: boolean;
 };
 
 export type DrawItem = {
-  mesh: { vao: WebGLVertexArrayObject; indexCount: number };
+  mesh: {
+    vao: WebGLVertexArrayObject;
+    indexCount: number;
+    boundsMin: readonly [number, number, number];
+    boundsMax: readonly [number, number, number];
+    boundsCenter: readonly [number, number, number];
+    boundsRadius: number;
+  };
   material: Material;
   model: Mat4;
   sortZ: number;

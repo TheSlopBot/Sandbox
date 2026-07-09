@@ -12,6 +12,7 @@ import { shadowDepthVS, shadowDepthSkinnedVS, shadowDepthFS } from './shaders/sh
 import { litTexturedVS, litSkinnedVS, litTexturedFS } from './shaders/lit.ts';
 import { groundVS, groundFS } from './shaders/ground.ts';
 import { fullscreenVS, toneColorFS } from './shaders/post.ts';
+import { createFrustumPlanes, extractFrustumPlanes, isSphereInFrustumPlanes } from './frustum.ts';
 import { DIRECTIONAL_LIGHT, type Camera, type DrawItem } from './types.ts';
 import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type Renderable } from '../components/renderable.ts';
@@ -56,6 +57,28 @@ const _lightView = m4();
 const _lightProj = m4();
 const _lightViewProj = m4();
 const lightViewProj: Mat4 = m4();
+const _frustum = createFrustumPlanes();
+const _lightFrustum = createFrustumPlanes();
+const _sphereCenter = new Float32Array(3);
+
+const worldSphereFromLocal = (
+  outCenter: Float32Array,
+  model: Mat4,
+  localCenter: readonly [number, number, number],
+  localRadius: number,
+): number => {
+  const lx = localCenter[0]!;
+  const ly = localCenter[1]!;
+  const lz = localCenter[2]!;
+  outCenter[0] = model[0]! * lx + model[4]! * ly + model[8]! * lz + model[12]!;
+  outCenter[1] = model[1]! * lx + model[5]! * ly + model[9]! * lz + model[13]!;
+  outCenter[2] = model[2]! * lx + model[6]! * ly + model[10]! * lz + model[14]!;
+
+  const sx2 = model[0]! * model[0]! + model[1]! * model[1]! + model[2]! * model[2]!;
+  const sy2 = model[4]! * model[4]! + model[5]! * model[5]! + model[6]! * model[6]!;
+  const sz2 = model[8]! * model[8]! + model[9]! * model[9]! + model[10]! * model[10]!;
+  return localRadius * Math.sqrt(Math.max(sx2, sy2, sz2));
+};
 
 const computeLightViewProj = (center: Vec3): Mat4 => {
   v3Set(_lightDir, DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
@@ -128,7 +151,7 @@ export const installRenderPipeline = (
   const setGround = (g: { mesh: DrawItem['mesh']; model: Mat4 }) => {
     groundItem = {
       mesh: g.mesh,
-      material: { name: 'ground', baseColorTex: null, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE' },
+      material: { name: 'ground', baseColorTex: null, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE', doubleSided: true },
       model: g.model,
       sortZ: 0,
       castShadow: true,
@@ -147,7 +170,14 @@ export const installRenderPipeline = (
       return itemPool[itemPoolUsed++];
     }
     const item: DrawItem = {
-      mesh: { vao: null as unknown as WebGLVertexArrayObject, indexCount: 0 },
+      mesh: {
+        vao: null as unknown as WebGLVertexArrayObject,
+        indexCount: 0,
+        boundsMin: [0, 0, 0],
+        boundsMax: [0, 0, 0],
+        boundsCenter: [0, 0, 0],
+        boundsRadius: 0,
+      },
       material: { name: '', baseColorTex: null, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE' },
       model: m4(),
       sortZ: 0,
@@ -176,12 +206,17 @@ export const installRenderPipeline = (
     m4LookAt(_view, _eye, _target, _up);
     m4Mul(_viewProj, _proj, _view);
     viewProj.set(_viewProj);
+    extractFrustumPlanes(_frustum, viewProj);
+
+    const lvp = computeLightViewProj(target);
+    extractFrustumPlanes(_lightFrustum, lvp);
 
     forwardItems.length = 0;
     shadowItems.length = 0;
     itemPoolUsed = 0;
 
     const camX = camera.position[0];
+    const camY = camera.position[1];
     const camZ = camera.position[2];
     const forwardDist2 = optimization.forwardCullDist * optimization.forwardCullDist;
     const shadowDist2 = optimization.shadowCullDist * optimization.shadowCullDist;
@@ -195,15 +230,31 @@ export const installRenderPipeline = (
       castShadow: boolean,
     ) => {
       const x = model[12];
+      const y = model[13];
       const z = model[14];
       const d2 = distSqXZ(x, z, camX, camZ);
-      if (d2 > forwardDist2) return;
+      const withinShadowDist = castShadow && d2 <= shadowDist2;
+      const withinForwardDist = d2 <= forwardDist2;
+      if (!withinForwardDist && !withinShadowDist) return;
+
+      const localRadius = skin ? mesh.boundsRadius * 1.5 : mesh.boundsRadius;
+      const worldRadius = worldSphereFromLocal(_sphereCenter, model, mesh.boundsCenter, localRadius);
+      const cx = _sphereCenter[0]!;
+      const cy = _sphereCenter[1]!;
+      const cz = _sphereCenter[2]!;
+
+      const inCameraFrustum = withinForwardDist && isSphereInFrustumPlanes(_frustum, cx, cy, cz, worldRadius);
+      const inLightFrustum = withinShadowDist && isSphereInFrustumPlanes(_lightFrustum, cx, cy, cz, worldRadius);
+      if (!inCameraFrustum && !inLightFrustum) return;
 
       const item = acquireItem();
       item.mesh = mesh;
       item.material = material;
       item.model = model;
-      item.sortZ = model[14];
+      const dx = x - camX;
+      const dy = y - camY;
+      const dz = z - camZ;
+      item.sortZ = dx * dx + dy * dy + dz * dz;
       if (skin) {
         if (!item.skin) item.skin = { palette: skin.palette, jointCount: skin.jointCount };
         else {
@@ -213,9 +264,9 @@ export const installRenderPipeline = (
       } else {
         item.skin = undefined;
       }
-      item.castShadow = castShadow && d2 <= shadowDist2;
-      forwardItems.push(item);
-      if (item.castShadow) shadowItems.push(item);
+      item.castShadow = inLightFrustum;
+      if (inCameraFrustum) forwardItems.push(item);
+      if (inLightFrustum) shadowItems.push(item);
     };
 
     for (const e of entityRegistry.view(COMPONENT_KEYS.meshDraws)) {
@@ -240,8 +291,6 @@ export const installRenderPipeline = (
       const skin = e.components[COMPONENT_KEYS.skin] as SkinInstance | undefined;
       pushDrawItem(r.mesh, r.material, model, skin, r.castShadow !== false);
     }
-
-    const lvp = computeLightViewProj(target);
 
     shadowFbo.bind();
     shadowPass.draw(lvp, groundItem, shadowItems);

@@ -58,6 +58,8 @@ Each `MeshDrawPart` supplies `mesh`, `material`, `model` (world matrix), optiona
 
 Runtime visibility: set `part.visible = false` or `renderable.visible = false`. Runtime material swap: replace `part.material` or `material.baseColorTex`.
 
+Draw collection also applies distance cull (`forwardCullDist` / `shadowCullDist`) and CPU sphere-vs-frustum cull using each mesh's precomputed `boundsCenter` / `boundsRadius`. Camera frustum cull only skips the forward pass. Shadow casters are culled against the light frustum (and `shadowCullDist`) so off-screen objects can still cast into view without filling the shadow pass with casters outside the shadow map. Backface culling is on by default; set `material.doubleSided = true` (or glTF `doubleSided`) to disable it per draw. Ground draws always disable cull.
+
 `ForwardPass` tracks `lastProgram / lastTex / lastVao` to skip redundant GL state changes.
-Opaque items are sorted by `(baseColorTex, vao)` before drawing to maximise batch runs.
-Transparent items are sorted back-to-front by `sortZ`.
+Opaque items are sorted by `(skinPalette, baseColorTex, vao, distance)` so shared joint palettes upload once per batch.
+Transparent items are sorted back-to-front by camera distance.

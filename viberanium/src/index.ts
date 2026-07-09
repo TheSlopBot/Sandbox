@@ -34,6 +34,7 @@ export { aabb, type Collider, type Aabb } from './components/collider.ts';
 export { createSkinInstance, type SkinInstance } from './components/skin.ts';
 export {
   buildRetargetedClips,
+  getClipAnimatedNodes,
   sampleClipToNodes,
   type AnimClip,
 } from './components/animation.ts';
@@ -73,6 +74,7 @@ export {
   computeSkinPalette,
   snapshotPose,
   updateWorldFromLocals,
+  updateWorldFromLocalsDirty,
   type RuntimeScene,
 } from './assets/gltf/runtime.ts';
 export { buildRuntimeModel } from './assets/gltf/buildRuntime.ts';

@@ -40,7 +40,11 @@ export const installSkeletalMeshSystem = (registry: Registry, options: SkeletalM
       const meshDraws = e.components[COMPONENT_KEYS.meshDraws] as MeshDraws | undefined;
       if (!t || !model || !meshDraws) continue;
 
+      const transformDirty = t.dirty;
       updateWorldMatrix(t);
+
+      if (!transformDirty && !model.poseDirty) continue;
+      model.poseDirty = false;
 
       const d2 = origin ? distSqXZ(t.position[0], t.position[2], ox, oz) : 0;
       const castShadow = !origin || d2 <= shadowDist2;
@@ -54,6 +58,7 @@ export const installSkeletalMeshSystem = (registry: Registry, options: SkeletalM
       renderRootWorld[13] += model.visualYOffset;
 
       const bodyScene = model.bodyScene;
+      let lastSkin: MeshDraws['parts'][number]['skin'] | undefined;
 
       for (const part of meshDraws.parts) {
         if (part.visible === false) continue;
@@ -62,7 +67,8 @@ export const installSkeletalMeshSystem = (registry: Registry, options: SkeletalM
         m4Mul(part.model as Float32Array, renderRootWorld, bodyScene.nodes[part.gltfNodeIndex]!.worldM);
         part.castShadow = castShadow;
 
-        if (part.skin) {
+        if (part.skin && part.skin !== lastSkin) {
+          lastSkin = part.skin;
           m4Mul(_meshWorld, renderRootWorld, bodyScene.nodes[part.skin.rootNodeIndex]!.worldM);
           computeSkinPalette(bodyScene.nodes, part.skin.skin, part.skin.palette, renderRootWorld, _meshWorld);
         }
