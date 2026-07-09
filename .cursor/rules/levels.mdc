@@ -16,8 +16,14 @@ alwaysApply: false
 ## Layout
 
 ```
+sandbox/src/character/
+  defs/           # SkeletalCharacterDef entries (spaceRanger, kaykitMedium helpers)
+  types.ts        # def types + collectUrlsFromDef()
+  loadSkeletalCharacter.ts   # async load — no registry writes
+  spawnSkeletalCharacter.ts  # attach components + bone-attachment children
+
 sandbox/src/levels/
-  assets.ts       # shared model/animation URL constants
+  assets.ts       # shared model/animation URL constants (incl. attachment URLs)
   catalog.ts      # LevelDefinition entries + collectLevelAssetUrls()
   useLevelScene.ts  # catalog entry → createPlayableScene()
 
@@ -44,7 +50,7 @@ export type LevelDefinition = {
 };
 ```
 
-Add entries to `LEVEL_CATALOG` in `catalog.ts`. `collectLevelAssetUrls(definition)` gathers all glTF URLs needed for preload (props, robots, combat mechs, player body, shared animation rigs).
+Add entries to `LEVEL_CATALOG` in `catalog.ts`. `collectLevelAssetUrls(definition)` gathers glTF URLs via `collectUrlsFromDef()` for player/NPC defs plus level props and spawns.
 
 Custom scripted levels can still call `createPlayableScene` directly; catalog-driven levels use `useLevelScene(deps, definition)`.
 

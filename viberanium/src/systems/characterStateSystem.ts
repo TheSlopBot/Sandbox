@@ -16,26 +16,6 @@ export const installCharacterStateSystem = (registry: Registry) => {
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
       if (!t || !cc) continue;
 
-      const wasOnGround = cc.wasOnGroundPrevious;
-
-      if (cc.onGround && (cc.jumpPhase === 'start' || cc.jumpPhase === 'air')) {
-        const moving = cc.velocity[0] * cc.velocity[0] + cc.velocity[2] * cc.velocity[2] > 0.05 * 0.05;
-        if (moving) { cc.jumpPhase = 'none'; cc.movementBlend = 1; }
-        else { cc.jumpPhase = 'land'; cc.jumpClipTime = 0; }
-      } else if (!cc.onGround && wasOnGround && cc.jumpPhase === 'none') {
-        cc.jumpPhase = 'air'; cc.jumpClipTime = 0; cc.movementBlend = 0;
-      } else if (cc.jumpPhase === 'start' && cc.jumpClipTime >= cc.jumpStartDuration) {
-        cc.jumpPhase = 'air'; cc.jumpClipTime = 0;
-      } else if (cc.jumpPhase === 'land') {
-        const moving = cc.velocity[0] * cc.velocity[0] + cc.velocity[2] * cc.velocity[2] > 0.05 * 0.05;
-        if (moving) { cc.jumpPhase = 'none'; cc.movementBlend = 1; }
-        else if (cc.jumpClipTime >= cc.jumpLandDuration) { cc.jumpPhase = 'none'; }
-      }
-
-      if (cc.jumpPhase === 'start') cc.jumpClipTime += ctx.dt * cc.jumpStartSpeed;
-      else if (cc.jumpPhase === 'air') cc.jumpClipTime += ctx.dt;
-      else if (cc.jumpPhase === 'land') cc.jumpClipTime += ctx.dt * cc.jumpLandSpeed;
-
       const speed2 = cc.velocity[0] * cc.velocity[0] + cc.velocity[2] * cc.velocity[2];
       if (speed2 > 1e-5) {
         const targetYaw = Math.atan2(cc.velocity[0], cc.velocity[2]);

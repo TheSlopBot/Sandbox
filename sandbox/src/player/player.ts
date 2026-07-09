@@ -4,22 +4,23 @@ import {
   createCharacterController,
   createCameraFollow,
   createMovementIntent,
-  createSkeletalRig,
   type TextureCache,
   type GltfCache,
   COMPONENT_KEYS,
 } from 'viberanium';
-import { assembleSkeletalCharacter, type CharacterAnimAssets } from '../character/assembleCharacter.ts';
+import { loadSkeletalCharacter } from '../character/loadSkeletalCharacter.ts';
+import { spawnSkeletalCharacter } from '../character/spawnSkeletalCharacter.ts';
+import { SPACE_RANGER_DEF } from '../character/defs/spaceRanger.ts';
 import { PLAYER_CONTROLLER_KEY, createPlayerController } from './components/playerController.ts';
-
-export type PlayerAssets = CharacterAnimAssets;
+import { PLAYER_HELMET_KEY } from './components/playerHelmet.ts';
+import { PLAYER_JETPACK_KEY } from './components/playerJetpack.ts';
+import { PLAYER_BLADE_KEY } from './components/playerBlade.ts';
 
 export const createPlayer = async (
   registry: Registry,
   gl: WebGL2RenderingContext,
   textures: TextureCache,
   gltfCache: GltfCache,
-  assets: PlayerAssets,
 ) => {
   const charT = createTransform();
   charT.position[1] = 1.6;
@@ -29,20 +30,33 @@ export const createPlayer = async (
   entity.components[COMPONENT_KEYS.transform] = charT;
   entity.components[COMPONENT_KEYS.character] = createCharacterController();
   entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
-  entity.components[PLAYER_CONTROLLER_KEY] = createPlayerController();
   entity.components[COMPONENT_KEYS.cameraFollow] = createCameraFollow();
+  entity.components[PLAYER_CONTROLLER_KEY] = createPlayerController();
 
-  const { bodyScene, characterParts, renderEntityIds, clips, attachments } = await assembleSkeletalCharacter(
-    registry, gl, textures, gltfCache, charT, assets,
-  );
+  const loaded = await loadSkeletalCharacter({ gl, textures, gltfCache }, SPACE_RANGER_DEF);
 
-  const cc = entity.components[COMPONENT_KEYS.character] as ReturnType<typeof createCharacterController>;
-  cc.jumpStartDuration = clips.jumpStart.duration;
-  cc.jumpLandDuration = clips.jumpLand.duration;
+  spawnSkeletalCharacter(registry, entity, loaded, {
+    gl,
+    attachmentTags: {
+      helmet: PLAYER_HELMET_KEY,
+      jetpack: PLAYER_JETPACK_KEY,
+      blade: PLAYER_BLADE_KEY,
+    },
+  });
 
-  entity.components[COMPONENT_KEYS.skeletalRig] = createSkeletalRig(
-    bodyScene, characterParts, renderEntityIds, clips, -0.55, attachments,
-  );
+  registry.register(entity);
+
+  const pc = entity.components[PLAYER_CONTROLLER_KEY] as ReturnType<typeof createPlayerController>;
+  const children = entity.components[COMPONENT_KEYS.children] as { ids: number[] };
+
+  for (const childId of children.ids) {
+    const child = registry.get(childId);
+    if (!child) continue;
+
+    if (child.components[PLAYER_HELMET_KEY]) pc.helmetEntityId = childId;
+  }
+
+  pc.stowedHelmet = loaded.attachments.find((attachment) => attachment.id === 'helmet') ?? null;
 
   return { entity };
 };

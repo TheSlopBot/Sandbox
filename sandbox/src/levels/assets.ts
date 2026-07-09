@@ -13,7 +13,9 @@ export const SPACE_RANGER_GLB = `${KAYKIT}/KayKit Mystery Monthly Series 4/7 - J
 export const SPACE_RANGER_HELMET = `${KAYKIT}/KayKit Mystery Monthly Series 4/7 - January 2024 - Space Ranger/assets/gltf/SpaceRanger_Helmet.gltf`;
 export const SPACE_RANGER_JETPACK = `${KAYKIT}/KayKit Mystery Monthly Series 4/7 - January 2024 - Space Ranger/assets/gltf/SpaceRanger_Jetpack.gltf`;
 
-export const SPACE_RANGER_ATTACHMENT_URLS = [SPACE_RANGER_HELMET, SPACE_RANGER_JETPACK] as const;
+export const SPACE_RANGER_BLADE = `${KAYKIT}/KayKit Mystery Monthly Series 4/7 - January 2024 - Space Ranger/assets/gltf/SpaceRanger_Blade.gltf`;
+
+export const SPACE_RANGER_ATTACHMENT_URLS = [SPACE_RANGER_HELMET, SPACE_RANGER_JETPACK, SPACE_RANGER_BLADE] as const;
 
 export const ANIM_GENERAL_GLB = `${KAYKIT}/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb`;
 export const ANIM_MOVEMENT_GLB = `${KAYKIT}/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb`;

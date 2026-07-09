@@ -10,19 +10,27 @@ import {
   buildRuntimeScene,
   createCharacterController,
   createGltfCache,
-  createGltfProp,
+  createStaticModel,
+  createRenderGroup,
+  createSkeletalModel,
+  createMeshDraws,
+  createAnimationClip,
+  createAnimationClipMap,
+  createAnimationStateMachine,
   createInterleavedMesh,
   createSkinInstance,
   createSkinnedMesh,
   createTransform,
   destroyMesh,
   installRenderPipeline,
-  installGltfPropSystem,
-  installSkeletalAnimationSystem,
+  installStaticModelSystem,
+  installSkeletalCharacterSystems,
+  installCharacterStateSystem,
   m4,
   useGame,
   useScene,
   COMPONENT_KEYS,
+  type MeshDrawPart,
 } from 'viberanium';
 import {
   PREVIEW_KEYS,
@@ -293,6 +301,54 @@ const installOrbitInput = (canvas: HTMLCanvasElement, orbit: PreviewOrbit, isAct
   };
 };
 
+const buildPreviewMeshDraws = (
+  gl: WebGL2RenderingContext,
+  bodyScene: ReturnType<typeof buildRuntimeScene>,
+  mats: Material[],
+) => {
+  const parts: MeshDrawPart[] = [];
+  const nameToBody = new Map<string, number>();
+
+  for (let i = 0; i < bodyScene.nodes.length; i++) nameToBody.set(bodyScene.nodes[i].name, i);
+
+  for (const pair of bodyScene.meshNodePairs) {
+    const model = bodyScene.models[pair.meshIndex];
+    if (!model) continue;
+
+    let skinInst = null as ReturnType<typeof createSkinInstance> | null;
+    if (pair.skinIndex >= 0) {
+      const srcSkin = bodyScene.skins[pair.skinIndex];
+      if (!srcSkin) continue;
+
+      const remappedJoints: number[] = [];
+      for (const jNode of srcSkin.joints) {
+        const jName = bodyScene.nodes[jNode]?.name;
+        remappedJoints.push(jName ? (nameToBody.get(jName) ?? 0) : 0);
+      }
+
+      const fakeScene = { ...bodyScene, nodes: bodyScene.nodes, skins: [{ ...srcSkin, joints: remappedJoints }] } as ReturnType<typeof buildRuntimeScene>;
+      skinInst = createSkinInstance(fakeScene, 0, pair.nodeIndex);
+    }
+
+    for (const prim of model.primitives) {
+      const material = prim.materialIndex >= 0 && prim.materialIndex < mats.length
+        ? mats[prim.materialIndex]
+        : mats[0];
+
+      if (prim.kind === 'skinned' && skinInst) {
+        const mesh = createSkinnedMesh(gl, prim.vertices, prim.joints, prim.weights, prim.indices, skinInst.jointCount);
+        parts.push({ mesh, material, gltfNodeIndex: pair.nodeIndex, skin: skinInst });
+        continue;
+      }
+
+      const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+      parts.push({ mesh, material, gltfNodeIndex: pair.nodeIndex });
+    }
+  }
+
+  return createMeshDraws(parts);
+};
+
 export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession => {
   const game = useGame();
   const gameRegistry = game.registry;
@@ -335,6 +391,7 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
   sceneRegistry.register(animEnt);
 
   const removeOrbitSystem = installPreviewOrbitSystem(sceneRegistry, pipeline);
+  installCharacterStateSystem(sceneRegistry);
 
   const removeOrbitInput = installOrbitInput(canvas, orbit, () => active);
 
@@ -343,7 +400,7 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
   let currentClipsByName = new Map<string, ReturnType<typeof buildRetargetedClips>[number]>();
   let characterEntityId: number | null = null;
   let removeSkeletalSystem: (() => void) | null = null;
-  let removeGltfPropSystem: (() => void) | null = null;
+  let removeStaticModelSystem: (() => void) | null = null;
   let loadGeneration = 0;
   let activeMaterials: Material[] = [];
   let textureVariants: PreviewTextureVariant[] = [];
@@ -379,9 +436,9 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
       removeSkeletalSystem = null;
     }
 
-    if (removeGltfPropSystem) {
-      removeGltfPropSystem();
-      removeGltfPropSystem = null;
+    if (removeStaticModelSystem) {
+      removeStaticModelSystem();
+      removeStaticModelSystem = null;
     }
 
     pipeline.clearGround();
@@ -471,80 +528,34 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
 
     if (hasSkin) {
       const cc = createCharacterController();
-      cc.velocity[0] = 0;
-      cc.velocity[1] = 0;
-      cc.velocity[2] = 0;
-      cc.movementBlend = 1;
-      cc.jumpPhase = 'none';
 
       const entity = sceneRegistry.createBare();
       entity.components[COMPONENT_KEYS.transform] = rootT;
       entity.components[COMPONENT_KEYS.character] = cc;
 
       const emptyClip = (name: string) => ({ name, duration: 1, channels: [] });
-      const clips = {
-        idle: emptyClip('idle'),
-        run: emptyClip('run'),
-        jumpStart: emptyClip('jumpStart'),
-        jumpIdle: emptyClip('jumpIdle'),
-        jumpLand: emptyClip('jumpLand'),
-      };
+      const wrapped = createAnimationClip(emptyClip('idle'));
 
-      const characterParts = [];
-      const renderEntityIds: number[] = [];
-
-      for (const pair of runtimeScene.meshNodePairs) {
-        const model = runtimeScene.models[pair.meshIndex];
-        if (!model) continue;
-
-        for (const prim of model.primitives) {
-          const material = prim.materialIndex >= 0 && prim.materialIndex < mats.length ? mats[prim.materialIndex] : mats[0];
-
-          if (prim.kind === 'skinned' && pair.skinIndex >= 0) {
-            const skin = runtimeScene.skins[pair.skinIndex];
-            if (!skin) continue;
-            const skinInst = createSkinInstance(runtimeScene, pair.skinIndex, pair.nodeIndex);
-
-            const mesh = createSkinnedMesh(gl, prim.vertices, prim.joints, prim.weights, prim.indices, skinInst.jointCount);
-            const re = sceneRegistry.createBare();
-            re.components[COMPONENT_KEYS.transform] = rootT;
-            re.components[COMPONENT_KEYS.skin] = skinInst;
-            re.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
-            re.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
-            re.onDeregister.push(() => destroyMesh(gl, mesh));
-            sceneRegistry.register(re);
-
-            renderEntityIds.push(re.id);
-            characterParts.push({ skinInst, renderEntityIds: [re.id] });
-            continue;
-          }
-
-          const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
-          const re = sceneRegistry.createBare();
-          re.components[COMPONENT_KEYS.transform] = rootT;
-          re.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
-          re.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
-          re.onDeregister.push(() => destroyMesh(gl, mesh));
-          sceneRegistry.register(re);
-          renderEntityIds.push(re.id);
-        }
+      const meshDraws = buildPreviewMeshDraws(gl, runtimeScene, mats);
+      for (const part of meshDraws.parts) {
+        entity.onDeregister.push(() => destroyMesh(gl, part.mesh));
       }
 
-      const rig = {
-        bodyScene: runtimeScene,
-        characterParts,
-        renderEntityIds,
-        clips,
-        visualYOffset: 0,
-        attachments: [],
-      };
-
-      entity.components[COMPONENT_KEYS.skeletalRig] = rig;
+      entity.components[COMPONENT_KEYS.skeletalModel] = createSkeletalModel(runtimeScene, 0);
+      entity.components[COMPONENT_KEYS.meshDraws] = meshDraws;
+      entity.components[COMPONENT_KEYS.animationClipMap] = createAnimationClipMap({
+        idle: wrapped,
+        run: wrapped,
+        jumpStart: wrapped,
+        jumpAir: wrapped,
+        jumpLand: wrapped,
+      });
+      entity.components[COMPONENT_KEYS.animationStateMachine] = createAnimationStateMachine();
       sceneRegistry.register(entity);
       characterEntityId = entity.id;
 
       if (removeSkeletalSystem) removeSkeletalSystem();
-      removeSkeletalSystem = installSkeletalAnimationSystem(sceneRegistry);
+      removeSkeletalSystem = installSkeletalCharacterSystems(sceneRegistry);
 
       loadedModelBoneNames = runtimeScene.skins[0]?.joints
         .map((j) => runtimeScene.nodes[j]?.name ?? '')
@@ -583,11 +594,12 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
 
     const propRoot = sceneRegistry.createBare();
     propRoot.components[COMPONENT_KEYS.transform] = rootT;
-    propRoot.components[COMPONENT_KEYS.gltfProp] = createGltfProp(runtimeScene, renderEntityIds);
+    propRoot.components[COMPONENT_KEYS.staticModel] = createStaticModel(runtimeScene);
+    propRoot.components[COMPONENT_KEYS.renderGroup] = createRenderGroup(renderEntityIds);
     sceneRegistry.register(propRoot);
 
-    if (removeGltfPropSystem) removeGltfPropSystem();
-    removeGltfPropSystem = installGltfPropSystem(sceneRegistry);
+    if (removeStaticModelSystem) removeStaticModelSystem();
+    removeStaticModelSystem = installStaticModelSystem(sceneRegistry);
 
     return {
       kind: 'StaticProp',
@@ -602,11 +614,11 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
     if (!loadedModelUrl) return { packUrl, clipNames: [] };
 
     const entity = characterEntityId ? sceneRegistry.get(characterEntityId) : undefined;
-    const rig = entity?.components[COMPONENT_KEYS.skeletalRig] as { bodyScene: ReturnType<typeof buildRuntimeScene> } | undefined;
-    if (!rig) return { packUrl, clipNames: [] };
+    const model = entity?.components[COMPONENT_KEYS.skeletalModel] as { bodyScene: ReturnType<typeof buildRuntimeScene> } | undefined;
+    if (!model) return { packUrl, clipNames: [] };
 
     const loadedAnim = await gltfCache.getOrLoad(packUrl);
-    const clips = buildRetargetedClips(loadedAnim, rig.bodyScene.nodes);
+    const clips = buildRetargetedClips(loadedAnim, model.bodyScene.nodes);
 
     currentClipsByName = new Map(clips.map((c) => [c.name, c]));
 
@@ -624,27 +636,30 @@ export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession 
 
   const applyClip = (clipName: string) => {
     const entity = characterEntityId ? sceneRegistry.get(characterEntityId) : undefined;
-    const rig = entity?.components[COMPONENT_KEYS.skeletalRig] as { clips: Record<string, unknown> } | undefined;
-    if (!rig) return;
+    if (!entity) return;
 
     const clip = currentClipsByName.get(clipName);
     if (!clip) return;
 
-    const cc = entity?.components[COMPONENT_KEYS.character] as ReturnType<typeof createCharacterController> | undefined;
-    if (cc) {
-      cc.movementAnimTime = 0;
-      cc.velocity[0] = 0;
-      cc.velocity[2] = 0;
-      cc.movementBlend = 1;
-      cc.jumpPhase = 'none';
-      cc.jumpClipTime = 0;
+    const wrapped = createAnimationClip(clip);
+    const clipMap = entity.components[COMPONENT_KEYS.animationClipMap] as ReturnType<typeof createAnimationClipMap> | undefined;
+    if (clipMap) {
+      const states = ['idle', 'run', 'jumpStart', 'jumpAir', 'jumpLand'] as const;
+      for (const state of states) clipMap.clips[state] = wrapped;
     }
 
-    rig.clips.idle = clip;
-    rig.clips.run = clip;
-    rig.clips.jumpStart = clip;
-    rig.clips.jumpIdle = clip;
-    rig.clips.jumpLand = clip;
+    const fsm = entity.components[COMPONENT_KEYS.animationStateMachine] as ReturnType<typeof createAnimationStateMachine> | undefined;
+    if (fsm) {
+      fsm.current = 'idle';
+      fsm.stateTime = 0;
+      fsm.animTime = 0;
+    }
+
+    const cc = entity.components[COMPONENT_KEYS.character] as ReturnType<typeof createCharacterController> | undefined;
+    if (cc) {
+      cc.velocity[0] = 0;
+      cc.velocity[2] = 0;
+    }
 
     const anim = (sceneRegistry.view(PREVIEW_KEYS.previewAnim)[0]?.components[PREVIEW_KEYS.previewAnim] ?? null) as PreviewAnim | null;
     if (anim) anim.selectedClipName = clipName;

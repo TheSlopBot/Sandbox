@@ -9,7 +9,8 @@ import {
   type GltfCache,
   buildRuntimeScene,
   buildGltfMaterials,
-  createGltfProp,
+  createStaticModel,
+  createRenderGroup,
   aabb,
   m4,
   COMPONENT_KEYS,
@@ -153,11 +154,6 @@ export const instantiateStaticProp = async (
 
   if (!Number.isFinite(localMin[0])) return false;
 
-  const root = registry.createBare();
-  root.components[COMPONENT_KEYS.transform] = t;
-  root.components[COMPONENT_KEYS.gltfProp] = createGltfProp(scene, renderEntityIds);
-  registry.register(root);
-
   if (opts.y === undefined) {
     t.position[1] = -localMin[1] * s;
     t.dirty = true;
@@ -170,9 +166,12 @@ export const instantiateStaticProp = async (
     obbY: worldObbFromLocal(localMin, localMax, pos, s, t.yaw),
   };
 
-  const ce = registry.createBare();
-  ce.components[COMPONENT_KEYS.collider] = collider;
-  registry.register(ce);
+  const root = registry.createBare();
+  root.components[COMPONENT_KEYS.transform] = t;
+  root.components[COMPONENT_KEYS.staticModel] = createStaticModel(scene);
+  root.components[COMPONENT_KEYS.renderGroup] = createRenderGroup(renderEntityIds);
+  root.components[COMPONENT_KEYS.collider] = collider;
+  registry.register(root);
   markNavGridDirty(registry);
 
   return true;

@@ -22,12 +22,15 @@ Lower `order` runs first within a phase. Reserve bands:
 | 4 | update | nav grid blocked-cell refresh when `navGrid.dirty` (`installNavGridSystem`) |
 | 5 | update | player input, AI controller |
 | 6 | update | test AI pathfinding (sandbox `installTestAiSystem`) |
-| 8 | update | movement (intent → velocity) |
-| 10 | update | character physics (gravity, integration) |
-| 12 | update | collision helpers (used by physics) |
-| 13 | update | character state (jump phases, yaw) |
+| 7 | update | transform hierarchy (`installTransformHierarchySystem`) |
+| 8 | update | movement (intent → velocity, jump → FSM) |
+| 10 | update | character physics (gravity, integration, collision resolve) |
+| 12 | update | animation FSM (`installAnimationFsmSystem`) |
+| 13 | update | character yaw (`installCharacterStateSystem`) |
 | 15 | update | camera follow |
-| 20 | update | skeletal animation |
+| 18 | update | skeletal pose (`installSkeletalPoseSystem`) |
+| 19 | update | skeletal mesh matrices + skin palettes (`installSkeletalMeshSystem`) |
+| 20 | update | bone attachments (`installBoneAttachmentSystem`) |
 | 0 | draw | render pipeline |
 | 0 | commit | input.commitFrame() |
 | 100 | commit | dt capture |
@@ -118,3 +121,19 @@ Call `markNavGridDirty(registry)` after any change to static scene colliders:
 ### AI pathfinding
 
 Sandbox `installTestAiSystem` reads the scene nav grid — it does not build or cache its own. Install order: `installNavGridSystem` before `installTestAiSystem` so blocked cells are fresh when `dirty` was set the same frame.
+
+Sandbox `createPlayableScene` installs `installSkeletalCharacterSystems` (not a monolithic animation system).
+
+## Skeletal character systems
+
+`installSkeletalCharacterSystems(registry, { getLodOrigin? })` bundles hierarchy, FSM, pose, mesh, and bone-attachment systems.
+
+| Installer | Order | Writes |
+|-----------|-------|--------|
+| `installTransformHierarchySystem` | 7 | child `transform.world` from `localTransform` |
+| `installAnimationFsmSystem` | 12 | `animationStateMachine` state + timers |
+| `installSkeletalPoseSystem` | 18 | `skeletalModel.bodyScene.nodes` pose from `animationClipMap` |
+| `installSkeletalMeshSystem` | 19 | `meshDraws.parts[].model`, skin palettes |
+| `installBoneAttachmentSystem` | 20 | bone-child world + draw matrices |
+
+Install `installCharacterStateSystem` (13) and `installMovementSystem` (8) separately on the scene registry.

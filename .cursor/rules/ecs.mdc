@@ -28,14 +28,28 @@ entity.components[PLAYER_CONTROLLER_KEY] = createPlayerController();
 registry.register(entity);
 ```
 
-Mesh sub-entities use `createBare()` → attach components → `register(entity)`.
+Mesh sub-entities are allowed only for static props (`renderGroup`) until props migrate to `meshDraws`. Skeletal body meshes live on the character entity via `meshDraws.parts[]`.
+
+## Hierarchy components
+
+| Component | Role |
+|-----------|------|
+| `childOf` | `{ parentId }` — explicit parent link |
+| `children` | `{ ids[] }` — maintained on parent at spawn/despawn |
+| `localTransform` | position/yaw/scale relative to parent (non-bone children) |
+| `boneAttachment` | bone index + local offset + attach scene on child entities |
+| `meshDraws` | GPU mesh parts on the same entity as `skeletalModel` |
+| `animationClipMap` | `clips` keyed by `AnimStateId` — state → retargeted clip |
+| `animationStateMachine` | current state, timers, playback tuning — not on `character` |
+
+`character` is **physics only** (velocity, gravity, onGround, halfExtents). Animation timing and blend weights live on `animationStateMachine` and per-clip components.
 
 ## Component rules
 
 - Data only — no `actions`, no registry imports, no per-frame logic
 - Use `COMPONENT_KEYS` constants — never raw string literals for component keys
 - Controllers write `movementIntent`; shared systems read it
-- **Movement** is the canonical term for anything that can move — use `movementIntent`, `movementBlend`, `movementAnimTime`; never `locomotion*`
+- **Movement** is the canonical term for character intent — use `movementIntent`; never use `locomotion` in names or docs
 
 ## System rules
 
@@ -52,7 +66,9 @@ Player and AI characters share movement, physics, collision, and animation syste
 | `playerController` (sandbox) | — (tag) | `installPlayerInputSystem` |
 | `testAi` (sandbox) | — (data) | `installTestAiSystem` |
 | `movementIntent` | controller systems | `installMovementSystem` |
-| `character` | movement + physics | physics, state, animation |
+| `character` | movement + physics | physics, yaw (`installCharacterStateSystem`) |
+| `animationStateMachine` | `installAnimationFsmSystem`, movement jump | pose system |
+| `animationClipMap` | spawn from character def | pose system |
 | `navGrid` | — (data, `dirty` flag) | `installNavGridSystem` (rebuild when dirty), `installTestAiSystem` |
 
 ## Registry queries
@@ -127,4 +143,7 @@ Bounds come from `LevelDefinition.navGrid` in the level catalog.
 - Per-frame nav grid rebuilds without `dirty`
 - AI-owned nav grid caches (`WeakMap<Registry, NavGrid>`) — the scene component is the single source of truth
 - Persistent nav grid entities across `unload()` — grid is level content, destroyed with the level
-- `locomotion*` naming for movement-related components or fields — use `movement*`
+- `locomotion` in any identifier, filename, or doc text
+- `rigRenderMeshes`, `rigOwner`, `skeletalAnimations` blobs, shared `Transform` refs across entities
+- Orphan render sub-entities for skeletal body meshes — use `meshDraws` on the logic entity
+- Monolithic `installSkeletalAnimationSystem` — use `installSkeletalCharacterSystems`

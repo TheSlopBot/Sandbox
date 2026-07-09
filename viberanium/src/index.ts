@@ -35,16 +35,29 @@ export { createCharacterController, type CharacterController } from './component
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
 export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
 export { createNavGrid, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
+export { createSkeletalModel, type SkeletalModel } from './components/skeletalModel.ts';
+export { createMeshDraws, type MeshDraws, type MeshDrawPart } from './components/meshDraws.ts';
+export { createChildOf, type ChildOf } from './components/childOf.ts';
+export { createChildren, addChildId, removeChildId, type Children } from './components/children.ts';
+export { createLocalTransform, type LocalTransform } from './components/localTransform.ts';
 export {
-  createSkeletalRig,
+  createBoneAttachment,
   createAttachmentOffset,
-  setRigAttachmentVisible,
-  type SkeletalRig,
-  type AnimClips,
-  type CharacterPart,
-  type RigAttachment,
-} from './components/skeletalRig.ts';
-export { createGltfProp, type GltfProp } from './components/gltfProp.ts';
+  type BoneAttachment,
+} from './components/boneAttachment.ts';
+export { createAnimationClip, type AnimationClip } from './components/animationClip.ts';
+export {
+  createAnimationClipMap,
+  type AnimationClipMap,
+} from './components/animationClipMap.ts';
+export {
+  createAnimationStateMachine,
+  stepAnimationFsm,
+  type AnimationStateMachine,
+  type AnimStateId,
+} from './components/animationStateMachine.ts';
+export { createStaticModel, type StaticModel } from './components/staticModel.ts';
+export { createRenderGroup, type RenderGroup } from './components/renderGroup.ts';
 
 export { loadGltf, type LoadedGltf } from './assets/gltf/loader.ts';
 export { createGltfCache, type GltfCache } from './assets/gltf/cache.ts';
@@ -67,12 +80,17 @@ export { installNavGridSystem } from './systems/navGridSystem.ts';
 export { installCharacterPhysicsSystem } from './systems/characterPhysicsSystem.ts';
 export { installCollisionSystem } from './systems/collisionSystem.ts';
 export { installCharacterStateSystem } from './systems/characterStateSystem.ts';
+export { installAnimationFsmSystem } from './systems/animationFsmSystem.ts';
 export { installCameraFollowSystem } from './systems/cameraFollowSystem.ts';
+export { installTransformHierarchySystem } from './systems/transformHierarchySystem.ts';
+export { installSkeletalPoseSystem } from './systems/skeletalPoseSystem.ts';
+export { installSkeletalMeshSystem } from './systems/skeletalMeshSystem.ts';
+export { installBoneAttachmentSystem } from './systems/boneAttachmentSystem.ts';
 export {
-  installSkeletalAnimationSystem,
-  type SkeletalAnimationOptions,
-} from './systems/skeletalAnimationSystem.ts';
-export { installGltfPropSystem } from './systems/gltfPropSystem.ts';
+  installSkeletalCharacterSystems,
+  type SkeletalCharacterSystemsOptions,
+} from './systems/installSkeletalCharacterSystems.ts';
+export { installStaticModelSystem } from './systems/staticModelSystem.ts';
 
 export {
   installRenderPipeline,

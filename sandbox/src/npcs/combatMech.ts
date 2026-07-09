@@ -3,16 +3,15 @@ import {
   createTransform,
   createCharacterController,
   createMovementIntent,
-  createSkeletalRig,
   type TextureCache,
   type GltfCache,
   COMPONENT_KEYS,
 } from 'viberanium';
-import { assembleSkeletalCharacter } from '../character/assembleCharacter.ts';
+import { loadSkeletalCharacter } from '../character/loadSkeletalCharacter.ts';
+import { spawnSkeletalCharacter } from '../character/spawnSkeletalCharacter.ts';
+import { createKaykitMediumDef } from '../character/defs/kaykitMedium.ts';
 import { createTestAi, TEST_AI_KEY, type TestAiOpts } from './components/testAi.ts';
 import {
-  ANIM_GENERAL_GLB,
-  ANIM_MOVEMENT_GLB,
   COMBAT_MECH_GLB,
   COMBAT_MECH_TEX_ALT,
   COMBAT_MECH_TEX_PRIMARY,
@@ -45,25 +44,19 @@ export const createCombatMech = async (
   entity.components[TEST_AI_KEY] = createTestAi(opts);
 
   const variant = opts.variant ?? 'primary';
-  const { bodyScene, characterParts, renderEntityIds, clips } = await assembleSkeletalCharacter(
-    registry, gl, textures, gltfCache, charT,
-    {
-      bodyGlb: COMBAT_MECH_GLB,
-      animGeneralGlb: ANIM_GENERAL_GLB,
-      animMovementGlb: ANIM_MOVEMENT_GLB,
-      materialPrefix: variant === 'alt' ? 'combat_mech_alt' : 'combat_mech_primary',
-      baseColorTextureUrl: variant === 'alt' ? COMBAT_MECH_TEX_ALT : COMBAT_MECH_TEX_PRIMARY,
-    },
+  const def = createKaykitMediumDef(
+    COMBAT_MECH_GLB,
+    variant === 'alt' ? 'combat_mech_alt' : 'combat_mech_primary',
+    { baseColorTextureUrl: variant === 'alt' ? COMBAT_MECH_TEX_ALT : COMBAT_MECH_TEX_PRIMARY },
   );
+  const loaded = await loadSkeletalCharacter({ gl, textures, gltfCache }, def);
+
+  spawnSkeletalCharacter(registry, entity, loaded, { gl });
 
   const cc = entity.components[COMPONENT_KEYS.character] as ReturnType<typeof createCharacterController>;
-  cc.jumpStartDuration = clips.jumpStart.duration;
-  cc.jumpLandDuration = clips.jumpLand.duration;
   cc.moveSpeed = 3.8;
 
-  entity.components[COMPONENT_KEYS.skeletalRig] = createSkeletalRig(
-    bodyScene, characterParts, renderEntityIds, clips,
-  );
+  registry.register(entity);
 
   return { entity };
 };

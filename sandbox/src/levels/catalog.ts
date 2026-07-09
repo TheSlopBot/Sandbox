@@ -3,11 +3,10 @@ import {
   CUBE_LARGE,
   ROBOT_ONE_GLB,
   COMBAT_MECH_GLB,
-  SPACE_RANGER_GLB,
-  SPACE_RANGER_ATTACHMENT_URLS,
-  ANIM_GENERAL_GLB,
-  ANIM_MOVEMENT_GLB,
 } from './assets.ts';
+import { collectUrlsFromDef } from '../character/types.ts';
+import { SPACE_RANGER_DEF } from '../character/defs/spaceRanger.ts';
+import { createKaykitMediumDef } from '../character/defs/kaykitMedium.ts';
 import { type CombatMechVariant } from '../npcs/combatMech.ts';
 
 export type LevelPropSpawn = {
@@ -139,12 +138,14 @@ export const LEVEL_CATALOG: Record<string, LevelDefinition> = {
 };
 
 export const collectLevelAssetUrls = (definition: LevelDefinition): string[] => {
-  const urls = new Set<string>([ROBOT_ONE_GLB, ANIM_GENERAL_GLB, ANIM_MOVEMENT_GLB, SPACE_RANGER_GLB]);
-  for (const url of SPACE_RANGER_ATTACHMENT_URLS) urls.add(url);
+  const urls = new Set<string>([
+    ...collectUrlsFromDef(SPACE_RANGER_DEF),
+    ...collectUrlsFromDef(createKaykitMediumDef(ROBOT_ONE_GLB, 'robot_one')),
+    COMBAT_MECH_GLB,
+  ]);
 
   for (const prop of definition.props) urls.add(prop.url);
   for (const robot of definition.robots ?? []) urls.add(robot.bodyGlb);
-  if (definition.combatMechs?.length) urls.add(COMBAT_MECH_GLB);
 
   return [...urls];
 };

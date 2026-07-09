@@ -4,12 +4,20 @@ export const COMPONENT_KEYS = {
   character: 'character',
   movementIntent: 'movementIntent',
   navGrid: 'navGrid',
-  skeletalRig: 'skeletalRig',
+  skeletalModel: 'skeletalModel',
+  meshDraws: 'meshDraws',
+  staticModel: 'staticModel',
+  childOf: 'childOf',
+  children: 'children',
+  localTransform: 'localTransform',
+  boneAttachment: 'boneAttachment',
+  animationClipMap: 'animationClipMap',
+  animationStateMachine: 'animationStateMachine',
   cameraFollow: 'cameraFollow',
   renderable: 'renderable',
+  renderGroup: 'renderGroup',
   skin: 'skin',
   gltfNodeIndex: 'gltfNodeIndex',
-  gltfProp: 'gltfProp',
 } as const;
 
 export type ComponentKey = (typeof COMPONENT_KEYS)[keyof typeof COMPONENT_KEYS];

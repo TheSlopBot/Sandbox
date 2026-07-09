@@ -25,7 +25,8 @@ sandbox/                     # Game content
     ├── startup/             # bootstrap, sceneManager
     ├── levels/              # catalog, assets, useLevelScene
     ├── scenes/              # createPlayableScene — generic load/unload factory
-    ├── player/              # createPlayer — entity assembly + asset loading
+    ├── character/           # defs, loadSkeletalCharacter, spawnSkeletalCharacter
+    ├── player/              # createPlayer — gameplay components + spawn wiring
     ├── npcs/                # createRobot, createCombatMech — NPC assembly + test AI system
     └── world/               # ground mesh, static props
 ```
@@ -48,6 +49,8 @@ Session-scoped caches (`GltfCache`, `TextureCache`) live in bootstrap and surviv
 | `installXSystem()` | `installMovementSystem()` | System installer — registers actions on registry |
 | `useX()` | `useRegistry()`, `useLevelScene()` | Engine/game primitive — creates and owns internal state |
 | `buildX()` | `buildGltfMaterials()`, `updateNavGridBlocked()` | Pure transform/builder — no side effects |
+| `loadX()` | `loadSkeletalCharacter()` | Async asset resolve — no registry writes |
+| `spawnX()` | `spawnSkeletalCharacter()` | Attach loaded data to entities on a registry |
 
 ## Code Style
 
@@ -72,6 +75,12 @@ sandbox/src/enemies/spider/
 Register spawn logic in a `LevelDefinition` or custom `spawnNpcs` callback. Install feature systems in `createPlayableScene` (or a scene variant) once per scene instance.
 
 When adding geometry that blocks pathfinding, register a static `collider` and call `markNavGridDirty(scene.registry)`.
+
+## Skeletal characters
+
+Declarative defs in `sandbox/src/character/defs/` → `loadSkeletalCharacter` (data only) → `spawnSkeletalCharacter` (registry writes).
+
+Root entity holds `skeletalModel`, `meshDraws`, `animationClipMap`, `animationStateMachine`, and `children`. Attachments (helmet, jetpack, blade) are **child entities** with `childOf` + `boneAttachment` + `meshDraws` — never orphan body render sub-entities or shared `Transform` refs.
 
 ## Level loading
 

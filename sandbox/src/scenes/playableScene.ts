@@ -12,8 +12,8 @@ import {
   installCollisionSystem,
   installCharacterStateSystem,
   installCameraFollowSystem,
-  installSkeletalAnimationSystem,
-  installGltfPropSystem,
+  installSkeletalCharacterSystems,
+  installStaticModelSystem,
   createNavGrid,
   COMPONENT_KEYS,
 } from 'viberanium';
@@ -22,8 +22,6 @@ import { createPlayer } from '../player/player.ts';
 import { createGroundMesh } from '../world/ground.ts';
 import { installTestAiSystem } from '../npcs/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../player/systems/playerInputSystem.ts';
-import { SPACE_RANGER_GLB, ANIM_GENERAL_GLB, ANIM_MOVEMENT_GLB } from '../levels/assets.ts';
-import { SPACE_RANGER_ATTACHMENTS } from '../character/spaceRangerAttachments.ts';
 import { type LevelNavGridConfig } from '../levels/catalog.ts';
 
 export type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
@@ -49,7 +47,7 @@ export const createPlayableScene = (
   const registry = useRegistry();
   let loaded = false;
 
-  installPlayerInputSystem(registry, deps.input);
+  installPlayerInputSystem(registry, deps.input, deps.gl);
   installNavGridSystem(registry);
   installTestAiSystem(registry);
   installMovementSystem(registry);
@@ -57,10 +55,10 @@ export const createPlayableScene = (
   installCollisionSystem(registry);
   installCharacterStateSystem(registry);
   installCameraFollowSystem(registry, deps.pipeline, deps.input);
-  installSkeletalAnimationSystem(registry, {
+  installSkeletalCharacterSystems(registry, {
     getLodOrigin: () => deps.pipeline.camera.position,
   });
-  installGltfPropSystem(registry);
+  installStaticModelSystem(registry);
 
   const addProp: AddProp = async (url, prefix, opts = {}) => {
     await instantiateStaticProp(deps.gl, registry, deps.textures, deps.gltfCache, url, prefix, opts);
@@ -78,17 +76,13 @@ export const createPlayableScene = (
     await spawnProps(addProp);
     if (spawnNpcs) await spawnNpcs(registry, deps);
 
-    const { entity } = await createPlayer(
-      registry, deps.gl, deps.textures, deps.gltfCache,
-      { bodyGlb: SPACE_RANGER_GLB, animGeneralGlb: ANIM_GENERAL_GLB, animMovementGlb: ANIM_MOVEMENT_GLB, materialPrefix: 'spaceranger_body', attachments: SPACE_RANGER_ATTACHMENTS },
-    );
-    registry.register(entity);
+    await createPlayer(registry, deps.gl, deps.textures, deps.gltfCache);
   };
 
   const unload = () => {
     if (!loaded) return;
 
-    const ids = [...registry.all()].map((e) => e.id);
+    const ids = [...registry.all()].map((entity) => entity.id);
     for (const id of ids) registry.deregister(id);
 
     deps.pipeline.clearGround();

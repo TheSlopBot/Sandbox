@@ -15,6 +15,7 @@ import { fullscreenVS, toneColorFS } from './shaders/post.ts';
 import { DIRECTIONAL_LIGHT, type Camera, type DrawItem } from './types.ts';
 import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type Renderable } from '../components/renderable.ts';
+import { type MeshDraws } from '../components/meshDraws.ts';
 import { type SkinInstance } from '../components/skin.ts';
 import { type Mat4, m4, m4LookAt, m4Mul, m4Ortho, m4Perspective } from '../math/mat4.ts';
 import { type Vec3, v3, v3Copy, v3Normalize, v3Set } from '../math/vec3.ts';
@@ -154,9 +155,9 @@ export const installRenderPipeline = (
     return item;
   };
 
-  let lastDt = 1 / 60;
   let fpsEl: HTMLSpanElement | null | undefined;
   let fpsAccum = 0;
+  let fpsFrameCount = 0;
   let lastShownFps = -1;
 
   const removeDraw = registry.addAction('draw', () => {
@@ -182,24 +183,23 @@ export const installRenderPipeline = (
     const shadowDist2 = CULL_SHADOW_DIST * CULL_SHADOW_DIST;
     const entityRegistry = getEntityRegistry();
 
-    for (const e of entityRegistry.view(COMPONENT_KEYS.renderable)) {
-      const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
-      const r = e.components[COMPONENT_KEYS.renderable] as Renderable | undefined;
-      if (!t || !r || r.visible === false) continue;
-
-      updateWorldMatrix(t);
-      const model = r.model ?? t.world;
+    const pushDrawItem = (
+      mesh: DrawItem['mesh'],
+      material: DrawItem['material'],
+      model: Mat4,
+      skin: SkinInstance | undefined,
+      castShadow: boolean,
+    ) => {
       const x = model[12];
       const z = model[14];
       const d2 = distSqXZ(x, z, camX, camZ);
-      if (d2 > forwardDist2) continue;
+      if (d2 > forwardDist2) return;
 
       const item = acquireItem();
-      item.mesh = r.mesh;
-      item.material = r.material;
+      item.mesh = mesh;
+      item.material = material;
       item.model = model;
       item.sortZ = model[14];
-      const skin = e.components[COMPONENT_KEYS.skin] as SkinInstance | undefined;
       if (skin) {
         if (!item.skin) item.skin = { palette: skin.palette, jointCount: skin.jointCount };
         else {
@@ -209,9 +209,32 @@ export const installRenderPipeline = (
       } else {
         item.skin = undefined;
       }
-      item.castShadow = r.castShadow !== false && d2 <= shadowDist2;
+      item.castShadow = castShadow && d2 <= shadowDist2;
       forwardItems.push(item);
       if (item.castShadow) shadowItems.push(item);
+    };
+
+    for (const e of entityRegistry.view(COMPONENT_KEYS.meshDraws)) {
+      const meshDraws = e.components[COMPONENT_KEYS.meshDraws] as MeshDraws | undefined;
+      if (!meshDraws) continue;
+
+      for (const part of meshDraws.parts) {
+        if (part.visible === false) continue;
+        const model = part.model ?? (e.components[COMPONENT_KEYS.transform] as Transform | undefined)?.world;
+        if (!model) continue;
+        pushDrawItem(part.mesh, part.material, model, part.skin, part.castShadow !== false);
+      }
+    }
+
+    for (const e of entityRegistry.view(COMPONENT_KEYS.renderable)) {
+      const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
+      const r = e.components[COMPONENT_KEYS.renderable] as Renderable | undefined;
+      if (!t || !r || r.visible === false) continue;
+
+      updateWorldMatrix(t);
+      const model = r.model ?? t.world;
+      const skin = e.components[COMPONENT_KEYS.skin] as SkinInstance | undefined;
+      pushDrawItem(r.mesh, r.material, model, skin, r.castShadow !== false);
     }
 
     const lvp = computeLightViewProj(target);
@@ -250,21 +273,22 @@ export const installRenderPipeline = (
       }
     }
 
-    fpsAccum += lastDt;
-    if (fpsAccum >= FPS_UPDATE_INTERVAL_S) {
-      fpsAccum = 0;
-      if (fpsEl === undefined) fpsEl = document.querySelector<HTMLSpanElement>('#fps');
-      if (fpsEl) {
-        const fps = Math.round(1 / Math.max(1e-6, lastDt));
-        if (fps !== lastShownFps) {
-          lastShownFps = fps;
-          fpsEl.textContent = `${fps}`;
-        }
-      }
-    }
   }, 0);
 
-  const removeCommit = registry.addAction('commit', (ctx) => { lastDt = ctx.dt; }, 100);
+  const removeFps = registry.addAction('commit', (ctx) => {
+    fpsAccum += ctx.dt;
+    fpsFrameCount++;
+    if (fpsAccum < FPS_UPDATE_INTERVAL_S) return;
+
+    const fps = Math.round(fpsFrameCount / fpsAccum);
+    fpsAccum = 0;
+    fpsFrameCount = 0;
+    if (fpsEl === undefined) fpsEl = document.querySelector<HTMLSpanElement>('#fps');
+    if (!fpsEl || fps === lastShownFps) return;
+
+    lastShownFps = fps;
+    fpsEl.textContent = `${fps}`;
+  }, 100);
 
   let destroyed = false;
   const destroy = () => {
@@ -272,7 +296,7 @@ export const installRenderPipeline = (
     destroyed = true;
 
     removeDraw();
-    removeCommit();
+    removeFps();
 
     for (const s of postStages) s.destroy?.();
     postStages.length = 0;

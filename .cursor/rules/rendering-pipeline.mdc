@@ -47,7 +47,16 @@ Optional stages (registered by the game):
 - Shared GLSL (e.g. shadow sampling) is imported as a const string and interpolated: `${shadowSamplingGLSL}`
 - `fullscreenVS` in `shaders/post.ts` is the canonical full-screen triangle VS — reuse it for all post passes
 
-## Batching in ForwardPass
+## Draw collection
+
+The render pipeline collects draw items from:
+
+1. `meshDraws.parts[]` on any entity (skeletal characters, bone-attachment children)
+2. `renderable` on simple entities (static prop sub-entities, legacy paths)
+
+Each `MeshDrawPart` supplies `mesh`, `material`, `model` (world matrix), optional `skin`, and `visible`/`castShadow` flags. Pose and attachment systems write `part.model` each frame before draw order 0 runs.
+
+Runtime visibility: set `part.visible = false` or `renderable.visible = false`. Runtime material swap: replace `part.material` or `material.baseColorTex`.
 
 `ForwardPass` tracks `lastProgram / lastTex / lastVao` to skip redundant GL state changes.
 Opaque items are sorted by `(baseColorTex, vao)` before drawing to maximise batch runs.

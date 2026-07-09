@@ -38,12 +38,15 @@ Code must be self-documenting through names and types. Do not add `//` inline co
 
 | Pattern | Use for |
 |---------|---------|
-| `createX()` | Factory that builds an entity/object and returns it |
+| `createX()` | Factory that builds a component/object and returns it |
 | `installXSystem(registry, ...)` | Side-effectful system wiring; registers `addAction` callbacks |
 | `buildX()` | Pure data transformation (no GL calls, no registry writes) |
+| `loadX()` | Resolve assets to typed data — no registry writes |
+| `spawnX()` | Wire loaded data onto entities and register |
 | `useX()` | Registry-level singleton (engine-layer only) |
+| `swapX()` | Runtime replacement of model, clip, or material on an existing entity |
 
-**Movement** is the canonical term for anything that can move: `movementIntent`, `movementBlend`, `movementAnimTime`. Do not use `locomotion*`.
+**Movement** is the canonical term for character intent: `movementIntent`. Animation state and clip maps live on `animationStateMachine` and `animationClipMap` — not on `character`. Never use `locomotion` in names or docs.
 
 ---
 
@@ -55,7 +58,7 @@ viberanium/src/
   math/         vec3, mat4, quat
   input/        createInput
   collision/    aabb, obb — pure math only
-  components/   shared + character component types
+  components/   shared component types (hierarchy, meshDraws, animation, …)
   systems/      install*System processors
   navigation/   A* pathfinding helpers
   assets/       loaders (gltf/)
@@ -63,24 +66,31 @@ viberanium/src/
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/
+  character/    defs/, loadSkeletalCharacter, spawnSkeletalCharacter
   levels/       catalog, assets, useLevelScene
   startup/      bootstrap, sceneManager
-  scenes/       createPlayableScene (generic load/unload factory)
-  player/       feature slice: player.ts
-  npcs/         feature slice: robot.ts, combatMech.ts, test AI system
-  world/        ground, staticProps (gltfCache + markNavGridDirty)
+  scenes/       createPlayableScene
+  player/       createPlayer, playerController, attachment tags
+  npcs/         robot, combatMech, test AI
+  world/        ground, staticProps
 ```
 
 Feature code lives in its own slice folder under the game package. Do not add logic to `startup/bootstrap.ts` beyond composition wiring.
 
+### Skeletal characters
+
+1. Define assets in `character/defs/*.ts`
+2. `loadSkeletalCharacter(deps, def)` — returns model, meshDraws, clips, attachment data
+3. `spawnSkeletalCharacter(registry, entity, loaded)` — components + hierarchy children
+4. Game factory adds gameplay components, then `registry.register(entity)`
+
 ### Levels & assets
 
 - Add levels as `LevelDefinition` entries in `sandbox/src/levels/catalog.ts`
-- `installSceneManager` creates ephemeral scenes via `useLevelScene` — do not pre-create scenes at bootstrap
-- Session caches (`createGltfCache`, `TextureCache`) live in bootstrap; use `gltfCache.getOrLoad(url)` in all spawn code
-- `scene.load()` creates nav grid + level content; `scene.unload()` destroys everything on the scene registry
+- Preload via `collectUrlsFromDef` for each character def used in the level
+- `scene.load()` creates level content; `scene.unload()` destroys everything on the scene registry
 
-See `.cursor/rules/levels.mdc` for the full pattern.
+See `.cursor/rules/levels.mdc` and `.cursor/rules/ecs.mdc` for full patterns.
 
 ---
 

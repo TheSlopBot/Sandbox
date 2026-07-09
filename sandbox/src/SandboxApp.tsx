@@ -66,13 +66,13 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
     void (async () => {
       try {
         sessionRef.current = await bootstrap(gameCanvas);
-        await fadeOutLoadingScreen(loadingOverlay);
-        setLoading(false);
+        setBootError(null);
       } catch (err) {
         setBootError(String(err));
-        setLoading(false);
       } finally {
         loadingScreen.destroy();
+        await fadeOutLoadingScreen(loadingOverlay);
+        setLoading(false);
       }
     })();
   }, [active]);
