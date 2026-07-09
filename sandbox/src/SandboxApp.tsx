@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   createLoadingScreen,
   fadeOutLoadingScreen,
   type LoadingScreenColors,
+  type EngineOptimizationOptions,
 } from 'viberanium';
 import { bootstrap } from './startup/bootstrap.ts';
+import { PerformanceMenu } from './menus/performance/PerformanceMenu.tsx';
 import './style.css';
 
 export type SandboxAppProps = {
@@ -29,18 +31,8 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
 
   const [bootError, setBootError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const controls = useMemo(
-    () => [
-      { key: 'Camera', text: 'Click to toggle' },
-      { key: 'Move', text: 'WASD / Arrows' },
-      { key: 'Jump', text: 'Space' },
-      { key: 'ASCII', text: 'T' },
-      { key: 'Reset', text: 'R' },
-      { key: 'Scene', text: '1, 2' },
-    ],
-    [],
-  );
+  const [optimization, setOptimization] = useState<EngineOptimizationOptions | null>(null);
+  const [asciiEnabled, setAsciiEnabled] = useState(false);
 
   useEffect(() => {
     if (!active) {
@@ -49,8 +41,12 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
         session.unload();
         sessionRef.current = null;
       }
+
+      setOptimization(null);
+      setAsciiEnabled(false);
       return;
     }
+
     if (sessionRef.current) return;
 
     const gameCanvas = gameCanvasRef.current;
@@ -62,10 +58,14 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
     setLoading(true);
 
     const loadingScreen = createLoadingScreen(loadingCanvas, { colors: LOADING_COLORS });
+    let removeAsciiSubscription: (() => void) | null = null;
 
     void (async () => {
       try {
-        sessionRef.current = await bootstrap(gameCanvas);
+        const session = await bootstrap(gameCanvas);
+        sessionRef.current = session;
+        setOptimization(session.optimization);
+        removeAsciiSubscription = session.subscribeAscii(setAsciiEnabled);
         setBootError(null);
       } catch (err) {
         setBootError(String(err));
@@ -75,6 +75,10 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
         setLoading(false);
       }
     })();
+
+    return () => {
+      removeAsciiSubscription?.();
+    };
   }, [active]);
 
   return (
@@ -83,23 +87,13 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
         <canvas ref={loadingCanvasRef} id="loading" />
       </div>
       <canvas ref={gameCanvasRef} id="game" />
-      <div id="controls">
-        {bootError ? (
-          <div className="row">Boot error: {bootError}</div>
-        ) : (
-          <>
-            {controls.map((c) => (
-              <div key={c.key} className="row">
-                <span className="k">{c.key}</span> {c.text}
-              </div>
-            ))}
-            <div className="row">
-              <span className="k">FPS</span> <span id="fps">...</span>
-            </div>
-          </>
-        )}
-      </div>
+      <PerformanceMenu
+        visible={!loading}
+        bootError={bootError}
+        optimization={optimization}
+        asciiEnabled={asciiEnabled}
+        onAsciiEnabledChange={(enabled) => sessionRef.current?.setAsciiEnabled(enabled)}
+      />
     </div>
   );
 };
-

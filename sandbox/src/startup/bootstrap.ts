@@ -6,12 +6,17 @@
   createTextureCache,
   createAsciiPostProcessStage,
   createEngineOptimizationOptions,
+  type EngineOptimizationOptions,
 } from 'viberanium';
 import { LEVEL_CATALOG } from '../levels/catalog.ts';
 import { installSceneManager } from './sceneManager.ts';
 
 export type SandboxSession = {
   unload: () => void;
+  optimization: EngineOptimizationOptions;
+  getAsciiEnabled: () => boolean;
+  setAsciiEnabled: (enabled: boolean) => void;
+  subscribeAscii: (listener: (enabled: boolean) => void) => () => void;
 };
 
 export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSession> => {
@@ -32,9 +37,17 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
 
   const asciiStage = createAsciiPostProcessStage(gl);
   const removeAsciiStage = pipeline.addPostProcess(asciiStage);
+  const asciiListeners = new Set<(enabled: boolean) => void>();
+
+  const notifyAscii = () => {
+    for (const listener of asciiListeners) listener(asciiStage.enabled);
+  };
 
   const removeAsciiToggle = game.registry.addAction('update', () => {
-    if (input.pressed('KeyT')) asciiStage.enabled = !asciiStage.enabled;
+    if (!input.pressed('KeyT')) return;
+
+    asciiStage.enabled = !asciiStage.enabled;
+    notifyAscii();
   }, 0);
 
   const sceneManager = installSceneManager(game.registry, {
@@ -56,6 +69,17 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
   game.start();
 
   return {
+    optimization,
+    getAsciiEnabled: () => asciiStage.enabled,
+    setAsciiEnabled: (enabled) => {
+      asciiStage.enabled = enabled;
+      notifyAscii();
+    },
+    subscribeAscii: (listener) => {
+      asciiListeners.add(listener);
+      listener(asciiStage.enabled);
+      return () => { asciiListeners.delete(listener); };
+    },
     unload: () => {
       game.stop();
       game.setActiveScene(null);
@@ -65,6 +89,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
       removeCommit();
       removeAsciiToggle();
       removeAsciiStage();
+      asciiListeners.clear();
 
       input.destroy();
     },
