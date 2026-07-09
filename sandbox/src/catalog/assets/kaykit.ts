@@ -1,7 +1,22 @@
 export const KAYKIT = `${import.meta.env.BASE_URL}assets/kaykit`;
 
-export const CUBE_SMALL = `${KAYKIT}/KayKit Prototype Bits 1.1/Assets/gltf/Cube_Prototype_Small.gltf`;
-export const CUBE_LARGE = `${KAYKIT}/KayKit Prototype Bits 1.1/Assets/gltf/Cube_Prototype_Large_B.gltf`;
+const PROTOTYPE_GLTF = `${KAYKIT}/KayKit Prototype Bits 1.1/Assets/gltf`;
+
+export const CUBE_SMALL = `${PROTOTYPE_GLTF}/Cube_Prototype_Small.gltf`;
+export const CUBE_LARGE = `${PROTOTYPE_GLTF}/Cube_Prototype_Large_B.gltf`;
+
+export const BARREL_A = `${PROTOTYPE_GLTF}/Barrel_A.gltf`;
+export const BOX_A = `${PROTOTYPE_GLTF}/Box_A.gltf`;
+export const BOX_C = `${PROTOTYPE_GLTF}/Box_C.gltf`;
+export const DUMMY_BASE = `${PROTOTYPE_GLTF}/Dummy_Base.gltf`;
+export const LOCKER = `${PROTOTYPE_GLTF}/Locker.gltf`;
+export const PALLET_SMALL_DECORATED_A = `${PROTOTYPE_GLTF}/Pallet_Small_Decorated_A.gltf`;
+export const PALLET_SMALL_DECORATED_B = `${PROTOTYPE_GLTF}/Pallet_Small_Decorated_B.gltf`;
+export const TABLE_MEDIUM_DECORATED = `${PROTOTYPE_GLTF}/table_medium_Decorated.gltf`;
+export const TARGET_STAND_A_DECORATED = `${PROTOTYPE_GLTF}/target_stand_A_Decorated.gltf`;
+export const WALL_WINDOW_OPEN = `${PROTOTYPE_GLTF}/Wall_Window_Open.gltf`;
+export const WEAPONRACK_DECORATED = `${PROTOTYPE_GLTF}/Weaponrack_Decorated.gltf`;
+export const WORKBENCH_DECORATED = `${PROTOTYPE_GLTF}/Workbench_Decorated.gltf`;
 
 export const DUMMY_GLB = `${KAYKIT}/KayKit Prototype Bits 1.1/Character/Dummy.glb`;
 

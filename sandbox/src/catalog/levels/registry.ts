@@ -1,8 +1,10 @@
 import { type LevelDefinition } from './levelDefinition.ts';
-import { LEVEL_ALT } from './alt.ts';
-import { LEVEL_TEST } from './test.ts';
+import { TEST_ONE } from './testOne.ts';
+import { TEST_THREE } from './testThree.ts';
+import { TEST_TWO } from './testTwo.ts';
 
 export const LEVEL_CATALOG: Record<string, LevelDefinition> = {
-  test: LEVEL_TEST,
-  alt: LEVEL_ALT,
+  testOne: TEST_ONE,
+  testTwo: TEST_TWO,
+  testThree: TEST_THREE,
 };

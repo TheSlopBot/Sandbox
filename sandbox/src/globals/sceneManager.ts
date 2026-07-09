@@ -63,8 +63,9 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
 
   removeUpdateAction = gameRegistry.addAction('update', () => {
     if (switching) return;
-    if (deps.input.pressed('Digit1')) void switchTo('test');
-    if (deps.input.pressed('Digit2')) void switchTo('alt');
+    if (deps.input.pressed('Digit1')) void switchTo('testOne');
+    if (deps.input.pressed('Digit2')) void switchTo('testTwo');
+    if (deps.input.pressed('Digit3')) void switchTo('testThree');
   }, 0);
 
   return {

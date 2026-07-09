@@ -62,7 +62,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
     setActiveSceneRegistry: (registry) => { activeSceneRegistry = registry; },
   });
 
-  await sceneManager.switchTo('test');
+  await sceneManager.switchTo('testOne');
 
   const removeCommit = game.registry.addAction('commit', () => { input.commitFrame(); }, 0);
 

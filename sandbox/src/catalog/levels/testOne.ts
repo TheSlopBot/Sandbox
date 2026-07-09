@@ -23,8 +23,8 @@ const LEVEL_TEST_ROBOTS = [
   { x: 11, z: -11, bodyGlb: ROBOT_ONE_GLB, materialPrefix: 'robot_ome' },
 ];
 
-export const LEVEL_TEST: LevelDefinition = {
-  id: 'test',
+export const TEST_ONE: LevelDefinition = {
+  id: 'testOne',
   displayName: 'Test Arena',
   navGrid: DEFAULT_NAV_GRID,
   props: LEVEL_TEST_PROPS,

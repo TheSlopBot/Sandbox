@@ -2,8 +2,8 @@ import { CUBE_SMALL, CUBE_LARGE } from '../assets/kaykit.ts';
 import { type LevelDefinition } from './levelDefinition.ts';
 import { DEFAULT_NAV_GRID, buildCombatMechPerfSpawns } from './helpers.ts';
 
-export const LEVEL_ALT: LevelDefinition = {
-  id: 'alt',
+export const TEST_TWO: LevelDefinition = {
+  id: 'testTwo',
   displayName: 'Test Corridor',
   navGrid: DEFAULT_NAV_GRID,
   props: [

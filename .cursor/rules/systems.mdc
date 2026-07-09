@@ -81,7 +81,7 @@ Components are data-only. Behaviour lives exclusively in system installers.
 `installSceneManager` in `sandbox/src/globals/sceneManager.ts` owns level transitions:
 
 ```typescript
-await sceneManager.switchTo('test');
+await sceneManager.switchTo('testOne');
 ```
 
 Sequence: unload previous → `gltfCache.preload(urls)` → `useLevelScene` → `game.setActiveScene` → `await scene.load()`.

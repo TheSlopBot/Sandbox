@@ -8,6 +8,8 @@ import {
   type LevelRobotSpawn,
 } from './levelDefinition.ts';
 
+export const GROUND_HALF_EXTENT = 60;
+
 export const DEFAULT_NAV_GRID: LevelNavGridConfig = {
   minX: -18,
   maxX: 18,
@@ -111,6 +113,35 @@ export const buildDummySpawns = (
   }
 
   return spawns;
+};
+
+export const buildScatteredPropSpawns = (
+  assets: readonly { url: string; prefix: string }[],
+  countPerAsset: number,
+  halfExtent: number,
+  seed: number,
+  margin = 2,
+): LevelPropSpawn[] => {
+  const rng = createSeededRng(seed);
+  const min = -halfExtent + margin;
+  const max = halfExtent - margin;
+  const props: LevelPropSpawn[] = [];
+
+  for (const asset of assets) {
+    for (let i = 0; i < countPerAsset; i++) {
+      props.push({
+        url: asset.url,
+        prefix: asset.prefix,
+        opts: {
+          x: min + rng() * (max - min),
+          z: min + rng() * (max - min),
+          yaw: rng() * Math.PI * 2,
+        },
+      });
+    }
+  }
+
+  return props;
 };
 
 export type { LevelDefinition };
