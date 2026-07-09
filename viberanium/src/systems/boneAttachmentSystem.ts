@@ -6,13 +6,36 @@ import { type BoneAttachment } from '../components/boneAttachment.ts';
 import { type SkeletalModel } from '../components/skeletalModel.ts';
 import { type Renderable } from '../components/renderable.ts';
 import { type MeshDraws } from '../components/meshDraws.ts';
+import {
+  DEFAULT_ENGINE_OPTIMIZATION,
+  type EngineOptimizationOptions,
+} from '../engine/optimizationOptions.ts';
 import { m4, m4Copy, m4Mul } from '../math/mat4.ts';
+import { type Vec3 } from '../math/vec3.ts';
 
-export const installBoneAttachmentSystem = (registry: Registry) =>
-  registry.addAction('update', () => {
+export type BoneAttachmentOptions = {
+  getLodOrigin?: () => Vec3;
+  optimization?: EngineOptimizationOptions;
+};
+
+const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
+  const dx = ax - bx;
+  const dz = az - bz;
+  return dx * dx + dz * dz;
+};
+
+export const installBoneAttachmentSystem = (registry: Registry, options: BoneAttachmentOptions = {}) => {
+  const getLodOrigin = options.getLodOrigin;
+  const optimization = options.optimization ?? DEFAULT_ENGINE_OPTIMIZATION;
+
+  return registry.addAction('update', () => {
     const _boneWorld = m4();
     const _attachRoot = m4();
     const _renderRoot = m4();
+    const origin = getLodOrigin?.();
+    const ox = origin ? origin[0] : 0;
+    const oz = origin ? origin[2] : 0;
+    const shadowDist2 = optimization.shadowCullDist * optimization.shadowCullDist;
 
     for (const e of registry.view(COMPONENT_KEYS.boneAttachment)) {
       const childOf = e.components[COMPONENT_KEYS.childOf] as ChildOf | undefined;
@@ -32,6 +55,9 @@ export const installBoneAttachmentSystem = (registry: Registry) =>
       const boneNode = parentModel.bodyScene.nodes[attachment.boneNodeIndex];
       if (!boneNode) continue;
 
+      const d2 = origin ? distSqXZ(parentT.position[0], parentT.position[2], ox, oz) : 0;
+      const castShadow = !origin || d2 <= shadowDist2;
+
       m4Copy(_renderRoot, parentT.world);
       _renderRoot[13] += parentModel.visualYOffset;
       m4Mul(_boneWorld, _renderRoot, boneNode.worldM);
@@ -46,7 +72,7 @@ export const installBoneAttachmentSystem = (registry: Registry) =>
           if (!node) continue;
           if (!part.model) part.model = m4();
           m4Mul(part.model as Float32Array, _attachRoot, node.worldM);
-          part.castShadow = true;
+          part.castShadow = castShadow;
         }
         continue;
       }
@@ -59,6 +85,7 @@ export const installBoneAttachmentSystem = (registry: Registry) =>
       if (!node) continue;
 
       m4Mul(renderable.model as Float32Array, _attachRoot, node.worldM);
-      renderable.castShadow = true;
+      renderable.castShadow = castShadow;
     }
   }, 20);
+};

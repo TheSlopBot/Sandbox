@@ -3,6 +3,13 @@ export { useGame, type Game } from './engine/game.ts';
 export { useScene, type Scene } from './engine/scene.ts';
 export { createEntity, type Entity, type EntityId } from './engine/entity.ts';
 export { COMPONENT_KEYS, type ComponentKey } from './engine/componentKeys.ts';
+export {
+  createEngineOptimizationOptions,
+  DEFAULT_ENGINE_OPTIMIZATION,
+  skeletonSkipChanceForDist,
+  type EngineOptimizationOptions,
+  type SkeletonLodOptions,
+} from './engine/optimizationOptions.ts';
 
 export { createInput, type Input } from './input/input.ts';
 

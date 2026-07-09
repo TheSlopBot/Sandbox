@@ -19,6 +19,10 @@ import { type MeshDraws } from '../components/meshDraws.ts';
 import { type SkinInstance } from '../components/skin.ts';
 import { type Mat4, m4, m4LookAt, m4Mul, m4Ortho, m4Perspective } from '../math/mat4.ts';
 import { type Vec3, v3, v3Copy, v3Normalize, v3Set } from '../math/vec3.ts';
+import {
+  DEFAULT_ENGINE_OPTIMIZATION,
+  type EngineOptimizationOptions,
+} from '../engine/optimizationOptions.ts';
 
 export type PostProcessStage = {
   readonly name: string;
@@ -38,8 +42,6 @@ export type RenderPipeline = {
   destroy: () => void;
 };
 
-const CULL_FORWARD_DIST = 90;
-const CULL_SHADOW_DIST = 28;
 const FPS_UPDATE_INTERVAL_S = 0.25;
 
 const _proj = m4();
@@ -77,6 +79,7 @@ const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
 
 export type PipelineOptions = {
   getEntityRegistry?: () => Registry;
+  optimization?: EngineOptimizationOptions;
 };
 
 export const installRenderPipeline = (
@@ -85,6 +88,7 @@ export const installRenderPipeline = (
   options: PipelineOptions = {},
 ): RenderPipeline => {
   const getEntityRegistry = options.getEntityRegistry ?? (() => registry);
+  const optimization = options.optimization ?? DEFAULT_ENGINE_OPTIMIZATION;
   const device = createDevice(canvas);
   const gl = device.gl;
 
@@ -179,8 +183,8 @@ export const installRenderPipeline = (
 
     const camX = camera.position[0];
     const camZ = camera.position[2];
-    const forwardDist2 = CULL_FORWARD_DIST * CULL_FORWARD_DIST;
-    const shadowDist2 = CULL_SHADOW_DIST * CULL_SHADOW_DIST;
+    const forwardDist2 = optimization.forwardCullDist * optimization.forwardCullDist;
+    const shadowDist2 = optimization.shadowCullDist * optimization.shadowCullDist;
     const entityRegistry = getEntityRegistry();
 
     const pushDrawItem = (

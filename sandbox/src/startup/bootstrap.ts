@@ -5,6 +5,7 @@
   installRenderPipeline,
   createTextureCache,
   createAsciiPostProcessStage,
+  createEngineOptimizationOptions,
 } from 'viberanium';
 import { LEVEL_CATALOG } from '../levels/catalog.ts';
 import { installSceneManager } from './sceneManager.ts';
@@ -19,8 +20,11 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
 
   let activeSceneRegistry = game.registry;
 
+  const optimization = createEngineOptimizationOptions();
+
   const pipeline = installRenderPipeline(game.registry, canvas, {
     getEntityRegistry: () => activeSceneRegistry,
+    optimization,
   });
   const gl = pipeline.device.gl;
   const textures = createTextureCache(gl);
@@ -41,6 +45,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
     gltfCache,
     gl,
     catalog: LEVEL_CATALOG,
+    optimization,
     setActiveSceneRegistry: (registry) => { activeSceneRegistry = registry; },
   });
 

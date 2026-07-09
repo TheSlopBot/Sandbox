@@ -5,6 +5,7 @@ import {
   type RenderPipeline,
   type GltfCache,
   type TextureCache,
+  type EngineOptimizationOptions,
 } from 'viberanium';
 import { type SceneDeps } from '../scenes/playableScene.ts';
 import { useLevelScene } from '../levels/useLevelScene.ts';
@@ -18,6 +19,7 @@ export type SceneManagerDeps = {
   gltfCache: GltfCache;
   gl: WebGL2RenderingContext;
   catalog: Record<string, LevelDefinition>;
+  optimization: EngineOptimizationOptions;
   setActiveSceneRegistry: (registry: Registry) => void;
 };
 
@@ -32,6 +34,7 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     pipeline: deps.pipeline,
     textures: deps.textures,
     gltfCache: deps.gltfCache,
+    optimization: deps.optimization,
   });
 
   const switchTo = async (levelId: string) => {

@@ -215,7 +215,7 @@ const installOrbitInput = (canvas: HTMLCanvasElement, orbit: PreviewOrbit, isAct
     orbit.lastX = e.clientX;
     orbit.lastY = e.clientY;
 
-    if (orbit.dragButton) {
+    if (orbit.dragButton === 0) {
       orbit.pendingDx += dx;
       orbit.pendingDy += dy;
       return;
@@ -236,7 +236,7 @@ const installOrbitInput = (canvas: HTMLCanvasElement, orbit: PreviewOrbit, isAct
     orbit.lastX = e.clientX;
     orbit.lastY = e.clientY;
 
-    if (orbit.dragButton === 2) {
+    if (orbit.dragButton === 0) {
       orbit.pendingDx += dx;
       orbit.pendingDy += dy;
       return;

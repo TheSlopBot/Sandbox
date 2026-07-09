@@ -4,13 +4,16 @@ import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type SkeletalModel } from '../components/skeletalModel.ts';
 import { type MeshDraws } from '../components/meshDraws.ts';
 import { computeSkinPalette } from '../assets/gltf/runtime.ts';
+import {
+  DEFAULT_ENGINE_OPTIMIZATION,
+  type EngineOptimizationOptions,
+} from '../engine/optimizationOptions.ts';
 import { m4, m4Copy, m4Mul } from '../math/mat4.ts';
 import { type Vec3 } from '../math/vec3.ts';
 
-const SHADOW_DIST = 28;
-
 export type SkeletalMeshOptions = {
   getLodOrigin?: () => Vec3;
+  optimization?: EngineOptimizationOptions;
 };
 
 const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
@@ -23,12 +26,13 @@ export const installSkeletalMeshSystem = (registry: Registry, options: SkeletalM
   const renderRootByModel = new WeakMap<SkeletalModel, Float32Array>();
   const _meshWorld = m4();
   const getLodOrigin = options.getLodOrigin;
+  const optimization = options.optimization ?? DEFAULT_ENGINE_OPTIMIZATION;
 
   return registry.addAction('update', () => {
     const origin = getLodOrigin?.();
     const ox = origin ? origin[0] : 0;
     const oz = origin ? origin[2] : 0;
-    const shadowDist2 = SHADOW_DIST * SHADOW_DIST;
+    const shadowDist2 = optimization.shadowCullDist * optimization.shadowCullDist;
 
     for (const e of registry.view(COMPONENT_KEYS.meshDraws)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;

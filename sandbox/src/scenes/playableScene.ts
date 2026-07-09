@@ -5,6 +5,7 @@ import {
   type Registry,
   type GltfCache,
   type TextureCache,
+  type EngineOptimizationOptions,
   useRegistry,
   installMovementSystem,
   installNavGridSystem,
@@ -32,6 +33,7 @@ export type SceneDeps = {
   pipeline: RenderPipeline;
   textures: TextureCache;
   gltfCache: GltfCache;
+  optimization: EngineOptimizationOptions;
 };
 
 export type AddProp = (url: string, prefix: string, opts?: PropOpts) => Promise<void>;
@@ -57,6 +59,7 @@ export const createPlayableScene = (
   installCameraFollowSystem(registry, deps.pipeline, deps.input);
   installSkeletalCharacterSystems(registry, {
     getLodOrigin: () => deps.pipeline.camera.position,
+    optimization: deps.optimization,
   });
   installStaticModelSystem(registry);
 

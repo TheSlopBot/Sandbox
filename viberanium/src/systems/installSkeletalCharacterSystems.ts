@@ -1,4 +1,5 @@
 import { type Registry } from '../engine/registry.ts';
+import { type EngineOptimizationOptions } from '../engine/optimizationOptions.ts';
 import { type Vec3 } from '../math/vec3.ts';
 import { installTransformHierarchySystem } from './transformHierarchySystem.ts';
 import { installAnimationFsmSystem } from './animationFsmSystem.ts';
@@ -8,6 +9,7 @@ import { installBoneAttachmentSystem } from './boneAttachmentSystem.ts';
 
 export type SkeletalCharacterSystemsOptions = {
   getLodOrigin?: () => Vec3;
+  optimization?: EngineOptimizationOptions;
 };
 
 export const installSkeletalCharacterSystems = (registry: Registry, options: SkeletalCharacterSystemsOptions = {}) => {
@@ -15,7 +17,7 @@ export const installSkeletalCharacterSystems = (registry: Registry, options: Ske
   const removeFsm = installAnimationFsmSystem(registry);
   const removePose = installSkeletalPoseSystem(registry, options);
   const removeMesh = installSkeletalMeshSystem(registry, options);
-  const removeBone = installBoneAttachmentSystem(registry);
+  const removeBone = installBoneAttachmentSystem(registry, options);
 
   return () => {
     removeHierarchy();
