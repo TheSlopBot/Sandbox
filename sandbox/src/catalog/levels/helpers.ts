@@ -6,7 +6,7 @@ import {
   type LevelNavGridConfig,
   type LevelPropSpawn,
   type LevelRobotSpawn,
-} from '../types/level.ts';
+} from './levelDefinition.ts';
 
 export const DEFAULT_NAV_GRID: LevelNavGridConfig = {
   minX: -18,

@@ -1,5 +1,5 @@
 import { type AnimClip } from 'viberanium';
-import { type SkeletalCharacterDef } from '../../catalog/types/character.ts';
+import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef.ts';
 
 export const pickClip = (clips: AnimClip[], name: string): AnimClip => {
   const exact = clips.find((clip) => clip.name === name);

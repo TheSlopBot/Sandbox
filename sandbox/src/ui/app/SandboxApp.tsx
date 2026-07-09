@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   createLoadingScreen,
   fadeOutLoadingScreen,
-  type EngineOptimizationOptions,
 } from 'viberanium';
-import { LOADING_COLORS } from '../../catalog/ui/loadingColors.ts';
+import { LOADING_COLORS } from '../../ui/theme/loadingColors.ts';
 import { bootstrap } from '../../globals/bootstrap.ts';
 import { PerformanceMenu } from '../../menus/performance/PerformanceMenu.tsx';
 import '../../ui/theme/style.css';
@@ -21,8 +20,6 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
 
   const [bootError, setBootError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [optimization, setOptimization] = useState<EngineOptimizationOptions | null>(null);
-  const [asciiEnabled, setAsciiEnabled] = useState(false);
 
   useEffect(() => {
     if (!active) {
@@ -32,8 +29,6 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
         sessionRef.current = null;
       }
 
-      setOptimization(null);
-      setAsciiEnabled(false);
       return;
     }
 
@@ -48,14 +43,11 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
     setLoading(true);
 
     const loadingScreen = createLoadingScreen(loadingCanvas, { colors: LOADING_COLORS });
-    let removeAsciiSubscription: (() => void) | null = null;
 
     void (async () => {
       try {
         const session = await bootstrap(gameCanvas);
         sessionRef.current = session;
-        setOptimization(session.optimization);
-        removeAsciiSubscription = session.subscribeAscii(setAsciiEnabled);
         setBootError(null);
       } catch (err) {
         setBootError(String(err));
@@ -66,9 +58,6 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
       }
     })();
 
-    return () => {
-      removeAsciiSubscription?.();
-    };
   }, [active]);
 
   return (
@@ -80,9 +69,6 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
       <PerformanceMenu
         visible={!loading}
         bootError={bootError}
-        optimization={optimization}
-        asciiEnabled={asciiEnabled}
-        onAsciiEnabledChange={(enabled) => sessionRef.current?.setAsciiEnabled(enabled)}
       />
     </div>
   );

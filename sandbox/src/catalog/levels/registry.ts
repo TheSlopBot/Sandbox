@@ -1,4 +1,4 @@
-import { type LevelDefinition } from '../types/level.ts';
+import { type LevelDefinition } from './levelDefinition.ts';
 import { LEVEL_ALT } from './alt.ts';
 import { LEVEL_TEST } from './test.ts';
 

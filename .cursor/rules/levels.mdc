@@ -19,9 +19,8 @@ alwaysApply: false
 sandbox/src/catalog/
   assets/           # glTF/texture URL constants (kaykit.ts)
   animations/       # anim pack + clip maps (kaykitMedium.ts)
-  characters/       # SkeletalCharacterDef entries
-  levels/           # test.ts, alt.ts, registry.ts, collectAssetUrls.ts
-  types/            # LevelDefinition, SkeletalCharacterDef shapes
+  characters/       # characterDef.ts types + SkeletalCharacterDef entries
+  levels/           # levelDefinition.ts types, test.ts, alt.ts, registry.ts, collectAssetUrls.ts
   keys/             # GAME_COMPONENT_KEYS
 
 sandbox/src/entities/actor/
@@ -42,7 +41,7 @@ sandbox/src/scenes/common/
 
 ## Level catalog
 
-Levels are **data** in `catalog/levels/`:
+Levels are **data** in `catalog/levels/`. Shapes live in `catalog/levels/levelDefinition.ts`:
 
 ```typescript
 export type LevelDefinition = {

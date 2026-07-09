@@ -1,5 +1,5 @@
 import { CUBE_SMALL, CUBE_LARGE } from '../assets/kaykit.ts';
-import { type LevelDefinition } from '../types/level.ts';
+import { type LevelDefinition } from './levelDefinition.ts';
 import { DEFAULT_NAV_GRID, buildCombatMechPerfSpawns } from './helpers.ts';
 
 export const LEVEL_ALT: LevelDefinition = {

@@ -14,11 +14,10 @@ All game content lives under `sandbox/src/`. **Never** add game logic to `vibera
 sandbox/src/
 ├── SandboxApp.tsx          # package entry re-export only
 ├── catalog/                # declarative data — lists, maps, registries (no spawn logic)
-│   ├── types/              # LevelDefinition, SkeletalCharacterDef shapes
 │   ├── assets/             # glTF/texture URL constants
 │   ├── animations/         # anim pack + clip name maps (e.g. kaykitMedium)
-│   ├── characters/         # SkeletalCharacterDef entries
-│   ├── levels/             # level spawn data + LEVEL_CATALOG registry
+│   ├── characters/         # SkeletalCharacterDef entries + characterDef.ts types
+│   ├── levels/             # level spawn data, levelDefinition.ts types, LEVEL_CATALOG
 │   ├── keys/               # GAME_COMPONENT_KEYS, attachment tag maps
 │   └── ui/                 # theme tokens (loading colors, etc.)
 ├── entities/               # factories, components, systems
@@ -48,6 +47,8 @@ A file belongs in `catalog/` when it is **primarily declarative data** consumed 
 | Level spawn layouts | Scene `load()` / `unload()` |
 
 `catalog/` may import `catalog/*` and `viberanium` types. **`catalog/` must not import from `entities/`, `scenes/`, or `globals/`.**
+
+Types live in the same folder as the data or helpers they describe — e.g. `catalog/characters/characterDef.ts`, `catalog/levels/levelDefinition.ts`. Do not add a shared `catalog/types/` folder.
 
 Engine `COMPONENT_KEYS` stays in `viberanium`. Sandbox-specific keys live in `catalog/keys/components.ts`.
 
@@ -83,6 +84,7 @@ Per-level custom logic: add `scenes/<levelId>/` only when catalog data is insuff
 ## Forbidden
 
 - Barrel `index.ts` anywhere under `sandbox/src/`
+- `catalog/types/` — colocate types with their catalog folder (`characterDef.ts`, `levelDefinition.ts`, …)
 - Catalog files with registry writes or `install*System`
 - `startup/`, `levels/`, `character/`, `npcs/`, `world/` paths (removed — use structure above)
 - Component key strings outside `catalog/keys/` (except `viberanium` `COMPONENT_KEYS`)

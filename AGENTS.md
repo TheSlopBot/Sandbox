@@ -66,7 +66,7 @@ viberanium/src/
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/
-  catalog/      assets, animations, characters, levels, keys, types, ui
+  catalog/      assets, animations, characters, levels, keys, ui
   entities/     actor/, player/, enemies/
   scenes/common/  createPlayableScene, useLevelScene, ground, prop
   globals/      bootstrap, sceneManager
@@ -86,14 +86,14 @@ See `.cursor/rules/sandbox-structure.mdc` for the full layout contract.
 
 ### Skeletal characters
 
-1. Define assets in `catalog/characters/*.ts`
+1. Define assets in `catalog/characters/*.ts` (types in `catalog/characters/characterDef.ts`)
 2. `loadSkeletalCharacter(deps, def)` in `entities/actor/` — returns model, meshDraws, clips, attachment data
 3. `spawnSkeletalCharacter(registry, entity, loaded)` — components + hierarchy children
 4. Game factory adds gameplay components, then `registry.register(entity)`
 
 ### Levels & assets
 
-- Add levels as `LevelDefinition` entries in `catalog/levels/`
+- Add levels as `LevelDefinition` entries in `catalog/levels/` (types in `catalog/levels/levelDefinition.ts`)
 - Register in `catalog/levels/registry.ts`
 - Preload via `collectLevelAssetUrls` in `catalog/levels/collectAssetUrls.ts`
 - `scene.load()` creates level content; `scene.unload()` destroys everything on the scene registry

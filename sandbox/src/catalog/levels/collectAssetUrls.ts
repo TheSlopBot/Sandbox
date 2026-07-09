@@ -1,5 +1,5 @@
-import { collectUrlsFromDef } from '../types/character.ts';
-import { type LevelDefinition } from '../types/level.ts';
+import { collectUrlsFromDef } from '../characters/characterDef.ts';
+import { type LevelDefinition } from './levelDefinition.ts';
 import { COMBAT_MECH_DEFS } from '../characters/combatMech.ts';
 import { DUMMY_DEF } from '../characters/dummy.ts';
 import { ROBOT_ONE_DEF } from '../characters/robot.ts';

@@ -1,58 +1,137 @@
-import { useEffect, useState } from 'react';
-import { type EngineOptimizationOptions } from 'viberanium';
+import { useEffect, useRef, useState } from 'react';
 import './performanceMenu.css';
 
 export type PerformanceMenuProps = {
   visible: boolean;
   bootError: string | null;
-  optimization: EngineOptimizationOptions | null;
-  asciiEnabled: boolean;
-  onAsciiEnabledChange: (enabled: boolean) => void;
 };
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const HISTORY_SIZE = 80;
+const FPS_SAMPLE_INTERVAL_S = 0.25;
+const GRAPH_REFERENCE_FPS = 60;
 
-export const PerformanceMenu = ({
-  visible,
-  bootError,
-  optimization,
-  asciiEnabled,
-  onAsciiEnabledChange,
-}: PerformanceMenuProps) => {
-  const [shadowCull, setShadowCull] = useState(60);
-  const [forwardCull, setForwardCull] = useState(100);
-  const [skeletonFreeze, setSkeletonFreeze] = useState(80);
+const drawFpsGraph = (canvas: HTMLCanvasElement, history: number[]) => {
+  const rect = canvas.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  if (width <= 0 || height <= 0) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const pixelWidth = Math.round(width * dpr);
+  const pixelHeight = Math.round(height * dpr);
+
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const styles = getComputedStyle(canvas);
+  const accent = styles.getPropertyValue('--accent-primary').trim() || '#7ec4d8';
+  const muted = styles.getPropertyValue('--text-muted').trim() || 'rgba(255, 255, 255, 0.55)';
+  const border = styles.getPropertyValue('--border-subtle').trim() || 'rgba(255, 255, 255, 0.12)';
+
+  const maxFps = Math.max(GRAPH_REFERENCE_FPS, ...history, 1);
+  const toY = (value: number) => height - (value / maxFps) * (height - 2) - 1;
+
+  const refY = toY(GRAPH_REFERENCE_FPS);
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, refY);
+  ctx.lineTo(width, refY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (history.length < 2) return;
+
+  const stepX = width / (HISTORY_SIZE - 1);
+  const startIndex = HISTORY_SIZE - history.length;
+  const points = history.map((value, index) => ({
+    x: (startIndex + index) * stepX,
+    y: toY(value),
+  }));
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+  ctx.lineTo(points[points.length - 1].x, height);
+  ctx.lineTo(points[0].x, height);
+  ctx.closePath();
+  ctx.fillStyle = accent;
+  ctx.globalAlpha = 0.18;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+  ctx.stroke();
+
+  if (history.length > 0) {
+    const last = points[points.length - 1];
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.arc(last.x, last.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = muted;
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(`${GRAPH_REFERENCE_FPS}`, width - 2, refY - 2);
+};
+
+export const PerformanceMenu = ({ visible, bootError }: PerformanceMenuProps) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const historyRef = useRef<number[]>([]);
+  const [fps, setFps] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!optimization) return;
+    if (!visible || bootError) return;
 
-    setShadowCull(optimization.shadowCullDist);
-    setForwardCull(optimization.forwardCullDist);
-    setSkeletonFreeze(optimization.skeletonLod.freezeDist);
-  }, [optimization]);
+    let rafId = 0;
+    let lastFrame = performance.now();
+    let accum = 0;
+    let frameCount = 0;
 
-  const applyShadowCull = (value: number) => {
-    const next = clamp(value, 0, 200);
-    setShadowCull(next);
-    if (optimization) optimization.shadowCullDist = next;
-  };
+    const tick = (now: number) => {
+      const dt = (now - lastFrame) / 1000;
+      lastFrame = now;
+      accum += dt;
+      frameCount++;
 
-  const applyForwardCull = (value: number) => {
-    const next = clamp(value, 0, 300);
-    setForwardCull(next);
-    if (optimization) optimization.forwardCullDist = next;
-  };
+      if (accum >= FPS_SAMPLE_INTERVAL_S) {
+        const sample = Math.round(frameCount / accum);
+        accum = 0;
+        frameCount = 0;
+        setFps(sample);
 
-  const applySkeletonFreeze = (value: number) => {
-    const next = clamp(value, 1, 200);
-    setSkeletonFreeze(next);
-    if (!optimization) return;
+        const history = historyRef.current;
+        history.push(sample);
+        if (history.length > HISTORY_SIZE) history.shift();
+      }
 
-    optimization.skeletonLod.freezeDist = next;
-    if (optimization.skeletonLod.skipStartDist >= next) {
-      optimization.skeletonLod.skipStartDist = Math.max(0, next - 1);
-    }
-  };
+      const canvas = canvasRef.current;
+      if (canvas) drawFpsGraph(canvas, historyRef.current);
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [visible, bootError]);
 
   return (
     <aside
@@ -70,68 +149,17 @@ export const PerformanceMenu = ({
             <span className="performance-menu__title">Performance</span>
             <span className="performance-menu__fps">
               <span className="performance-menu__fps-label">FPS</span>
-              <span id="fps" className="performance-menu__fps-value">
-                ...
+              <span className="performance-menu__fps-value">
+                {fps ?? '...'}
               </span>
             </span>
           </header>
 
-          <div className="performance-menu__section">
-            <label className="performance-menu__row">
-              <span className="performance-menu__label">Shadow cull</span>
-              <input
-                className="performance-menu__range"
-                type="range"
-                min={0}
-                max={200}
-                step={5}
-                value={shadowCull}
-                disabled={!optimization}
-                onChange={(event) => applyShadowCull(Number(event.target.value))}
-              />
-              <span className="performance-menu__value">{shadowCull}m</span>
-            </label>
-
-            <label className="performance-menu__row">
-              <span className="performance-menu__label">Forward cull</span>
-              <input
-                className="performance-menu__range"
-                type="range"
-                min={0}
-                max={300}
-                step={5}
-                value={forwardCull}
-                disabled={!optimization}
-                onChange={(event) => applyForwardCull(Number(event.target.value))}
-              />
-              <span className="performance-menu__value">{forwardCull}m</span>
-            </label>
-
-            <label className="performance-menu__row">
-              <span className="performance-menu__label">Skeleton LOD</span>
-              <input
-                className="performance-menu__range"
-                type="range"
-                min={1}
-                max={200}
-                step={5}
-                value={skeletonFreeze}
-                disabled={!optimization}
-                onChange={(event) => applySkeletonFreeze(Number(event.target.value))}
-              />
-              <span className="performance-menu__value">{skeletonFreeze}m</span>
-            </label>
-          </div>
-
-          <label className="performance-menu__toggle">
-            <input
-              type="checkbox"
-              checked={asciiEnabled}
-              disabled={!optimization}
-              onChange={(event) => onAsciiEnabledChange(event.target.checked)}
-            />
-            <span>ASCII post-process</span>
-          </label>
+          <canvas
+            ref={canvasRef}
+            className="performance-menu__graph"
+            aria-hidden="true"
+          />
         </>
       )}
     </aside>

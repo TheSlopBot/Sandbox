@@ -1,5 +1,5 @@
 import { KAYKIT_MEDIUM_ANIM_PACK, KAYKIT_MEDIUM_CLIPS } from '../../catalog/animations/kaykitMedium.ts';
-import { type SkeletalCharacterDef } from '../../catalog/types/character.ts';
+import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef.ts';
 
 export const buildKaykitMediumDef = (
   bodyGlb: string,

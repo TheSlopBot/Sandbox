@@ -4,7 +4,7 @@ import {
   COMBAT_MECH_TEX_PRIMARY,
 } from '../assets/kaykit.ts';
 import { KAYKIT_MEDIUM_ANIM_PACK, KAYKIT_MEDIUM_CLIPS } from '../animations/kaykitMedium.ts';
-import { type SkeletalCharacterDef } from '../types/character.ts';
+import { type SkeletalCharacterDef } from './characterDef.ts';
 
 export type CombatMechVariant = 'primary' | 'alt';
 

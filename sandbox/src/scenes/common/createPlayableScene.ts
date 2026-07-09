@@ -18,7 +18,7 @@ import {
   createNavGrid,
   COMPONENT_KEYS,
 } from 'viberanium';
-import { type LevelNavGridConfig } from '../../catalog/types/level.ts';
+import { type LevelNavGridConfig } from '../../catalog/levels/levelDefinition.ts';
 import { createPlayer } from '../../entities/player/createPlayer.ts';
 import { installTestAiSystem } from '../../entities/enemies/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../../entities/player/systems/playerInputSystem.ts';

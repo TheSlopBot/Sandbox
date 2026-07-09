@@ -1,4 +1,4 @@
-import { type KaykitManifest } from './types.ts';
+import { type KaykitManifest } from './kaykitManifest.ts';
 
 export const loadKaykitManifest = async (): Promise<KaykitManifest> => {
   const url = `${import.meta.env.BASE_URL}assets/kaykit/manifest.json`;
@@ -8,4 +8,3 @@ export const loadKaykitManifest = async (): Promise<KaykitManifest> => {
   const json = (await res.json()) as unknown;
   return json as KaykitManifest;
 };
-

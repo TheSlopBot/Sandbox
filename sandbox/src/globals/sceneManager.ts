@@ -8,7 +8,7 @@ import {
   type EngineOptimizationOptions,
 } from 'viberanium';
 import { collectLevelAssetUrls } from '../catalog/levels/collectAssetUrls.ts';
-import { type LevelDefinition } from '../catalog/types/level.ts';
+import { type LevelDefinition } from '../catalog/levels/levelDefinition.ts';
 import { type SceneDeps } from '../scenes/common/createPlayableScene.ts';
 import { useLevelScene } from '../scenes/common/useLevelScene.ts';
 

@@ -1,5 +1,5 @@
 import { CUBE_SMALL, CUBE_LARGE, ROBOT_ONE_GLB } from '../assets/kaykit.ts';
-import { type LevelDefinition } from '../types/level.ts';
+import { type LevelDefinition } from './levelDefinition.ts';
 import { DEFAULT_NAV_GRID, buildDummySpawns } from './helpers.ts';
 
 const LEVEL_TEST_PROPS = [

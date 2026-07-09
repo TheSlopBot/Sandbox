@@ -1,5 +1,7 @@
 import { type Registry, type RenderPipeline, v3Set, COMPONENT_KEYS, type Transform, type Renderable, type Material } from 'viberanium';
-import { PREVIEW_KEYS, type PreviewOrbit, type PreviewOrbitOriginMarker } from './previewComponents.ts';
+import { PREVIEW_KEYS } from '../../../catalog/keys/components.ts';
+import { type PreviewOrbit } from '../components/orbit.ts';
+import { type PreviewOrbitOriginMarker } from '../components/orbitOriginMarker.ts';
 
 export const installPreviewOrbitSystem = (registry: Registry, pipeline: RenderPipeline) => {
   return registry.addAction('update', (ctx) => {
@@ -100,4 +102,3 @@ export const installPreviewOrbitSystem = (registry: Registry, pipeline: RenderPi
     }
   }, 15);
 };
-

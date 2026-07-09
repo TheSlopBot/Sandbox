@@ -20,7 +20,7 @@ import {
   type RuntimeScene,
   type Mat4,
 } from 'viberanium';
-import { type SkeletalCharacterDef } from '../../catalog/types/character.ts';
+import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef.ts';
 import { pickClip } from './pickClip.ts';
 
 export type CharacterLoadDeps = {

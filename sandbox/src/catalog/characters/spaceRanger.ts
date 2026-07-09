@@ -5,7 +5,7 @@ import {
   SPACE_RANGER_JETPACK,
 } from '../assets/kaykit.ts';
 import { KAYKIT_MEDIUM_ANIM_PACK, KAYKIT_MEDIUM_CLIPS } from '../animations/kaykitMedium.ts';
-import { type SkeletalCharacterDef } from '../types/character.ts';
+import { type SkeletalCharacterDef } from './characterDef.ts';
 
 export const SPACE_RANGER_DEF: SkeletalCharacterDef = {
   bodyGlb: SPACE_RANGER_GLB,

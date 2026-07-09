@@ -32,24 +32,19 @@ import {
   COMPONENT_KEYS,
   type MeshDrawPart,
 } from 'viberanium';
-import {
-  PREVIEW_KEYS,
-  createPreviewAnim,
-  createPreviewOrbit,
-  createPreviewOrbitOriginMarker,
-  frameOrbitOnBounds,
-  type PreviewAnim,
-  type PreviewOrbit,
-} from '../ecs/previewComponents.ts';
-import { installPreviewOrbitSystem } from '../ecs/orbitSystem.ts';
-import { createGroundMesh } from '../world/ground.ts';
+import { PREVIEW_KEYS } from '../catalog/keys/components.ts';
+import { createPreviewOrbit, frameOrbitOnBounds, type PreviewOrbit } from '../entities/orbit/components/orbit.ts';
+import { createPreviewOrbitOriginMarker } from '../entities/orbit/components/orbitOriginMarker.ts';
+import { createPreviewAnim, type PreviewAnim } from '../entities/orbit/components/previewAnim.ts';
+import { installPreviewOrbitSystem } from '../entities/orbit/systems/orbitSystem.ts';
 import {
   boundsCenter,
   boundsRadius,
   createEmptyBounds,
   expandBoundsFromInterleaved,
   isBoundsValid,
-} from './modelBounds.ts';
+} from '../entities/viewer/modelBounds.ts';
+import { createGroundMesh } from '../scenes/common/ground.ts';
 
 export type PreviewTextureVariant = {
   label: string;
@@ -349,7 +344,7 @@ const buildPreviewMeshDraws = (
   return createMeshDraws(parts);
 };
 
-export const createPreviewSession = (canvas: HTMLCanvasElement): PreviewSession => {
+export const bootstrap = (canvas: HTMLCanvasElement): PreviewSession => {
   const game = useGame();
   const gameRegistry = game.registry;
   const scene = useScene();

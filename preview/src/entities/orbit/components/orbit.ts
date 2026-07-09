@@ -1,11 +1,3 @@
-import { COMPONENT_KEYS } from 'viberanium';
-
-export const PREVIEW_KEYS = {
-  orbit: `${COMPONENT_KEYS.transform}.previewOrbit`,
-  previewAnim: `${COMPONENT_KEYS.transform}.previewAnim`,
-  orbitOriginMarker: `${COMPONENT_KEYS.transform}.previewOrbitOriginMarker`,
-} as const;
-
 export type PreviewOrbit = {
   yawRad: number;
   pitchRad: number;
@@ -24,15 +16,6 @@ export type PreviewOrbit = {
   pendingPanDx: number;
   pendingPanDy: number;
   pendingWheel: number;
-};
-
-export type PreviewOrbitOriginMarker = {
-  alpha: number;
-  idleSeconds: number;
-  maxAlpha: number;
-  fadeInPerSecond: number;
-  fadeOutPerSecond: number;
-  fadeOutDelaySeconds: number;
 };
 
 export const createPreviewOrbit = (): PreviewOrbit => ({
@@ -55,15 +38,6 @@ export const createPreviewOrbit = (): PreviewOrbit => ({
   pendingWheel: 0,
 });
 
-export const createPreviewOrbitOriginMarker = (): PreviewOrbitOriginMarker => ({
-  alpha: 0,
-  idleSeconds: 999,
-  maxAlpha: 0.95,
-  fadeInPerSecond: 18,
-  fadeOutPerSecond: 18,
-  fadeOutDelaySeconds: 0.5,
-});
-
 export const frameOrbitOnBounds = (
   orbit: PreviewOrbit,
   center: [number, number, number],
@@ -75,21 +49,6 @@ export const frameOrbitOnBounds = (
   orbit.pendingPanDx = 0;
   orbit.pendingPanDy = 0;
 
-  // Keep the user-perceived "starting zoom" (currently set in `createPreviewOrbit`),
-  // but ensure the model is still framed when bounds imply a larger distance.
   const fitted = Math.max(radius * 2.4, orbit.minDistance);
   orbit.distance = Math.min(orbit.maxDistance, Math.max(orbit.distance, fitted));
 };
-
-export type PreviewAnim = {
-  selectedAnimUrl: string | null;
-  selectedClipName: string | null;
-  availableClipNames: string[];
-};
-
-export const createPreviewAnim = (): PreviewAnim => ({
-  selectedAnimUrl: null,
-  selectedClipName: null,
-  availableClipNames: [],
-});
-

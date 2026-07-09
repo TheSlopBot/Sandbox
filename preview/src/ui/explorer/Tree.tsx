@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { type KaykitTreeNode } from '../types.ts';
+import { type KaykitTreeNode } from '../../catalog/manifest/kaykitManifest.ts';
 
 export type TreeRow = {
   key: string;

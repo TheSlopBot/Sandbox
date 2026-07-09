@@ -1,5 +1,5 @@
 import { type Registry, type Scene } from 'viberanium';
-import { type LevelDefinition } from '../../catalog/types/level.ts';
+import { type LevelDefinition } from '../../catalog/levels/levelDefinition.ts';
 import { createCombatMech } from '../../entities/enemies/combatMech/createCombatMech.ts';
 import { createDummyNpc } from '../../entities/enemies/dummy/createDummyNpc.ts';
 import { createRobot } from '../../entities/enemies/robot/createRobot.ts';

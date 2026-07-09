@@ -8,7 +8,7 @@ import {
   type CharacterController,
   COMPONENT_KEYS,
 } from 'viberanium';
-import { type SkeletalCharacterDef } from '../../catalog/types/character.ts';
+import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef.ts';
 import { loadSkeletalCharacter } from './loadSkeletalCharacter.ts';
 import { spawnSkeletalCharacter } from './spawnSkeletalCharacter.ts';
 
