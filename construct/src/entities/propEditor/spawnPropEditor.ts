@@ -39,9 +39,9 @@ import {
 import { createConstructPropRoot } from './propRoot.ts';
 import { createConstructPropPart, type ConstructPropPart } from './propPart.ts';
 import { createConstructColliderWireframe } from './colliderWireframe.ts';
+import { syncPartLocalToWorld } from './syncPartLocal.ts';
 import {
   createConstructPropAssetMaterials,
-  type ConstructPropAssetMaterials,
 } from './propAssetMaterials.ts';
 
 const applyTextureToMaterials = (
@@ -391,8 +391,7 @@ export const spawnAssetPartEntity = async (
   registry.register(child);
   addChildId(children, child.id);
 
-  bakeChildWorld(rootT, t, local);
-  t.dirty = true;
+  syncPartLocalToWorld(registry, child);
 
   return child.id;
 };
