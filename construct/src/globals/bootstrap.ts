@@ -67,6 +67,7 @@ import {
 import { createConstructGizmoMode } from '../entities/gizmos/gizmoMode.ts';
 import { createConstructPropSelection } from '../entities/propEditor/propSelection.ts';
 import { type ConstructPropPart } from '../entities/propEditor/propPart.ts';
+import { type ConstructPropAssetMaterials } from '../entities/propEditor/propAssetMaterials.ts';
 import {
   boundsCenter,
   boundsRadius,
@@ -93,6 +94,7 @@ export type ConstructSession = {
   loadAnimationPack: (packUrl: string) => Promise<ConstructLoadedAnimationPack>;
   applyClip: (clipName: string) => void;
   setTextureVariant: (variantUrl: string | null) => Promise<void>;
+  setPartTextureVariant: (partId: string, variantUrl: string | null) => Promise<PropDocument>;
   newProp: () => PropDocument;
   enterPropMode: () => Promise<PropDocument>;
   getPropDocument: () => PropDocument;
@@ -740,6 +742,41 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
     applyTextureToMaterials(tex);
   };
 
+  const setPartTextureVariant = async (
+    partId: string,
+    variantUrl: string | null,
+  ): Promise<PropDocument> => {
+    const entity = findPartEntity(partId);
+    const assetMaterials = entity?.components[CONSTRUCT_KEYS.propAssetMaterials] as
+      | ConstructPropAssetMaterials
+      | undefined;
+    if (!entity || !assetMaterials) return propDocument;
+
+    if (!variantUrl) {
+      assetMaterials.textureVariantUrl = null;
+      const tex = assetMaterials.defaultBaseColorTex;
+      for (const mat of assetMaterials.materials) {
+        if (tex) mat.baseColorTex = tex;
+      }
+    } else {
+      const tex = await textures.getOrLoad(variantUrl);
+      assetMaterials.textureVariantUrl = variantUrl;
+      for (const mat of assetMaterials.materials) {
+        mat.baseColorTex = tex;
+      }
+    }
+
+    propDocument = {
+      ...propDocument,
+      parts: propDocument.parts.map((part) => {
+        if (part.id !== partId || part.kind !== 'asset') return part;
+        return { ...part, textureVariantUrl: variantUrl };
+      }),
+    };
+    notifyPropDoc();
+    return propDocument;
+  };
+
   const newProp = (): PropDocument => {
     unload();
     clearPropEditorEntities(sceneRegistry);
@@ -970,6 +1007,7 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
     loadAnimationPack,
     applyClip,
     setTextureVariant,
+    setPartTextureVariant,
     newProp,
     enterPropMode,
     getPropDocument,

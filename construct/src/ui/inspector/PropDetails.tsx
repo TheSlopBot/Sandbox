@@ -3,10 +3,13 @@ import {
   type PropDocumentPart,
   partTypeLabel,
 } from '../../catalog/props/propDocument.ts';
+import type { KaykitTextureVariant } from '../../catalog/manifest/kaykitManifest.ts';
 import { createEulerQuat, quatToEulerDegrees } from './euler.ts';
 
 export type PropDetailsProps = {
   part: PropDocumentPart | null;
+  textureVariants: KaykitTextureVariant[];
+  textureVariantUrl: string | null;
   onRename: (partId: string, name: string) => void;
   onCommitLocal: (
     partId: string,
@@ -16,6 +19,7 @@ export type PropDetailsProps = {
       rotation?: [number, number, number, number];
     },
   ) => void;
+  onTextureVariantChange: (partId: string, url: string | null) => void;
   onDelete: (partId: string) => void;
 };
 
@@ -88,7 +92,15 @@ const AxisRow = ({
   );
 };
 
-export const PropDetails = ({ part, onRename, onCommitLocal, onDelete }: PropDetailsProps) => {
+export const PropDetails = ({
+  part,
+  textureVariants,
+  textureVariantUrl,
+  onRename,
+  onCommitLocal,
+  onTextureVariantChange,
+  onDelete,
+}: PropDetailsProps) => {
   const [nameDraft, setNameDraft] = useState(part?.name ?? '');
 
   useEffect(() => {
@@ -109,6 +121,9 @@ export const PropDetails = ({ part, onRename, onCommitLocal, onDelete }: PropDet
   }
 
   const euler = quatToEulerDegrees(part.rotation);
+  const canSwitchTexture = part.kind === 'asset' && textureVariants.length > 0;
+  const activeVariantUrl =
+    part.kind === 'asset' ? (textureVariantUrl ?? part.textureVariantUrl ?? null) : null;
 
   const commitName = () => {
     const next = nameDraft.trim();
@@ -162,6 +177,27 @@ export const PropDetails = ({ part, onRename, onCommitLocal, onDelete }: PropDet
             });
           }}
         />
+        {part.kind === 'asset' ? (
+          <div className="construct-detailsSection">
+            <div className="construct-detailsSectionTitle">Variant</div>
+            <select
+              className="construct-detailsSelect"
+              disabled={!canSwitchTexture}
+              value={activeVariantUrl ?? ''}
+              onChange={(e) => onTextureVariantChange(part.id, e.target.value || null)}
+            >
+              <option value="">Default</option>
+              {textureVariants.map((v) => (
+                <option key={v.url} value={v.url}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+            {!canSwitchTexture ? (
+              <div className="mutedNote">Texture variants unavailable for this asset.</div>
+            ) : null}
+          </div>
+        ) : null}
         <div className="construct-detailsFooter">
           <button
             type="button"

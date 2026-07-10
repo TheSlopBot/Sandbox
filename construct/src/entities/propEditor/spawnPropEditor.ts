@@ -39,6 +39,21 @@ import {
 import { createConstructPropRoot } from './propRoot.ts';
 import { createConstructPropPart, type ConstructPropPart } from './propPart.ts';
 import { createConstructColliderWireframe } from './colliderWireframe.ts';
+import {
+  createConstructPropAssetMaterials,
+  type ConstructPropAssetMaterials,
+} from './propAssetMaterials.ts';
+
+const applyTextureToMaterials = (
+  materials: Material[],
+  tex: WebGLTexture | null,
+  defaultTex: WebGLTexture | null,
+) => {
+  const next = tex ?? defaultTex;
+  for (const mat of materials) {
+    if (next) mat.baseColorTex = next;
+  }
+};
 
 const COLLIDER_COLORS: Record<'box' | 'cylinder' | 'sphere', [number, number, number, number]> = {
   box: [0.22, 0.55, 1.0, 0.35],
@@ -319,6 +334,7 @@ export const spawnAssetPartEntity = async (
   const loaded = await gltfCache.getOrLoad(part.url);
   const scene = buildRuntimeScene(loaded);
   const mats = buildGltfMaterials(loaded, part.materialPrefix, textures);
+  const defaultBaseColorTex = mats.find((m) => m.baseColorTex)?.baseColorTex ?? null;
 
   const child = registry.createBare();
   const t = createTransform();
@@ -329,6 +345,16 @@ export const spawnAssetPartEntity = async (
   child.components[COMPONENT_KEYS.childOf] = createChildOf(rootId);
   child.components[COMPONENT_KEYS.localTransform] = local;
   child.components[CONSTRUCT_KEYS.propPart] = createConstructPropPart(part.id, 'asset');
+  child.components[CONSTRUCT_KEYS.propAssetMaterials] = createConstructPropAssetMaterials(
+    mats,
+    defaultBaseColorTex,
+    part.textureVariantUrl ?? null,
+  );
+
+  if (part.textureVariantUrl) {
+    const variantTex = await textures.getOrLoad(part.textureVariantUrl);
+    applyTextureToMaterials(mats, variantTex, defaultBaseColorTex);
+  }
 
   const renderEntityIds: number[] = [];
 
