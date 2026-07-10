@@ -66,7 +66,7 @@ viberanium/src/
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/
-  catalog/      assets, animations, characters, levels, keys, ui
+  catalog/      assets, animations, characters, props, levels, keys, ui
   entities/     actor/, player/, enemies/
   scenes/common/  createPlayableScene, useLevelScene, ground, prop
   globals/      bootstrap, sceneManager
@@ -78,9 +78,9 @@ Feature code lives in its own slice folder under `entities/`. Do not add logic t
 
 ### Catalog vs entities
 
-- **catalog/** — declarative data only (URLs, defs, level spawns, component keys). No registry writes.
+- **catalog/** — declarative data only (URLs, defs, level spawns, prop definitions, component keys). No registry writes.
 - **entities/** — factories (`createPlayer`, `spawnActor`), components, systems.
-- **scenes/common/** — level plumbing (`instantiateProp`, `createPlayableScene`).
+- **scenes/common/** — level plumbing (`instantiateProp` from `PropDefinition`, `createPlayableScene`).
 
 See `.cursor/rules/sandbox-structure.mdc` for the full layout contract.
 

@@ -4,14 +4,14 @@
   "workspaces": [
     "lander",
     "sandbox",
-    "preview",
+    "construct",
     "viberanium"
   ],
   "scripts": {
     "dev": "npm run dev -w lander",
     "build": "npm run build -w lander",
     "preview": "npm run preview -w lander",
-    "typecheck": "npm run typecheck -w viberanium && npm run typecheck -w sandbox && npm run typecheck -w preview && npm run typecheck -w lander",
+    "typecheck": "npm run typecheck -w viberanium && npm run typecheck -w sandbox && npm run typecheck -w construct && npm run typecheck -w lander",
     "sync:kaykit": "node ./scripts/sync-kaykit-assets.mjs"
   },
   "devDependencies": {

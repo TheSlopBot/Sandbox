@@ -1,9 +1,12 @@
 import { type CombatMechVariant } from '../characters/combatMech.ts';
 
-export type LevelPropSpawn = {
-  url: string;
-  prefix: string;
-  opts?: { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
+export type LevelPropPlacement = {
+  propId: string;
+  x: number;
+  y?: number;
+  z: number;
+  yaw?: number;
+  scale?: number;
 };
 
 export type LevelRobotSpawn = {
@@ -39,7 +42,7 @@ export type LevelDefinition = {
   id: string;
   displayName: string;
   navGrid: LevelNavGridConfig;
-  props: LevelPropSpawn[];
+  props: LevelPropPlacement[];
   robots?: LevelRobotSpawn[];
   combatMechs?: LevelCombatMechSpawn[];
   dummies?: LevelDummySpawn[];

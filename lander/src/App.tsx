@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SandboxApp } from 'sandbox';
-import { PreviewApp } from 'preview';
+import { ConstructApp } from 'construct';
 
-type ActiveApp = 'sandbox' | 'preview';
+type ActiveApp = 'sandbox' | 'construct';
 
 export const App = () => {
   const [active, setActive] = useState<ActiveApp>('sandbox');
 
   const onToggle = useMemo(
     () => (next?: ActiveApp) => {
-      setActive((cur) => next ?? (cur === 'sandbox' ? 'preview' : 'sandbox'));
+      setActive((cur) => next ?? (cur === 'sandbox' ? 'construct' : 'sandbox'));
     },
     [],
   );
@@ -27,7 +27,7 @@ export const App = () => {
   }, [onToggle]);
 
   useEffect(() => {
-    if (active !== 'preview') return;
+    if (active !== 'construct') return;
 
     if (document.pointerLockElement) document.exitPointerLock();
   }, [active]);
@@ -37,10 +37,9 @@ export const App = () => {
       <div className="app-layer" data-active={active === 'sandbox'}>
         <SandboxApp active={active === 'sandbox'} />
       </div>
-      <div className="app-layer" data-active={active === 'preview'}>
-        <PreviewApp active={active === 'preview'} />
+      <div className="app-layer" data-active={active === 'construct'}>
+        <ConstructApp active={active === 'construct'} />
       </div>
     </div>
   );
 };
-

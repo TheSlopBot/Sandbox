@@ -14,7 +14,17 @@ export {
 export { createInput, type Input } from './input/input.ts';
 
 export { v3, v3Set, v3Copy, v3Normalize, type Vec3 } from './math/vec3.ts';
-export { m4, m4Copy, m4Mul, m4LookAt, m4Perspective, m4Ortho, type Mat4 } from './math/mat4.ts';
+export { m4, m4Copy, m4Mul, m4Invert, m4LookAt, m4Perspective, m4Ortho, m4FromTRS, m4FromTRSQuat, type Mat4 } from './math/mat4.ts';
+export {
+  q4,
+  q4Copy,
+  q4Normalize,
+  q4Slerp,
+  q4FromYaw,
+  q4Conjugate,
+  q4TransformVec3,
+  type Quat,
+} from './math/quat.ts';
 
 export {
   aabbIntersects,
@@ -22,15 +32,29 @@ export {
   makeAabb,
 } from './collision/aabb.ts';
 export {
-  obbIntersectsAabb,
-  hasHorizontalSupport,
-  resolveAabbVsObbHorizontal,
-  getSupportSurfaceY,
-} from './collision/obb.ts';
+  type CapsuleY,
+  capsuleToAabb,
+  resolveCapsuleHorizontal,
+  resolveCapsuleVertical,
+  getCapsuleSupportSurfaceY,
+  hasCapsuleSupport,
+  pointBlocksNav,
+} from './collision/capsule.ts';
 
 export { createTransform, updateWorldMatrix, type Transform } from './components/transform.ts';
 export { type Renderable } from './components/renderable.ts';
-export { aabb, type Collider, type Aabb } from './components/collider.ts';
+export {
+  aabb,
+  createBoxCollider,
+  createCylinderCollider,
+  createSphereCollider,
+  createEllipsoidCollider,
+  updateColliderAabbFromShape,
+  bakeColliderWorldFromLocal,
+  type Collider,
+  type ColliderShape,
+  type Aabb,
+} from './components/collider.ts';
 export { createSkinInstance, type SkinInstance } from './components/skin.ts';
 export {
   buildRetargetedClips,
@@ -39,7 +63,12 @@ export {
   type AnimClip,
 } from './components/animation.ts';
 
-export { createCharacterController, type CharacterController } from './components/characterController.ts';
+export {
+  createCharacterController,
+  characterFootOffset,
+  characterHeadOffset,
+  type CharacterController,
+} from './components/characterController.ts';
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
 export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
 export { createNavGrid, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
@@ -87,7 +116,8 @@ export { findPath, pickRandomObjective } from './navigation/astar.ts';
 export { installMovementSystem } from './systems/movementSystem.ts';
 export { installNavGridSystem } from './systems/navGridSystem.ts';
 export { installCharacterPhysicsSystem } from './systems/characterPhysicsSystem.ts';
-export { installCollisionSystem } from './systems/collisionSystem.ts';
+export { installCollisionSystem, getObstacles } from './systems/collisionSystem.ts';
+export { installColliderTransformSystem } from './systems/colliderTransformSystem.ts';
 export { installCharacterStateSystem } from './systems/characterStateSystem.ts';
 export { installAnimationFsmSystem } from './systems/animationFsmSystem.ts';
 export { installCameraFollowSystem } from './systems/cameraFollowSystem.ts';

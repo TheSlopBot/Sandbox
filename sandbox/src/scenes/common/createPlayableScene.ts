@@ -11,6 +11,7 @@ import {
   installNavGridSystem,
   installCharacterPhysicsSystem,
   installCollisionSystem,
+  installColliderTransformSystem,
   installCharacterStateSystem,
   installCameraFollowSystem,
   installSkeletalCharacterSystems,
@@ -19,13 +20,12 @@ import {
   COMPONENT_KEYS,
 } from 'viberanium';
 import { type LevelNavGridConfig } from '../../catalog/levels/levelDefinition.ts';
+import { getPropDefinition } from '../../catalog/props/registry.ts';
 import { createPlayer } from '../../entities/player/createPlayer.ts';
 import { installTestAiSystem } from '../../entities/enemies/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../../entities/player/systems/playerInputSystem.ts';
 import { createGroundMesh } from './ground.ts';
-import { instantiateProp } from './prop.ts';
-
-export type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
+import { instantiateProp, type PropPlacement } from './prop.ts';
 
 export type SceneDeps = {
   gl: WebGL2RenderingContext;
@@ -36,7 +36,7 @@ export type SceneDeps = {
   optimization: EngineOptimizationOptions;
 };
 
-export type AddProp = (url: string, prefix: string, opts?: PropOpts) => Promise<void>;
+export type AddProp = (propId: string, placement?: PropPlacement) => Promise<void>;
 
 export type SpawnNpcs = (registry: Registry, deps: SceneDeps) => Promise<void>;
 
@@ -55,6 +55,7 @@ export const createPlayableScene = (
   installMovementSystem(registry);
   installCharacterPhysicsSystem(registry);
   installCollisionSystem(registry);
+  installColliderTransformSystem(registry);
   installCharacterStateSystem(registry);
   installCameraFollowSystem(registry, deps.pipeline, deps.input);
   installSkeletalCharacterSystems(registry, {
@@ -63,8 +64,9 @@ export const createPlayableScene = (
   });
   installStaticModelSystem(registry);
 
-  const addProp: AddProp = async (url, prefix, opts = {}) => {
-    await instantiateProp(deps.gl, registry, deps.textures, deps.gltfCache, url, prefix, opts);
+  const addProp: AddProp = async (propId, placement = {}) => {
+    const def = getPropDefinition(propId);
+    await instantiateProp(deps.gl, registry, deps.textures, deps.gltfCache, def, placement);
   };
 
   const load = async () => {
@@ -78,7 +80,6 @@ export const createPlayableScene = (
     deps.pipeline.setGround(createGroundMesh(deps.gl));
     await spawnProps(addProp);
     if (spawnNpcs) await spawnNpcs(registry, deps);
-
     await createPlayer(registry, deps.gl, deps.textures, deps.gltfCache);
   };
 

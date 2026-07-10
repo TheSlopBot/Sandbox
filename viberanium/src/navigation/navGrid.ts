@@ -1,4 +1,5 @@
 import { type Collider } from '../components/collider.ts';
+import { pointBlocksNav } from '../collision/capsule.ts';
 
 export type NavGrid = {
   minX: number;
@@ -26,11 +27,7 @@ export const cellToWorld = (grid: NavGrid, col: number, row: number): { x: numbe
 
 const isBlockedWorld = (x: number, z: number, colliders: Collider[], margin: number): boolean => {
   for (const c of colliders) {
-    if (!c.isStatic) continue;
-    const { min, max } = c.aabb;
-    if (x >= min[0] - margin && x <= max[0] + margin && z >= min[2] - margin && z <= max[2] + margin) {
-      return true;
-    }
+    if (pointBlocksNav(c, x, z, margin)) return true;
   }
   return false;
 };

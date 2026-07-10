@@ -22,6 +22,7 @@ export type DrawItem = {
   sortZ: number;
   skin?: { palette: Float32Array; jointCount: number };
   castShadow: boolean;
+  overlay?: boolean;
 };
 
 export type Camera = {

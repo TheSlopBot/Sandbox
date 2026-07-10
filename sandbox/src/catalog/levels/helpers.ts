@@ -1,10 +1,9 @@
-import { CUBE_LARGE } from '../assets/kaykit.ts';
 import {
   type LevelCombatMechSpawn,
   type LevelDefinition,
   type LevelDummySpawn,
   type LevelNavGridConfig,
-  type LevelPropSpawn,
+  type LevelPropPlacement,
   type LevelRobotSpawn,
 } from './levelDefinition.ts';
 
@@ -60,7 +59,7 @@ const isSpawnClear = (pos: LevelPoint2, radius: number, occupied: OccupiedCircle
   occupied.every((circle) => dist2(pos, circle.pos) >= radius + circle.radius + gap);
 
 export const buildDummySpawns = (
-  props: LevelPropSpawn[],
+  props: LevelPropPlacement[],
   robots: LevelRobotSpawn[] | undefined,
   combatMechs: LevelCombatMechSpawn[] | undefined,
   dummies: LevelDummySpawn[] | undefined,
@@ -79,8 +78,8 @@ export const buildDummySpawns = (
   const occupied: OccupiedCircle[] = [{ pos: { x: 0, z: 0 }, radius: npcRadius }];
 
   for (const prop of props) {
-    const radius = prop.url === CUBE_LARGE ? 2.5 : 1.5;
-    occupied.push({ pos: { x: prop.opts?.x ?? 0, z: prop.opts?.z ?? 0 }, radius });
+    const radius = prop.propId === 'cube_large' ? 2.5 : 1.5;
+    occupied.push({ pos: { x: prop.x, z: prop.z }, radius });
   }
 
   for (const robot of robots ?? []) {
@@ -116,27 +115,24 @@ export const buildDummySpawns = (
 };
 
 export const buildScatteredPropSpawns = (
-  assets: readonly { url: string; prefix: string }[],
-  countPerAsset: number,
+  propIds: readonly string[],
+  countPerProp: number,
   halfExtent: number,
   seed: number,
   margin = 2,
-): LevelPropSpawn[] => {
+): LevelPropPlacement[] => {
   const rng = createSeededRng(seed);
   const min = -halfExtent + margin;
   const max = halfExtent - margin;
-  const props: LevelPropSpawn[] = [];
+  const props: LevelPropPlacement[] = [];
 
-  for (const asset of assets) {
-    for (let i = 0; i < countPerAsset; i++) {
+  for (const propId of propIds) {
+    for (let i = 0; i < countPerProp; i++) {
       props.push({
-        url: asset.url,
-        prefix: asset.prefix,
-        opts: {
-          x: min + rng() * (max - min),
-          z: min + rng() * (max - min),
-          yaw: rng() * Math.PI * 2,
-        },
+        propId,
+        x: min + rng() * (max - min),
+        z: min + rng() * (max - min),
+        yaw: rng() * Math.PI * 2,
       });
     }
   }

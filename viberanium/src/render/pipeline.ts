@@ -183,6 +183,7 @@ export const installRenderPipeline = (
       sortZ: 0,
       castShadow: true,
       skin: { palette: new Float32Array(0), jointCount: 0 },
+      overlay: false,
     };
     itemPool.push(item);
     itemPoolUsed++;
@@ -228,12 +229,13 @@ export const installRenderPipeline = (
       model: Mat4,
       skin: SkinInstance | undefined,
       castShadow: boolean,
+      overlay = false,
     ) => {
       const x = model[12];
       const y = model[13];
       const z = model[14];
       const d2 = distSqXZ(x, z, camX, camZ);
-      const withinShadowDist = castShadow && d2 <= shadowDist2;
+      const withinShadowDist = !overlay && castShadow && d2 <= shadowDist2;
       const withinForwardDist = d2 <= forwardDist2;
       if (!withinForwardDist && !withinShadowDist) return;
 
@@ -243,7 +245,7 @@ export const installRenderPipeline = (
       const cy = _sphereCenter[1]!;
       const cz = _sphereCenter[2]!;
 
-      const inCameraFrustum = withinForwardDist && isSphereInFrustumPlanes(_frustum, cx, cy, cz, worldRadius);
+      const inCameraFrustum = withinForwardDist && (overlay || isSphereInFrustumPlanes(_frustum, cx, cy, cz, worldRadius));
       const inLightFrustum = withinShadowDist && isSphereInFrustumPlanes(_lightFrustum, cx, cy, cz, worldRadius);
       if (!inCameraFrustum && !inLightFrustum) return;
 
@@ -265,6 +267,7 @@ export const installRenderPipeline = (
         item.skin = undefined;
       }
       item.castShadow = inLightFrustum;
+      item.overlay = overlay;
       if (inCameraFrustum) forwardItems.push(item);
       if (inLightFrustum) shadowItems.push(item);
     };
@@ -277,7 +280,7 @@ export const installRenderPipeline = (
         if (part.visible === false) continue;
         const model = part.model ?? (e.components[COMPONENT_KEYS.transform] as Transform | undefined)?.world;
         if (!model) continue;
-        pushDrawItem(part.mesh, part.material, model, part.skin, part.castShadow !== false);
+        pushDrawItem(part.mesh, part.material, model, part.skin, part.castShadow !== false, false);
       }
     }
 
@@ -289,7 +292,7 @@ export const installRenderPipeline = (
       updateWorldMatrix(t);
       const model = r.model ?? t.world;
       const skin = e.components[COMPONENT_KEYS.skin] as SkinInstance | undefined;
-      pushDrawItem(r.mesh, r.material, model, skin, r.castShadow !== false);
+      pushDrawItem(r.mesh, r.material, model, skin, r.castShadow !== false, r.overlay === true);
     }
 
     shadowFbo.bind();

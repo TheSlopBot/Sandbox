@@ -2,29 +2,20 @@ import { type Registry } from '../engine/registry.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type Transform } from '../components/transform.ts';
 import { type Aabb } from '../components/collider.ts';
-import { type CharacterController } from '../components/characterController.ts';
-import { getSupportSurfaceY } from '../collision/obb.ts';
+import { type CharacterController, characterFootOffset } from '../components/characterController.ts';
 import {
-  getObstacles,
-  resolveHorizontalCollisions,
-  resolveVerticalCollisions,
-} from './collisionSystem.ts';
+  type CapsuleY,
+  getCapsuleSupportSurfaceY,
+  resolveCapsuleHorizontal,
+  resolveCapsuleVertical,
+} from '../collision/capsule.ts';
+import { getObstacles } from './collisionSystem.ts';
 
 const PHYSICS_STEP_SEC = 1 / 144;
 
 const _box: Aabb = {
   min: new Float32Array(3),
   max: new Float32Array(3),
-};
-
-const setBox = (posX: number, posY: number, posZ: number, hx: number, hy: number, hz: number): Aabb => {
-  _box.min[0] = posX - hx;
-  _box.min[1] = posY - hy;
-  _box.min[2] = posZ - hz;
-  _box.max[0] = posX + hx;
-  _box.max[1] = posY + hy;
-  _box.max[2] = posZ + hz;
-  return _box;
 };
 
 export const installCharacterPhysicsSystem = (registry: Registry) => {
@@ -40,10 +31,8 @@ export const installCharacterPhysicsSystem = (registry: Registry) => {
         cc.velocity[2] * cc.velocity[2];
       if (speed2 < 1e-10 && cc.onGround) continue;
 
-      const hx = cc.halfExtents[0];
-      const hy = cc.halfExtents[1];
-      const hz = cc.halfExtents[2];
       const obstacles = getObstacles(registry, cc.obstructiveColliderKeys);
+      const foot = characterFootOffset(cc);
 
       const prevX = t.position[0];
       const prevY = t.position[1];
@@ -58,14 +47,23 @@ export const installCharacterPhysicsSystem = (registry: Registry) => {
 
         t.position[0] += cc.velocity[0] * step;
         t.position[2] += cc.velocity[2] * step;
-        let charBox = setBox(t.position[0], t.position[1], t.position[2], hx, hy, hz);
 
-        charBox = resolveHorizontalCollisions(t, charBox, hx, hy, hz, obstacles);
+        let capsule: CapsuleY = {
+          x: t.position[0],
+          y: t.position[1],
+          z: t.position[2],
+          radius: cc.radius,
+          halfHeight: cc.halfHeight,
+        };
 
-        const surfaceY = getSupportSurfaceY(t, obstacles, hx, hy, hz);
+        capsule = resolveCapsuleHorizontal(capsule, obstacles, _box);
+        t.position[0] = capsule.x;
+        t.position[2] = capsule.z;
+
+        const surfaceY = getCapsuleSupportSurfaceY(capsule, obstacles);
         if (surfaceY !== null && cc.velocity[1] <= 0) {
           cc.velocity[1] = 0;
-          t.position[1] = surfaceY + hy;
+          t.position[1] = surfaceY + foot;
           cc.onGround = true;
           continue;
         }
@@ -73,12 +71,30 @@ export const installCharacterPhysicsSystem = (registry: Registry) => {
         cc.velocity[1] -= cc.gravity * step;
         t.position[1] += cc.velocity[1] * step;
         cc.onGround = false;
-        charBox = setBox(t.position[0], t.position[1], t.position[2], hx, hy, hz);
 
-        charBox = resolveVerticalCollisions(t, cc, charBox, hx, hy, hz, stepPrevY, obstacles);
+        capsule = {
+          x: t.position[0],
+          y: t.position[1],
+          z: t.position[2],
+          radius: cc.radius,
+          halfHeight: cc.halfHeight,
+        };
 
-        if (t.position[1] - hy < 0) {
-          t.position[1] = hy;
+        const vertical = resolveCapsuleVertical(
+          capsule,
+          cc.velocity[1],
+          stepPrevY,
+          obstacles,
+          _box,
+        );
+        t.position[0] = vertical.capsule.x;
+        t.position[1] = vertical.capsule.y;
+        t.position[2] = vertical.capsule.z;
+        cc.velocity[1] = vertical.velocityY;
+        if (vertical.onGround) cc.onGround = true;
+
+        if (t.position[1] - foot < 0) {
+          t.position[1] = foot;
           cc.velocity[1] = 0;
           cc.onGround = true;
         }

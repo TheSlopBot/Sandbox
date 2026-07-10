@@ -12,11 +12,11 @@ export default defineConfig({
     alias: {
       viberanium: path.resolve(__dirname, '../viberanium/src'),
       sandbox: path.resolve(__dirname, '../sandbox/src/SandboxApp.tsx'),
-      preview: path.resolve(__dirname, '../preview/src/PreviewApp.tsx'),
+      construct: path.resolve(__dirname, '../construct/src/ConstructApp.tsx'),
     },
   },
   optimizeDeps: {
-    exclude: ['viberanium', 'sandbox', 'preview'],
+    exclude: ['viberanium', 'sandbox', 'construct'],
   },
   server: {
     fs: {

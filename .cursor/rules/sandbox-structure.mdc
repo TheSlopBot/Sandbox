@@ -17,6 +17,7 @@ sandbox/src/
 │   ├── assets/             # glTF/texture URL constants
 │   ├── animations/         # anim pack + clip name maps (e.g. kaykitMedium)
 │   ├── characters/         # SkeletalCharacterDef entries + characterDef.ts types
+│   ├── props/              # PropDefinition entries + propDefinition.ts types, PROP_CATALOG
 │   ├── levels/             # level spawn data, levelDefinition.ts types, LEVEL_CATALOG
 │   ├── keys/               # GAME_COMPONENT_KEYS, attachment tag maps
 │   └── ui/                 # theme tokens (loading colors, etc.)
@@ -43,8 +44,9 @@ A file belongs in `catalog/` when it is **primarily declarative data** consumed 
 | `Record<id, Definition>` maps | `installTestAiSystem` |
 | Clip name maps | `createPlayer` |
 | `SkeletalCharacterDef` instances | `instantiateProp` |
-| `GAME_COMPONENT_KEYS` | Component `createX()` factories |
-| Level spawn layouts | Scene `load()` / `unload()` |
+| `PropDefinition` / `PROP_CATALOG` | Component `createX()` factories |
+| `GAME_COMPONENT_KEYS` | Scene `load()` / `unload()` |
+| Level spawn layouts (`LevelPropPlacement`) | — |
 
 `catalog/` may import `catalog/*` and `viberanium` types. **`catalog/` must not import from `entities/`, `scenes/`, or `globals/`.**
 
@@ -66,7 +68,7 @@ New enemies follow `entities/enemies/spider/` with `createSpider.ts`, `component
 
 - `scenes/common/createPlayableScene.ts` — installs scene systems once; `load()` / `unload()` lifecycle
 - `scenes/common/useLevelScene.ts` — maps `LevelDefinition` → playable scene
-- `scenes/common/prop.ts` — `instantiateProp` (static glTF prop spawn factory; **not** catalog)
+- `scenes/common/prop.ts` — `instantiateProp` (hierarchical PropDefinition spawn; **not** catalog)
 - `scenes/common/ground.ts` — ground mesh for render pipeline
 
 Per-level custom logic: add `scenes/<levelId>/` only when catalog data is insufficient.

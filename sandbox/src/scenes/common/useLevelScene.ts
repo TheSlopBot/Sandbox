@@ -3,12 +3,12 @@ import { type LevelDefinition } from '../../catalog/levels/levelDefinition.ts';
 import { createCombatMech } from '../../entities/enemies/combatMech/createCombatMech.ts';
 import { createDummyNpc } from '../../entities/enemies/dummy/createDummyNpc.ts';
 import { createRobot } from '../../entities/enemies/robot/createRobot.ts';
-import { createPlayableScene, type SceneDeps } from './createPlayableScene.ts';
+import { createPlayableScene, type AddProp, type SceneDeps } from './createPlayableScene.ts';
 
 export const useLevelScene = (deps: SceneDeps, definition: LevelDefinition): Scene => {
-  const spawnProps = async (addProp: (url: string, prefix: string, opts?: { x?: number; y?: number; z?: number; scale?: number; yaw?: number }) => Promise<void>) => {
+  const spawnProps = async (addProp: AddProp) => {
     for (const prop of definition.props) {
-      await addProp(prop.url, prop.prefix, prop.opts);
+      await addProp(prop.propId, prop);
     }
   };
 

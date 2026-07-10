@@ -1,8 +1,14 @@
 import {
   type Registry,
-  type Collider,
   type Material,
+  type Collider,
+  type Mat4,
+  type RuntimeScene,
   createTransform,
+  createLocalTransform,
+  createChildOf,
+  createChildren,
+  addChildId,
   createInterleavedMesh,
   destroyMesh,
   type TextureCache,
@@ -11,13 +17,33 @@ import {
   buildGltfMaterials,
   createStaticModel,
   createRenderGroup,
-  aabb,
+  createBoxCollider,
+  createCylinderCollider,
+  createSphereCollider,
+  bakeColliderWorldFromLocal,
+  updateWorldMatrix,
   m4,
+  m4Copy,
+  m4FromTRS,
+  m4FromTRSQuat,
+  m4Mul,
+  v3,
   COMPONENT_KEYS,
   markNavGridDirty,
 } from 'viberanium';
+import {
+  type PropAssetPart,
+  type PropColliderPart,
+  type PropDefinition,
+} from '../../catalog/props/propDefinition.ts';
 
-type PropOpts = { x?: number; y?: number; z?: number; scale?: number; yaw?: number };
+export type PropPlacement = {
+  x?: number;
+  y?: number;
+  z?: number;
+  scale?: number;
+  yaw?: number;
+};
 
 const expandBoundsFromInterleaved = (
   min: [number, number, number],
@@ -49,55 +75,89 @@ const expandBoundsFromInterleaved = (
   }
 };
 
-const worldAabbFromLocal = (
-  localMin: [number, number, number],
-  localMax: [number, number, number],
-  pos: [number, number, number],
-  scale: number,
-  yaw: number,
-): ReturnType<typeof aabb> => {
-  const c = Math.cos(yaw), s = Math.sin(yaw);
-  const corners: [number, number, number][] = [
-    [localMin[0], localMin[1], localMin[2]], [localMin[0], localMin[1], localMax[2]],
-    [localMin[0], localMax[1], localMin[2]], [localMin[0], localMax[1], localMax[2]],
-    [localMax[0], localMin[1], localMin[2]], [localMax[0], localMin[1], localMax[2]],
-    [localMax[0], localMax[1], localMin[2]], [localMax[0], localMax[1], localMax[2]],
-  ];
-  let wMinX = Infinity, wMinY = Infinity, wMinZ = Infinity;
-  let wMaxX = -Infinity, wMaxY = -Infinity, wMaxZ = -Infinity;
-  for (const [lx0, ly0, lz0] of corners) {
-    const lx = lx0 * scale, ly = ly0 * scale, lz = lz0 * scale;
-    const wx = (lx * c + lz * s) + pos[0];
-    const wy = ly + pos[1];
-    const wz = (-lx * s + lz * c) + pos[2];
-    if (wx < wMinX) wMinX = wx; if (wx > wMaxX) wMaxX = wx;
-    if (wy < wMinY) wMinY = wy; if (wy > wMaxY) wMaxY = wy;
-    if (wz < wMinZ) wMinZ = wz; if (wz > wMaxZ) wMaxZ = wz;
-  }
-  return aabb(wMinX, wMinY, wMinZ, wMaxX, wMaxY, wMaxZ);
+const applyPartLocal = (
+  local: ReturnType<typeof createLocalTransform>,
+  part: PropAssetPart | PropColliderPart,
+) => {
+  local.position[0] = part.position[0];
+  local.position[1] = part.position[1];
+  local.position[2] = part.position[2];
+  local.rotation[0] = part.rotation[0];
+  local.rotation[1] = part.rotation[1];
+  local.rotation[2] = part.rotation[2];
+  local.rotation[3] = part.rotation[3];
+  local.scale[0] = part.scale[0];
+  local.scale[1] = part.scale[1];
+  local.scale[2] = part.scale[2];
 };
 
-const worldObbFromLocal = (
-  localMin: [number, number, number],
-  localMax: [number, number, number],
-  pos: [number, number, number],
-  scale: number,
-  yaw: number,
+const bakeChildWorld = (
+  parentT: ReturnType<typeof createTransform>,
+  childT: ReturnType<typeof createTransform>,
+  local: ReturnType<typeof createLocalTransform>,
 ) => {
-  const cxL = (localMin[0] + localMax[0]) * 0.5 * scale;
-  const cyL = (localMin[1] + localMax[1]) * 0.5 * scale;
-  const czL = (localMin[2] + localMax[2]) * 0.5 * scale;
-  const hx = (localMax[0] - localMin[0]) * 0.5 * scale;
-  const hy = (localMax[1] - localMin[1]) * 0.5 * scale;
-  const hz = (localMax[2] - localMin[2]) * 0.5 * scale;
-  const c = Math.cos(yaw), s = Math.sin(yaw);
-  const rcx = cxL * c + czL * s;
-  const rcz = -cxL * s + czL * c;
-  return {
-    center: new Float32Array([rcx + pos[0], cyL + pos[1], rcz + pos[2]]),
-    halfExtents: new Float32Array([hx, hy, hz]),
-    yaw,
-  };
+  updateWorldMatrix(parentT);
+  const localM = m4();
+  m4FromTRSQuat(localM, local.position, local.rotation, local.scale);
+  m4Mul(childT.world, parentT.world, localM);
+  childT.dirty = false;
+};
+
+const createColliderFromPart = (part: PropColliderPart): Collider => {
+  if (part.shape === 'box') {
+    return createBoxCollider({
+      halfExtents: v3(
+        part.halfExtents?.[0] ?? 0.5,
+        part.halfExtents?.[1] ?? 0.5,
+        part.halfExtents?.[2] ?? 0.5,
+      ),
+      isStatic: true,
+    });
+  }
+
+  if (part.shape === 'cylinder') {
+    return createCylinderCollider({
+      radius: part.radius ?? 0.35,
+      halfHeight: part.halfHeight ?? 0.5,
+      isStatic: true,
+    });
+  }
+
+  return createSphereCollider({
+    radius: part.radius ?? 0.5,
+    isStatic: true,
+  });
+};
+
+const bakePartRenderModels = (
+  registry: Registry,
+  scene: RuntimeScene,
+  renderEntityIds: readonly number[],
+  childWorld: Mat4,
+): void => {
+  for (const renderId of renderEntityIds) {
+    const re = registry.get(renderId);
+    if (!re) continue;
+
+    const nodeIndex = re.components[COMPONENT_KEYS.gltfNodeIndex] as number;
+    const r = re.components[COMPONENT_KEYS.renderable] as { model?: Mat4 } | undefined;
+    if (!r?.model) continue;
+
+    const nodeWorld = scene.nodes[nodeIndex]?.worldM;
+    if (nodeWorld) m4Mul(r.model, childWorld, nodeWorld);
+    else m4Copy(r.model, childWorld);
+  }
+};
+
+const finalizeStaticChild = (registry: Registry, childId: number): void => {
+  const child = registry.get(childId);
+  if (!child) return;
+
+  registry.removeComponent(child, COMPONENT_KEYS.childOf);
+  registry.removeComponent(child, COMPONENT_KEYS.localTransform);
+
+  const collider = child.components[COMPONENT_KEYS.collider] as Collider | undefined;
+  if (collider) delete collider.localShape;
 };
 
 export const instantiateProp = async (
@@ -105,74 +165,142 @@ export const instantiateProp = async (
   registry: Registry,
   textures: TextureCache,
   gltfCache: GltfCache,
-  gltfUrl: string,
-  materialPrefix: string,
-  opts: PropOpts = {},
+  def: PropDefinition,
+  placement: PropPlacement = {},
 ): Promise<boolean> => {
-  const loaded = await gltfCache.getOrLoad(gltfUrl);
-  const scene = buildRuntimeScene(loaded);
-  const mats = buildGltfMaterials(loaded, materialPrefix, textures);
+  const root = registry.createBare();
+  const rootT = createTransform();
+  rootT.position[0] = placement.x ?? 0;
+  rootT.position[1] = placement.y ?? 0;
+  rootT.position[2] = placement.z ?? 0;
+  const rootScale = placement.scale ?? 1;
+  rootT.scale[0] = rootT.scale[1] = rootT.scale[2] = rootScale;
+  rootT.yaw = placement.yaw ?? 0;
+  rootT.dirty = true;
+  m4FromTRS(rootT.world, rootT.position, rootT.yaw, rootT.scale);
+  rootT.dirty = false;
 
-  const t = createTransform();
-  t.position[0] = opts.x ?? 0;
-  t.position[1] = opts.y ?? 0;
-  t.position[2] = opts.z ?? 0;
-  const s = opts.scale ?? 1;
-  t.scale[0] = t.scale[1] = t.scale[2] = s;
-  t.yaw = opts.yaw ?? 0;
-  t.dirty = true;
+  const children = createChildren();
+  root.components[COMPONENT_KEYS.transform] = rootT;
+  root.components[COMPONENT_KEYS.children] = children;
+  registry.register(root);
 
-  const localMin: [number, number, number] = [Infinity, Infinity, Infinity];
-  const localMax: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-  const renderEntityIds: number[] = [];
+  const boundsMin: [number, number, number] = [Infinity, Infinity, Infinity];
+  const boundsMax: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  let spawnedAsset = false;
 
-  for (const pair of scene.meshNodePairs) {
-    const model = scene.models[pair.meshIndex];
-    if (!model) continue;
+  for (const part of def.parts) {
+    if (part.kind === 'asset') {
+      const loaded = await gltfCache.getOrLoad(part.url);
+      const scene = buildRuntimeScene(loaded);
+      const mats = buildGltfMaterials(loaded, part.materialPrefix, textures);
 
-    const nodeWorld = scene.nodes[pair.nodeIndex]?.worldM;
+      const partEntity = registry.createBare();
+      const partT = createTransform();
+      const local = createLocalTransform();
+      applyPartLocal(local, part);
+      partEntity.components[COMPONENT_KEYS.transform] = partT;
+      partEntity.components[COMPONENT_KEYS.childOf] = createChildOf(root.id);
+      partEntity.components[COMPONENT_KEYS.localTransform] = local;
 
-    for (const prim of model.primitives) {
-      if (prim.kind === 'skinned') continue;
+      const partLocalM = m4();
+      m4FromTRSQuat(partLocalM, local.position, local.rotation, local.scale);
 
-      const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
-      const material: Material = prim.materialIndex >= 0 && prim.materialIndex < mats.length
-        ? mats[prim.materialIndex]
-        : mats[0];
+      const renderEntityIds: number[] = [];
 
-      expandBoundsFromInterleaved(localMin, localMax, prim.vertices, nodeWorld);
+      for (const pair of scene.meshNodePairs) {
+        const model = scene.models[pair.meshIndex];
+        if (!model) continue;
 
-      const e = registry.createBare();
-      e.components[COMPONENT_KEYS.transform] = t;
-      e.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
-      e.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
-      e.onDeregister.push(() => destroyMesh(gl, mesh));
-      registry.register(e);
-      renderEntityIds.push(e.id);
+        const nodeWorld = scene.nodes[pair.nodeIndex]?.worldM;
+        const combinedLocal = m4();
+        if (nodeWorld) m4Mul(combinedLocal, partLocalM, nodeWorld);
+        else m4Copy(combinedLocal, partLocalM);
+
+        for (const prim of model.primitives) {
+          if (prim.kind === 'skinned') continue;
+
+          const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+          const material: Material =
+            prim.materialIndex >= 0 && prim.materialIndex < mats.length
+              ? mats[prim.materialIndex]!
+              : mats[0]!;
+
+          expandBoundsFromInterleaved(boundsMin, boundsMax, prim.vertices, combinedLocal);
+
+          const renderE = registry.createBare();
+          renderE.components[COMPONENT_KEYS.transform] = partT;
+          renderE.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
+          renderE.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
+          renderE.onDeregister.push(() => destroyMesh(gl, mesh));
+          registry.register(renderE);
+          renderEntityIds.push(renderE.id);
+        }
+      }
+
+      if (renderEntityIds.length === 0) {
+        registry.deregister(partEntity.id);
+        continue;
+      }
+
+      partEntity.components[COMPONENT_KEYS.staticModel] = createStaticModel(scene);
+      partEntity.components[COMPONENT_KEYS.renderGroup] = createRenderGroup(renderEntityIds);
+      registry.register(partEntity);
+      addChildId(children, partEntity.id);
+      bakeChildWorld(rootT, partT, local);
+      bakePartRenderModels(registry, scene, renderEntityIds, partT.world);
+      spawnedAsset = true;
+      continue;
+    }
+
+    const colEntity = registry.createBare();
+    const colT = createTransform();
+    const local = createLocalTransform();
+    applyPartLocal(local, part);
+    const collider = createColliderFromPart(part);
+
+    colEntity.components[COMPONENT_KEYS.transform] = colT;
+    colEntity.components[COMPONENT_KEYS.childOf] = createChildOf(root.id);
+    colEntity.components[COMPONENT_KEYS.localTransform] = local;
+    colEntity.components[COMPONENT_KEYS.collider] = collider;
+    registry.register(colEntity);
+    addChildId(children, colEntity.id);
+    bakeChildWorld(rootT, colT, local);
+    bakeColliderWorldFromLocal(collider, colT.world);
+  }
+
+  if (!spawnedAsset && def.parts.every((p) => p.kind !== 'collider')) {
+    registry.deregister(root.id);
+    return false;
+  }
+
+  if (placement.y === undefined && Number.isFinite(boundsMin[1])) {
+    rootT.position[1] = -boundsMin[1] * rootScale;
+    rootT.dirty = true;
+    m4FromTRS(rootT.world, rootT.position, rootT.yaw, rootT.scale);
+    rootT.dirty = false;
+
+    for (const childId of children.ids) {
+      const child = registry.get(childId);
+      if (!child) continue;
+
+      const childT = child.components[COMPONENT_KEYS.transform] as ReturnType<typeof createTransform> | undefined;
+      const local = child.components[COMPONENT_KEYS.localTransform] as ReturnType<typeof createLocalTransform> | undefined;
+      if (!childT || !local) continue;
+
+      bakeChildWorld(rootT, childT, local);
+
+      const collider = child.components[COMPONENT_KEYS.collider] as Collider | undefined;
+      if (collider) bakeColliderWorldFromLocal(collider, childT.world);
+
+      const staticModel = child.components[COMPONENT_KEYS.staticModel] as { scene: RuntimeScene } | undefined;
+      const renderGroup = child.components[COMPONENT_KEYS.renderGroup] as { entityIds: number[] } | undefined;
+      if (staticModel && renderGroup) bakePartRenderModels(registry, staticModel.scene, renderGroup.entityIds, childT.world);
     }
   }
 
-  if (!Number.isFinite(localMin[0])) return false;
+  for (const childId of children.ids) finalizeStaticChild(registry, childId);
 
-  if (opts.y === undefined) {
-    t.position[1] = -localMin[1] * s;
-    t.dirty = true;
-  }
-
-  const pos: [number, number, number] = [t.position[0], t.position[1], t.position[2]];
-  const collider: Collider = {
-    aabb: worldAabbFromLocal(localMin, localMax, pos, s, t.yaw),
-    isStatic: true,
-    obbY: worldObbFromLocal(localMin, localMax, pos, s, t.yaw),
-  };
-
-  const root = registry.createBare();
-  root.components[COMPONENT_KEYS.transform] = t;
-  root.components[COMPONENT_KEYS.staticModel] = createStaticModel(scene);
-  root.components[COMPONENT_KEYS.renderGroup] = createRenderGroup(renderEntityIds);
-  root.components[COMPONENT_KEYS.collider] = collider;
-  registry.register(root);
   markNavGridDirty(registry);
-
   return true;
 };

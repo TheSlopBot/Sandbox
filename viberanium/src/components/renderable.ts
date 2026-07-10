@@ -14,4 +14,5 @@ export type Renderable = {
   model?: Mat4;
   visible?: boolean;
   castShadow?: boolean;
+  overlay?: boolean;
 };

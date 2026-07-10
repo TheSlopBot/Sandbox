@@ -1,0 +1,619 @@
+.construct-root {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 34px 1fr;
+  background: #0b1116;
+  color: #d9e2ea;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color-scheme: dark;
+}
+
+.construct-body {
+  display: grid;
+  grid-template-columns: 1fr minmax(280px, 420px);
+  min-height: 0;
+  min-width: 0;
+}
+
+.construct-menuBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 14, 20, 0.96);
+  z-index: 5;
+}
+
+.construct-menuFile {
+  position: relative;
+}
+
+.construct-menuModes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.construct-menuItem {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #d9e2ea;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: default;
+  opacity: 0.9;
+}
+
+.construct-menuItem:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.construct-menuItem:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.construct-menuItemActive {
+  background: rgba(74, 158, 192, 0.28);
+  color: #e8f4fa;
+}
+
+.construct-menuDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 140px;
+  margin-top: 2px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 6px;
+  background: #0f1620;
+  display: grid;
+  gap: 2px;
+  z-index: 10;
+}
+
+.construct-menuDropdownItem {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #d9e2ea;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.construct-menuDropdownItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.construct-panelRightProp {
+  display: grid;
+  grid-template-rows: 1fr 1fr 1fr;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.construct-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.construct-inspectorHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 12px 8px;
+  font-weight: 650;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.construct-inspectorBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 10px 12px;
+}
+
+.construct-toolRail {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  background: rgba(8, 14, 20, 0.82);
+  backdrop-filter: blur(8px);
+  z-index: 3;
+}
+
+.construct-orientationCube {
+  --cube-size: 36px;
+  --cube-half: 18px;
+  --axis-x: #f5a3a3;
+  --axis-y: #a8e6b0;
+  --axis-z: #a3c4f5;
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: var(--cube-size);
+  height: var(--cube-size);
+  perspective: 120px;
+  flex-shrink: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.construct-orientationCubeScene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: none;
+}
+
+.construct-orientationCubeFace {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  backface-visibility: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(20, 24, 32, 0.92);
+  text-shadow: none;
+  user-select: none;
+}
+
+.construct-orientationCubeFace--posX {
+  background: var(--axis-x);
+  transform: rotateY(90deg) translateZ(var(--cube-half));
+}
+
+.construct-orientationCubeFace--negX {
+  background: var(--axis-x);
+  transform: rotateY(-90deg) translateZ(var(--cube-half));
+}
+
+.construct-orientationCubeFace--posY {
+  background: var(--axis-y);
+  transform: rotateX(-90deg) translateZ(var(--cube-half));
+}
+
+.construct-orientationCubeFace--negY {
+  background: var(--axis-y);
+  transform: rotateX(90deg) translateZ(var(--cube-half));
+}
+
+.construct-orientationCubeFace--posZ {
+  background: var(--axis-z);
+  transform: translateZ(var(--cube-half));
+}
+
+.construct-orientationCubeFace--negZ {
+  background: var(--axis-z);
+  transform: rotateY(180deg) translateZ(var(--cube-half));
+}
+
+.construct-toolBtn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #d9e2ea;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.construct-toolBtnActive {
+  background: rgba(74, 158, 192, 0.35);
+}
+
+.treeRowAdd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 0;
+  opacity: 0.8;
+  cursor: default;
+  color: inherit;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.treeRowAdd > span {
+  display: block;
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+
+.treeRowAdd:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.treeRowWithAdd {
+  display: grid;
+  grid-template-columns: 1fr 22px;
+  align-items: center;
+  gap: 4px;
+}
+
+.construct-viewer {
+  position: relative;
+  min-width: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.construct-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: radial-gradient(circle at 30% 20%, rgba(74, 158, 192, 0.12), transparent 55%),
+    radial-gradient(circle at 70% 60%, rgba(235, 132, 23, 0.10), transparent 60%),
+    #071018;
+  touch-action: none;
+}
+
+.construct-viewerHud {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  background: rgba(8, 14, 20, 0.72);
+  backdrop-filter: blur(8px);
+  max-width: min(560px, calc(100% - 24px));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.construct-viewerHud select {
+  pointer-events: auto;
+}
+
+.construct-titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.construct-title {
+  font-weight: 650;
+}
+
+.construct-subtle {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.construct-panelRight {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+.construct-explorer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.10);
+}
+
+.construct-explorer .construct-inspectorHeader {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.construct-explorerBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overflow-x: hidden;
+  padding: 0 6px 10px;
+}
+
+.explorerSearchRow {
+  flex-shrink: 0;
+  z-index: 2;
+  padding: 8px 10px;
+}
+
+.explorerSearchField {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.explorerSearchInput {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d9e2ea;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  padding: 8px 34px 8px 10px;
+}
+
+.explorerSearchInput:focus-visible {
+  outline: 2px solid rgba(74, 158, 192, 0.55);
+  outline-offset: 2px;
+}
+
+.explorerSearchClear {
+  position: absolute;
+  inset-inline-end: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  border-radius: 999px;
+  background: transparent;
+  border: 0;
+  color: #d9e2ea;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.75;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.explorerSearchClear:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.explorerSearchClear:focus-visible {
+  outline: 2px solid rgba(74, 158, 192, 0.55);
+  outline-offset: 2px;
+}
+
+.construct-detailsField {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.construct-detailsField > span:first-child {
+  color: rgba(217, 226, 234, 0.65);
+}
+
+.construct-detailsReadonly {
+  color: #d9e2ea;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.construct-detailsSection {
+  margin-top: 10px;
+}
+
+.construct-detailsSectionTitle {
+  font-size: 12px;
+  font-weight: 650;
+  margin-bottom: 6px;
+}
+
+.construct-xyzRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.construct-xyzField {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 4px;
+  align-items: center;
+  font-size: 11px;
+  color: rgba(217, 226, 234, 0.65);
+}
+
+.construct-detailsInput {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d9e2ea;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 6px;
+  padding: 5px 7px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.construct-detailsInput:focus-visible {
+  outline: 2px solid rgba(74, 158, 192, 0.55);
+  outline-offset: 1px;
+}
+
+.construct-detailsBody {
+  display: flex;
+  flex-direction: column;
+}
+
+.construct-detailsFooter {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.construct-detailsDelete {
+  appearance: none;
+  border: 1px solid rgba(220, 90, 90, 0.45);
+  background: rgba(220, 90, 90, 0.16);
+  color: #f0c0c0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.construct-detailsDelete:hover {
+  background: rgba(220, 90, 90, 0.28);
+  border-color: rgba(220, 90, 90, 0.65);
+}
+
+.construct-detailsDelete:focus-visible {
+  outline: 2px solid rgba(220, 90, 90, 0.55);
+  outline-offset: 1px;
+}
+
+.construct-info {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px;
+  overflow: auto;
+  max-height: 38vh;
+  background: rgba(0, 0, 0, 0.18);
+  min-height: 0;
+}
+
+.treeRow {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  user-select: none;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.treeRow:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.treeRow[data-selected='true'] {
+  background: rgba(74, 158, 192, 0.16);
+  outline: 1px solid rgba(74, 158, 192, 0.30);
+}
+
+.treeIndent {
+  display: inline-block;
+  width: 0;
+}
+
+.treeIcon {
+  opacity: 0.85;
+  font-size: 12px;
+  text-align: center;
+}
+
+.treeName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px 10px;
+  align-items: start;
+  font-size: 12px;
+}
+
+.fieldLabel {
+  opacity: 0.72;
+}
+
+.fieldValue {
+  opacity: 0.95;
+  word-break: break-word;
+}
+
+.selectRow {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.selectRow label {
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.selectRow select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d9e2ea;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.selectRow select:focus-visible {
+  outline: 2px solid rgba(74, 158, 192, 0.55);
+  outline-offset: 2px;
+}
+
+.selectRow select:disabled {
+  opacity: 0.6;
+}
+
+.selectRow select option {
+  background: #0b1116;
+  color: #d9e2ea;
+}
+
+.mutedNote {
+  font-size: 12px;
+  opacity: 0.75;
+}
+

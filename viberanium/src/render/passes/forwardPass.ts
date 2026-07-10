@@ -90,8 +90,10 @@ export const createForwardPass = (
 
     opaque.length = 0;
     transparent.length = 0;
+    const overlay: DrawItem[] = [];
     for (const it of items) {
-      (it.material.alphaMode === 'BLEND' ? transparent : opaque).push(it);
+      if (it.overlay) overlay.push(it);
+      else (it.material.alphaMode === 'BLEND' ? transparent : opaque).push(it);
     }
 
     opaque.sort((a, b) => {
@@ -194,6 +196,12 @@ export const createForwardPass = (
       gl.drawElements(gl.TRIANGLES, groundItem.mesh.indexCount, gl.UNSIGNED_INT, 0);
       gl.enable(gl.CULL_FACE);
       gl.depthMask(true);
+      lastProgram = null;
+      lastTex = null;
+      lastVao = null;
+      lastJoints = null;
+      lastBaseColor = null;
+      lastDoubleSided = false;
     }
 
     gl.enable(gl.BLEND);
@@ -205,6 +213,37 @@ export const createForwardPass = (
       gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
     }
     gl.depthMask(true);
+
+    if (overlay.length > 0) {
+      overlay.sort((a, b) => a.sortZ - b.sortZ);
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.enable(gl.CULL_FACE);
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      let overlayIndex = 0;
+      for (const it of overlay) {
+        const isBlend = it.material.alphaMode === 'BLEND';
+        if (isBlend) {
+          gl.enable(gl.BLEND);
+          gl.depthMask(false);
+        } else {
+          gl.disable(gl.BLEND);
+          gl.depthMask(true);
+        }
+        gl.polygonOffset(1, overlayIndex * 8);
+        overlayIndex += 1;
+        bindItem(it);
+        applyCull(it.material.doubleSided === true);
+        gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
+      }
+      gl.disable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(0, 0);
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
+      gl.enable(gl.DEPTH_TEST);
+    }
 
     if (lastDoubleSided) gl.enable(gl.CULL_FACE);
     gl.bindVertexArray(null);

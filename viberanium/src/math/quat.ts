@@ -1,4 +1,6 @@
-export type Quat = Float32Array; // [x,y,z,w]
+import { type Vec3 } from './vec3.ts';
+
+export type Quat = Float32Array;
 
 export const q4 = (x = 0, y = 0, z = 0, w = 1): Quat => new Float32Array([x, y, z, w]);
 
@@ -28,8 +30,39 @@ export const q4Normalize = (out: Quat, a: Quat): Quat => {
   return out;
 };
 
+export const q4FromYaw = (out: Quat, yawRad: number): Quat => {
+  const half = yawRad * 0.5;
+  out[0] = 0;
+  out[1] = Math.sin(half);
+  out[2] = 0;
+  out[3] = Math.cos(half);
+  return out;
+};
+
+export const q4Conjugate = (out: Quat, a: Quat): Quat => {
+  out[0] = -a[0];
+  out[1] = -a[1];
+  out[2] = -a[2];
+  out[3] = a[3];
+  return out;
+};
+
+export const q4TransformVec3 = (out: Vec3, q: Quat, v: Vec3): Vec3 => {
+  const qx = q[0], qy = q[1], qz = q[2], qw = q[3];
+  const vx = v[0], vy = v[1], vz = v[2];
+
+  const ix = qw * vx + qy * vz - qz * vy;
+  const iy = qw * vy + qz * vx - qx * vz;
+  const iz = qw * vz + qx * vy - qy * vx;
+  const iw = -qx * vx - qy * vy - qz * vz;
+
+  out[0] = ix * qw + iw * -qx + iy * -qz - iz * -qy;
+  out[1] = iy * qw + iw * -qy + iz * -qx - ix * -qz;
+  out[2] = iz * qw + iw * -qz + ix * -qy - iy * -qx;
+  return out;
+};
+
 export const q4Slerp = (out: Quat, a: Quat, b: Quat, t: number): Quat => {
-  // Adapted from the classic Shoemake slerp, with shortest-path correction.
   let ax = a[0], ay = a[1], az = a[2], aw = a[3];
   let bx = b[0], by = b[1], bz = b[2], bw = b[3];
 
@@ -43,7 +76,6 @@ export const q4Slerp = (out: Quat, a: Quat, b: Quat, t: number): Quat => {
   }
 
   if (cos > 0.9995) {
-    // Almost identical: lerp then normalize.
     out[0] = ax + (bx - ax) * t;
     out[1] = ay + (by - ay) * t;
     out[2] = az + (bz - az) * t;
