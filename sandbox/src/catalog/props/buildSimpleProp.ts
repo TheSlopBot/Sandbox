@@ -1,12 +1,17 @@
 import { identityPartLocal, type PropColliderPart, type PropDefinition } from './propDefinition.ts';
 
 export type SimplePropCollider =
-  | { shape: 'box'; halfExtents: [number, number, number] }
-  | { shape: 'cylinder'; radius: number; halfHeight: number }
-  | { shape: 'sphere'; radius: number };
+  | { shape: 'box'; halfExtents: [number, number, number]; position?: [number, number, number] }
+  | { shape: 'cylinder'; radius: number; halfHeight: number; position?: [number, number, number] }
+  | { shape: 'sphere'; radius: number; position?: [number, number, number] };
 
 const buildColliderPart = (id: string, collider: SimplePropCollider): PropColliderPart => {
-  const base = { ...identityPartLocal(), id: `${id}_collider`, kind: 'collider' as const };
+  const base = {
+    ...identityPartLocal(),
+    id: `${id}_collider`,
+    kind: 'collider' as const,
+    ...(collider.position ? { position: collider.position } : {}),
+  };
 
   if (collider.shape === 'box') return { ...base, shape: 'box', halfExtents: collider.halfExtents };
 

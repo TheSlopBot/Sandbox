@@ -50,7 +50,6 @@ import {
   spawnColliderPartEntity,
 } from '../entities/propEditor/spawnPropEditor.ts';
 import { installConstructGizmoSystem } from '../entities/gizmos/gizmoSystem.ts';
-import { spawnOrientationCube } from '../entities/gizmos/cube.ts';
 import { syncPartLocalToWorld } from '../entities/propEditor/syncPartLocal.ts';
 import {
   localPivotFromTransform,
@@ -114,6 +113,7 @@ export type ConstructSession = {
   ) => PropDocument;
   removePart: (partId: string) => PropDocument;
   setPropDocumentListener: (fn: ((doc: PropDocument) => void) | null) => void;
+  getOrbitAngles: () => { yawRad: number; pitchRad: number };
   unload: () => void;
 };
 
@@ -441,8 +441,6 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
     () => active,
   );
   gizmoDragging = () => gizmoController.isDragging();
-
-  const orientationCube = spawnOrientationCube(gl, sceneRegistry, pipeline);
 
   let partCounter = 0;
   let selectionEnt = sceneRegistry.createBare();
@@ -1020,11 +1018,11 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
     updatePartLocal,
     removePart,
     setPropDocumentListener,
+    getOrbitAngles: () => ({ yawRad: orbit.yawRad, pitchRad: orbit.pitchRad }),
     unload: () => {
       removeOrbitInput();
       removeOrbitSystem();
       gizmoController.destroy();
-      orientationCube.destroy();
       game.stop();
       game.setActiveScene(null);
       pipeline.destroy();

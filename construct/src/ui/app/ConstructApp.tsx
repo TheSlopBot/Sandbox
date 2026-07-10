@@ -13,6 +13,7 @@ import { AssetExplorer } from '../explorer/AssetExplorer.tsx';
 import { PropInspector } from '../inspector/PropInspector.tsx';
 import { PropDetails } from '../inspector/PropDetails.tsx';
 import { PreviewDetails } from '../inspector/PreviewDetails.tsx';
+import { OrientationCube } from '../orientation/OrientationCube.tsx';
 import {
   type PropDocument,
   type PropEditorTransformMode,
@@ -637,6 +638,11 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               ))}
             </div>
           )}
+          <OrientationCube
+            getAngles={() =>
+              sessionRef.current?.getOrbitAngles() ?? { yawRad: 0, pitchRad: 0 }
+            }
+          />
         </div>
 
         {mode === 'preview' ? (

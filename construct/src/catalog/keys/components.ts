@@ -9,7 +9,6 @@ export const CONSTRUCT_KEYS = {
   propSelection: `${COMPONENT_KEYS.transform}.constructPropSelection`,
   gizmoMode: `${COMPONENT_KEYS.transform}.constructGizmoMode`,
   gizmoHandle: `${COMPONENT_KEYS.transform}.constructGizmoHandle`,
-  orientationCube: `${COMPONENT_KEYS.transform}.constructOrientationCube`,
   colliderWireframe: `${COMPONENT_KEYS.transform}.constructColliderWireframe`,
   propAssetMaterials: `${COMPONENT_KEYS.transform}.constructPropAssetMaterials`,
 } as const;
