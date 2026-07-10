@@ -30,6 +30,7 @@ import {
   installTransformHierarchySystem,
   installColliderTransformSystem,
   m4,
+  v3,
   useGame,
   useScene,
   COMPONENT_KEYS,
@@ -50,6 +51,11 @@ import {
 } from '../entities/propEditor/spawnPropEditor.ts';
 import { installConstructGizmoSystem } from '../entities/propEditor/systems/gizmoSystem.ts';
 import { syncPartLocalToWorld } from '../entities/propEditor/syncPartLocal.ts';
+import {
+  localPivotFromTransform,
+  partModelSpaceCenter,
+  setLocalPositionForPivot,
+} from '../entities/propEditor/partPivot.ts';
 import {
   type PropDocument,
   type PropDocumentAssetPart,
@@ -884,6 +890,12 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
     const local = entity?.components[COMPONENT_KEYS.localTransform] as LocalTransform | undefined;
     if (!entity || !local) return propDocument;
 
+    const keepPivot = !!(patch.scale || patch.rotation);
+    const modelCenter = keepPivot ? partModelSpaceCenter(v3(), entity) : null;
+    const pivotParent = modelCenter
+      ? localPivotFromTransform(v3(), local, modelCenter)
+      : null;
+
     if (patch.position) {
       local.position[0] = patch.position[0];
       local.position[1] = patch.position[1];
@@ -899,6 +911,10 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
       local.rotation[1] = patch.rotation[1];
       local.rotation[2] = patch.rotation[2];
       local.rotation[3] = patch.rotation[3];
+    }
+
+    if (modelCenter && pivotParent) {
+      setLocalPositionForPivot(local, pivotParent, modelCenter);
     }
 
     syncPartLocalToWorld(sceneRegistry, entity);

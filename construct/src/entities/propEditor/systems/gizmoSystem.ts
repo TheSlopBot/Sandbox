@@ -7,7 +7,6 @@
   type Mat4,
   type Vec3,
   type Quat,
-  type StaticModel,
   type Entity,
   createInterleavedMesh,
   destroyMesh,
@@ -17,7 +16,6 @@
   m4Invert,
   m4FromTRS,
   m4FromTRSQuat,
-  m4Mul,
   q4,
   v3,
   COMPONENT_KEYS,
@@ -30,11 +28,11 @@ import { type ConstructPropPart } from '../components/propPart.ts';
 import { type PropDocument, type PropEditorTransformMode } from '../../../catalog/props/propDocument.ts';
 import { syncPartLocalToWorld } from '../syncPartLocal.ts';
 import {
-  boundsCenter,
-  createEmptyBounds,
-  expandBoundsFromInterleaved,
-  isBoundsValid,
-} from '../../viewer/modelBounds.ts';
+  localPivotFromTransform,
+  partModelSpaceCenter,
+  setLocalPositionForPivot,
+  worldFromModelPoint,
+} from '../partPivot.ts';
 
 type Axis = 'x' | 'y' | 'z';
 type HandleRole = 'shaft' | 'tip' | 'ring';
@@ -219,38 +217,9 @@ const findSelectedPart = (registry: Registry, partId: string | null) => {
   return null;
 };
 
-const _nodeWorld = m4();
-
 const gizmoOriginForPart = (out: Vec3, entity: Entity, transform: Transform) => {
-  out[0] = transform.world[12]!;
-  out[1] = transform.world[13]!;
-  out[2] = transform.world[14]!;
-
-  const staticModel = entity.components[COMPONENT_KEYS.staticModel] as StaticModel | undefined;
-  if (!staticModel) return out;
-
-  const bounds = createEmptyBounds();
-  for (const pair of staticModel.scene.meshNodePairs) {
-    const model = staticModel.scene.models[pair.meshIndex];
-    if (!model) continue;
-
-    const node = staticModel.scene.nodes[pair.nodeIndex];
-    if (!node) continue;
-
-    m4Mul(_nodeWorld, transform.world, node.worldM);
-    for (const prim of model.primitives) {
-      if (prim.kind === 'skinned') continue;
-      expandBoundsFromInterleaved(bounds, prim.vertices, _nodeWorld);
-    }
-  }
-
-  if (!isBoundsValid(bounds)) return out;
-
-  const center = boundsCenter(bounds);
-  out[0] = center[0];
-  out[1] = center[1];
-  out[2] = center[2];
-  return out;
+  const modelCenter = partModelSpaceCenter(v3(), entity);
+  return worldFromModelPoint(out, transform.world, modelCenter);
 };
 
 const axisIndex = (axis: Axis) => (axis === 'x' ? 0 : axis === 'y' ? 1 : 2);
@@ -396,6 +365,8 @@ type DragState = {
   startLocalScale: [number, number, number];
   startLocalRot: [number, number, number, number];
   startWorldOrigin: [number, number, number];
+  modelCenter: [number, number, number];
+  startPivotParent: [number, number, number];
   startAxisT: number;
   startAngle: number;
   pointerId: number;
@@ -858,7 +829,7 @@ export const installConstructGizmoSystem = (
   ) => {
     const selected = findSelectedPart(registry, partId);
     const local = selected?.components[COMPONENT_KEYS.localTransform] as LocalTransform | undefined;
-    if (!local) return;
+    if (!selected || !local) return;
 
     unprojectScreenRay(_rayO, _rayD, e.clientX, e.clientY, canvas, pipeline.camera.viewProj, pipeline.camera.position);
     const dir = AXIS_DIR[axis];
@@ -885,6 +856,9 @@ export const installConstructGizmoSystem = (
       startAxisT = t ?? 0;
     }
 
+    const modelCenter = partModelSpaceCenter(v3(), selected);
+    const pivotParent = localPivotFromTransform(v3(), local, modelCenter);
+
     drag = {
       axis,
       mode,
@@ -894,6 +868,8 @@ export const installConstructGizmoSystem = (
       startLocalScale: [local.scale[0], local.scale[1], local.scale[2]],
       startLocalRot: [local.rotation[0], local.rotation[1], local.rotation[2], local.rotation[3]],
       startWorldOrigin: [origin[0], origin[1], origin[2]],
+      modelCenter: [modelCenter[0], modelCenter[1], modelCenter[2]],
+      startPivotParent: [pivotParent[0], pivotParent[1], pivotParent[2]],
       startAxisT,
       startAngle,
       pointerId: e.pointerId,
@@ -912,6 +888,12 @@ export const installConstructGizmoSystem = (
     if (!selected || !local) return;
 
     const origin = v3(drag.startWorldOrigin[0], drag.startWorldOrigin[1], drag.startWorldOrigin[2]);
+    const modelCenter = v3(drag.modelCenter[0], drag.modelCenter[1], drag.modelCenter[2]);
+    const pivotParent = v3(
+      drag.startPivotParent[0],
+      drag.startPivotParent[1],
+      drag.startPivotParent[2],
+    );
 
     unprojectScreenRay(_rayO, _rayD, e.clientX, e.clientY, canvas, pipeline.camera.viewProj, pipeline.camera.position);
     const dir = AXIS_DIR[drag.axis];
@@ -940,6 +922,7 @@ export const installConstructGizmoSystem = (
         if (delta < -Math.PI) delta += Math.PI * 2;
         if (snap) delta = snapToIncrement(delta, SHIFT_ROTATE_SNAP);
         quatMulLocal(local, drag.axis, delta);
+        setLocalPositionForPivot(local, pivotParent, modelCenter);
       }
     } else {
       const tNow = projectRayOntoAxis(
@@ -960,6 +943,7 @@ export const installConstructGizmoSystem = (
         } else {
           const next = Math.max(0.05, drag.startLocalScale[i] + rawDelta * drag.axisSign);
           local.scale[i] = snap ? Math.max(0.05, snapToIncrement(next, SHIFT_SNAP)) : next;
+          setLocalPositionForPivot(local, pivotParent, modelCenter);
         }
       }
     }
