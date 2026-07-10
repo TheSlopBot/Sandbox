@@ -10,6 +10,7 @@ export type PropDocumentAssetPart = PropDocumentPartLocal & {
   kind: 'asset';
   url: string;
   materialPrefix: string;
+  textureVariantUrl?: string | null;
 };
 
 export type PropDocumentColliderPart = PropDocumentPartLocal & {
@@ -63,6 +64,10 @@ const normalizePart = (raw: unknown): PropDocumentPart => {
       kind: 'asset',
       url: part.url,
       materialPrefix: typeof part.materialPrefix === 'string' ? part.materialPrefix : 'prop',
+      textureVariantUrl:
+        typeof part.textureVariantUrl === 'string' || part.textureVariantUrl === null
+          ? part.textureVariantUrl
+          : null,
       position: (part.position as [number, number, number]) ?? [0, 0, 0],
       rotation: (part.rotation as [number, number, number, number]) ?? [0, 0, 0, 1],
       scale: (part.scale as [number, number, number]) ?? [1, 1, 1],

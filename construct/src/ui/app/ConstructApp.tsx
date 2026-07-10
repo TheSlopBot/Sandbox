@@ -12,6 +12,7 @@ import { AppMenu, type ConstructMode } from '../menu/AppMenu.tsx';
 import { AssetExplorer } from '../explorer/AssetExplorer.tsx';
 import { PropInspector } from '../inspector/PropInspector.tsx';
 import { PropDetails } from '../inspector/PropDetails.tsx';
+import { PreviewDetails } from '../inspector/PreviewDetails.tsx';
 import {
   type PropDocument,
   type PropEditorTransformMode,
@@ -68,6 +69,31 @@ const collectDirPaths = (root: KaykitTreeNode) => {
 };
 
 const TRANSFORM_MODES: readonly PropEditorTransformMode[] = ['move', 'scale', 'rotate'];
+
+const resolveManifestEntryForAssetUrl = (
+  assetUrl: string,
+  entriesByPath: Map<string, KaykitManifestEntry>,
+) => {
+  const prefix = import.meta.env.BASE_URL;
+  const relative = assetUrl.startsWith(prefix) ? assetUrl.slice(prefix.length) : assetUrl;
+
+  for (const entry of entriesByPath.values()) {
+    if (entry.url === relative) return entry;
+  }
+
+  return null;
+};
+
+const mapTextureVariants = (entry: KaykitManifestEntry | null): KaykitTextureVariant[] => {
+  if (!entry) return [];
+
+  return (entry.textureVariants ?? [])
+    .filter((v) => !/^default$/i.test(v.label))
+    .map((v) => ({
+      label: v.label,
+      url: `${import.meta.env.BASE_URL}${v.url}`,
+    }));
+};
 
 const cycleTransformMode = (
   current: PropEditorTransformMode,
@@ -316,16 +342,12 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     if (!session) return;
 
     const url = `${import.meta.env.BASE_URL}${entry.url}`;
-    const variants = (entry.textureVariants ?? []).map((v) => ({
-      label: v.label,
-      url: `${import.meta.env.BASE_URL}${v.url}`,
-    }));
+    const altVariants = mapTextureVariants(entry);
 
     setStatus('Loading model…');
     setAvailableClipNames([]);
     setClipName(null);
     setAnimPackUrl(null);
-    const altVariants = variants.filter((v) => !/^default$/i.test(v.label));
     setTextureVariants(altVariants);
     setTextureVariantUrl(null);
 
@@ -443,6 +465,30 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
 
   const selectedPart = propDoc.parts.find((p) => p.id === selectedPartId) ?? null;
 
+  const selectedPartVariants = useMemo(() => {
+    if (!selectedPart || selectedPart.kind !== 'asset') return [];
+    const entry = resolveManifestEntryForAssetUrl(selectedPart.url, entriesByPath);
+    return mapTextureVariants(entry);
+  }, [selectedPart, entriesByPath]);
+
+  const selectedPartVariantUrl =
+    selectedPart?.kind === 'asset' ? (selectedPart.textureVariantUrl ?? null) : null;
+
+  const handleTextureVariantChange = (url: string | null) => {
+    setTextureVariantUrl(url);
+
+    const session = sessionRef.current;
+    if (!session) return;
+
+    void (async () => {
+      try {
+        await session.setTextureVariant(url);
+      } catch (err) {
+        setStatus(`Texture variant error: ${String(err)}`);
+      }
+    })();
+  };
+
   return (
     <div className="construct-root">
       <AppMenu
@@ -496,21 +542,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
                 <select
                   disabled={!canSwitchTexture}
                   value={textureVariantUrl ?? ''}
-                  onChange={(e) => {
-                    const url = e.target.value || null;
-                    setTextureVariantUrl(url);
-
-                    const session = sessionRef.current;
-                    if (!session) return;
-
-                    void (async () => {
-                      try {
-                        await session.setTextureVariant(url);
-                      } catch (err) {
-                        setStatus(`Texture variant error: ${String(err)}`);
-                      }
-                    })();
-                  }}
+                  onChange={(e) => handleTextureVariantChange(e.target.value || null)}
                 >
                   <option value="">Default</option>
                   {textureVariants.map((v) => (
@@ -627,18 +659,12 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               loading={!manifest}
             />
 
-            <div className="construct-info">
-              {selectedEntry ? (
-                <div className="fieldGrid">
-                  <div className="fieldLabel">Kind</div>
-                  <div className="fieldValue">{selectedEntry.kind}</div>
-                  <div className="fieldLabel">Path</div>
-                  <div className="fieldValue">{selectedEntry.path}</div>
-                </div>
-              ) : (
-                <div className="mutedNote">Select a file to see details.</div>
-              )}
-            </div>
+            <PreviewDetails
+              entry={selectedEntry}
+              textureVariants={textureVariants}
+              textureVariantUrl={textureVariantUrl}
+              onTextureVariantChange={handleTextureVariantChange}
+            />
           </div>
         ) : (
           <div className="construct-panelRightProp">
@@ -674,6 +700,8 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
             />
             <PropDetails
               part={selectedPart}
+              textureVariants={selectedPartVariants}
+              textureVariantUrl={selectedPartVariantUrl}
               onRename={(partId, name) => {
                 const doc = sessionRef.current?.updatePartName(partId, name);
                 if (doc) setPropDoc({ ...doc, parts: [...doc.parts] });
@@ -681,6 +709,19 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               onCommitLocal={(partId, patch) => {
                 const doc = sessionRef.current?.updatePartLocal(partId, patch);
                 if (doc) setPropDoc({ ...doc, parts: [...doc.parts] });
+              }}
+              onTextureVariantChange={(partId, url) => {
+                const session = sessionRef.current;
+                if (!session) return;
+
+                void (async () => {
+                  try {
+                    const doc = await session.setPartTextureVariant(partId, url);
+                    setPropDoc({ ...doc, parts: [...doc.parts] });
+                  } catch (err) {
+                    setStatus(`Texture variant error: ${String(err)}`);
+                  }
+                })();
               }}
               onDelete={(partId) => {
                 const doc = sessionRef.current?.removePart(partId);

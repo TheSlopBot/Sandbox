@@ -11,6 +11,7 @@ export const CONSTRUCT_KEYS = {
   gizmoHandle: `${COMPONENT_KEYS.transform}.constructGizmoHandle`,
   orientationCube: `${COMPONENT_KEYS.transform}.constructOrientationCube`,
   colliderWireframe: `${COMPONENT_KEYS.transform}.constructColliderWireframe`,
+  propAssetMaterials: `${COMPONENT_KEYS.transform}.constructPropAssetMaterials`,
 } as const;
 
 export type ConstructComponentKey = (typeof CONSTRUCT_KEYS)[keyof typeof CONSTRUCT_KEYS];
