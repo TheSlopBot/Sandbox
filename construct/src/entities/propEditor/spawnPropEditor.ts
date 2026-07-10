@@ -39,6 +39,7 @@ import {
 import { createConstructPropRoot } from './propRoot.ts';
 import { createConstructPropPart, type ConstructPropPart } from './propPart.ts';
 import { createConstructColliderWireframe } from './colliderWireframe.ts';
+import { syncPartLocalToWorld } from './syncPartLocal.ts';
 
 const COLLIDER_COLORS: Record<'box' | 'cylinder' | 'sphere', [number, number, number, number]> = {
   box: [0.22, 0.55, 1.0, 0.35],
@@ -365,8 +366,7 @@ export const spawnAssetPartEntity = async (
   registry.register(child);
   addChildId(children, child.id);
 
-  bakeChildWorld(rootT, t, local);
-  t.dirty = true;
+  syncPartLocalToWorld(registry, child);
 
   return child.id;
 };
