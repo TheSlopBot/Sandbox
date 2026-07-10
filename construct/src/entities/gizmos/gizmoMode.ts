@@ -1,4 +1,4 @@
-import { type PropEditorTransformMode } from '../../../catalog/props/propDocument.ts';
+import { type PropEditorTransformMode } from '../../catalog/props/propDocument.ts';
 
 export type ConstructGizmoMode = {
   mode: PropEditorTransformMode;

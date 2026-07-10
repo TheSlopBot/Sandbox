@@ -24,9 +24,10 @@ sandbox/src/
 ├── entities/               # factories, components, systems
 │   ├── actor/              # shared skeletal spawn pipeline
 │   ├── player/             # createPlayer, playerController, input system
-│   └── enemies/            # robot, combatMech, dummy + testAi
+│   ├── enemies/            # robot, combatMech, dummy + testAi
+│   └── ground/             # spawnGround — groundPlane entity
 ├── scenes/
-│   └── common/             # createPlayableScene, useLevelScene, ground, prop
+│   └── common/             # createPlayableScene, useLevelScene, prop
 ├── globals/                # bootstrap, sceneManager (session autoloads)
 ├── menus/                  # standalone React overlays (performance menu, …)
 └── ui/
@@ -69,7 +70,7 @@ New enemies follow `entities/enemies/spider/` with `createSpider.ts`, `component
 - `scenes/common/createPlayableScene.ts` — installs scene systems once; `load()` / `unload()` lifecycle
 - `scenes/common/useLevelScene.ts` — maps `LevelDefinition` → playable scene
 - `scenes/common/prop.ts` — `instantiateProp` (hierarchical PropDefinition spawn; **not** catalog)
-- `scenes/common/ground.ts` — ground mesh for render pipeline
+- `entities/ground/spawnGround.ts` — ground entity with `groundPlane` component
 
 Per-level custom logic: add `scenes/<levelId>/` only when catalog data is insufficient.
 

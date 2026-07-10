@@ -24,7 +24,7 @@ import { getPropDefinition } from '../../catalog/props/registry.ts';
 import { createPlayer } from '../../entities/player/createPlayer.ts';
 import { installTestAiSystem } from '../../entities/enemies/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../../entities/player/systems/playerInputSystem.ts';
-import { createGroundMesh } from './ground.ts';
+import { spawnGround } from '../../entities/ground/spawnGround.ts';
 import { instantiateProp, type PropPlacement } from './prop.ts';
 
 export type SceneDeps = {
@@ -77,7 +77,7 @@ export const createPlayableScene = (
     navGridEntity.components[COMPONENT_KEYS.navGrid] = createNavGrid(navGridConfig);
     registry.register(navGridEntity);
 
-    deps.pipeline.setGround(createGroundMesh(deps.gl));
+    spawnGround(deps.gl, registry);
     await spawnProps(addProp);
     if (spawnNpcs) await spawnNpcs(registry, deps);
     await createPlayer(registry, deps.gl, deps.textures, deps.gltfCache);
@@ -89,7 +89,6 @@ export const createPlayableScene = (
     const ids = [...registry.all()].map((entity) => entity.id);
     for (const id of ids) registry.deregister(id);
 
-    deps.pipeline.clearGround();
     loaded = false;
   };
 

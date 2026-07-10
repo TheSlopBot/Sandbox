@@ -37,7 +37,9 @@ sandbox/src/scenes/common/
   createPlayableScene.ts  # generic factory: systems, load/unload lifecycle
   useLevelScene.ts        # catalog entry → createPlayableScene
   prop.ts                 # instantiateProp — hierarchical PropDefinition spawn (not catalog)
-  ground.ts
+
+sandbox/src/entities/ground/
+  spawnGround.ts          # ground entity with groundPlane component
 ```
 
 ## Level catalog
@@ -100,8 +102,8 @@ switchTo(levelId)
 
 | Phase | Creates / destroys |
 |-------|-------------------|
-| `load()` | nav grid entity, ground mesh, props, colliders, NPCs, player |
-| `unload()` | deregisters **all** entities (including nav grid), `pipeline.clearGround()` |
+| `load()` | nav grid entity, ground entity (`groundPlane`), props, colliders, NPCs, player |
+| `unload()` | deregisters **all** entities (including nav grid and ground) |
 
 Nav grid is **not** persistent across load/unload cycles. `markNavGridDirty(registry)` is called when colliders change during an active level; `unload()` destroys the grid entirely.
 

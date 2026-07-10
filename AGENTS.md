@@ -67,8 +67,8 @@ viberanium/src/
 
 sandbox/src/
   catalog/      assets, animations, characters, props, levels, keys, ui
-  entities/     actor/, player/, enemies/
-  scenes/common/  createPlayableScene, useLevelScene, ground, prop
+  entities/     actor/, player/, enemies/, ground/
+  scenes/common/  createPlayableScene, useLevelScene, prop
   globals/      bootstrap, sceneManager
   menus/        performance menu, future overlays
   ui/           app/SandboxApp, theme/style.css

@@ -18,6 +18,7 @@ export const COMPONENT_KEYS = {
   renderGroup: 'renderGroup',
   skin: 'skin',
   gltfNodeIndex: 'gltfNodeIndex',
+  groundPlane: 'groundPlane',
 } as const;
 
 export type ComponentKey = (typeof COMPONENT_KEYS)[keyof typeof COMPONENT_KEYS];

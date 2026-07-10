@@ -18,6 +18,7 @@ import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type Renderable } from '../components/renderable.ts';
 import { type MeshDraws } from '../components/meshDraws.ts';
 import { type SkinInstance } from '../components/skin.ts';
+import { type GroundPlane } from '../components/groundPlane.ts';
 import { type Mat4, m4, m4LookAt, m4Mul, m4Ortho, m4Perspective } from '../math/mat4.ts';
 import { type Vec3, v3, v3Copy, v3Normalize, v3Set } from '../math/vec3.ts';
 import {
@@ -36,8 +37,6 @@ export type RenderPipeline = {
   readonly device: GLDevice;
   readonly camera: Camera;
   readonly target: Vec3;
-  setGround: (g: { mesh: DrawItem['mesh']; model: Mat4 }) => void;
-  clearGround: () => void;
   addPostProcess: (stage: PostProcessStage) => () => void;
   getPostProcessStages: () => ReadonlyArray<PostProcessStage>;
   destroy: () => void;
@@ -147,18 +146,13 @@ export const installRenderPipeline = (
   const viewProj: Mat4 = m4();
   const camera: Camera = { viewProj, position: cameraPos };
 
-  let groundItem: DrawItem | null = null;
-  const setGround = (g: { mesh: DrawItem['mesh']; model: Mat4 }) => {
-    groundItem = {
-      mesh: g.mesh,
-      material: { name: 'ground', baseColorTex: null, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE', doubleSided: true },
-      model: g.model,
-      sortZ: 0,
-      castShadow: true,
-    };
+  const groundMaterial = {
+    name: 'ground',
+    baseColorTex: null as WebGLTexture | null,
+    baseColorFactor: [1, 1, 1, 1] as [number, number, number, number],
+    alphaMode: 'OPAQUE' as const,
+    doubleSided: true,
   };
-
-  const clearGround = () => { groundItem = null; };
 
   const forwardItems: DrawItem[] = [];
   const shadowItems: DrawItem[] = [];
@@ -295,6 +289,20 @@ export const installRenderPipeline = (
       pushDrawItem(r.mesh, r.material, model, skin, r.castShadow !== false, r.overlay === true);
     }
 
+    let groundItem: DrawItem | null = null;
+    for (const e of entityRegistry.view(COMPONENT_KEYS.groundPlane)) {
+      const ground = e.components[COMPONENT_KEYS.groundPlane] as GroundPlane | undefined;
+      if (!ground) continue;
+      groundItem = {
+        mesh: ground.mesh,
+        material: groundMaterial,
+        model: ground.model,
+        sortZ: 0,
+        castShadow: true,
+      };
+      break;
+    }
+
     shadowFbo.bind();
     shadowPass.draw(lvp, groundItem, shadowItems);
     shadowFbo.unbind();
@@ -371,8 +379,6 @@ export const installRenderPipeline = (
     device,
     camera,
     target,
-    setGround,
-    clearGround,
     addPostProcess: (stage) => {
       postStages.push(stage);
       return () => {

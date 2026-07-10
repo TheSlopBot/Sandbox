@@ -37,10 +37,10 @@ import {
   type MeshDrawPart,
 } from 'viberanium';
 import { CONSTRUCT_KEYS } from '../catalog/keys/components.ts';
-import { createConstructOrbit, frameOrbitOnBounds, type ConstructOrbit } from '../entities/orbit/components/orbit.ts';
-import { createConstructOrbitOriginMarker } from '../entities/orbit/components/orbitOriginMarker.ts';
-import { createConstructAnim, type ConstructAnim } from '../entities/orbit/components/constructAnim.ts';
-import { installConstructOrbitSystem } from '../entities/orbit/systems/orbitSystem.ts';
+import { createConstructOrbit, frameOrbitOnBounds, type ConstructOrbit } from '../entities/orbit/orbit.ts';
+import { createConstructOrbitOriginMarker } from '../entities/orbit/orbitOriginMarker.ts';
+import { createConstructAnim, type ConstructAnim } from '../entities/orbit/constructAnim.ts';
+import { installConstructOrbitSystem } from '../entities/orbit/orbitSystem.ts';
 import {
   clearPropEditorEntities,
   defaultColliderPart,
@@ -49,7 +49,8 @@ import {
   spawnAssetPartEntity,
   spawnColliderPartEntity,
 } from '../entities/propEditor/spawnPropEditor.ts';
-import { installConstructGizmoSystem } from '../entities/propEditor/systems/gizmoSystem.ts';
+import { installConstructGizmoSystem } from '../entities/gizmos/gizmoSystem.ts';
+import { spawnOrientationCube } from '../entities/gizmos/cube.ts';
 import { syncPartLocalToWorld } from '../entities/propEditor/syncPartLocal.ts';
 import {
   localPivotFromTransform,
@@ -63,9 +64,9 @@ import {
   createEmptyPropDocument,
   identityPartLocal,
 } from '../catalog/props/propDocument.ts';
-import { createConstructGizmoMode } from '../entities/propEditor/components/gizmoMode.ts';
-import { createConstructPropSelection } from '../entities/propEditor/components/propSelection.ts';
-import { type ConstructPropPart } from '../entities/propEditor/components/propPart.ts';
+import { createConstructGizmoMode } from '../entities/gizmos/gizmoMode.ts';
+import { createConstructPropSelection } from '../entities/propEditor/propSelection.ts';
+import { type ConstructPropPart } from '../entities/propEditor/propPart.ts';
 import {
   boundsCenter,
   boundsRadius,
@@ -73,7 +74,7 @@ import {
   expandBoundsFromInterleaved,
   isBoundsValid,
 } from '../entities/viewer/modelBounds.ts';
-import { createGroundMesh } from '../scenes/common/ground.ts';
+import { spawnConstructGround } from '../entities/ground/spawnGround.ts';
 
 export type ConstructTextureVariant = {
   label: string;
@@ -111,7 +112,6 @@ export type ConstructSession = {
   ) => PropDocument;
   removePart: (partId: string) => PropDocument;
   setPropDocumentListener: (fn: ((doc: PropDocument) => void) | null) => void;
-  getOrbitAngles: () => { yawRad: number; pitchRad: number };
   unload: () => void;
 };
 
@@ -440,6 +440,8 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
   );
   gizmoDragging = () => gizmoController.isDragging();
 
+  const orientationCube = spawnOrientationCube(gl, sceneRegistry, pipeline);
+
   let partCounter = 0;
   let selectionEnt = sceneRegistry.createBare();
   selectionEnt.components[CONSTRUCT_KEYS.propSelection] = createConstructPropSelection();
@@ -465,10 +467,9 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
   let textureVariants: ConstructTextureVariant[] = [];
   let activeTextureVariantUrl: string | null = null;
   let defaultBaseColorTex: WebGLTexture | null = null;
-  const ground = createGroundMesh(gl);
 
   const ensureGround = () => {
-    pipeline.setGround(ground);
+    spawnConstructGround(gl, sceneRegistry);
   };
 
   ensureGround();
@@ -500,7 +501,6 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
       removeStaticModelSystem = null;
     }
 
-    pipeline.clearGround();
     destroyAllEntities(sceneRegistry);
 
     markerMesh = createOrbitOriginMarker(gl);
@@ -956,11 +956,6 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
     propDocListener = fn;
   };
 
-  const getOrbitAngles = () => ({
-    yawRad: orbit.yawRad,
-    pitchRad: orbit.pitchRad,
-  });
-
   game.start();
 
   return {
@@ -987,11 +982,11 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
     updatePartLocal,
     removePart,
     setPropDocumentListener,
-    getOrbitAngles,
     unload: () => {
       removeOrbitInput();
       removeOrbitSystem();
       gizmoController.destroy();
+      orientationCube.destroy();
       game.stop();
       game.setActiveScene(null);
       pipeline.destroy();

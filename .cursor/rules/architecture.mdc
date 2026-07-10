@@ -23,8 +23,8 @@ viberanium/                  # Game engine (Viberanium)
 sandbox/                     # Game content
 └── src/
     ├── catalog/             # declarative registries: assets, animations, characters, levels, keys
-    ├── entities/            # actor, player, enemies — factories, components, systems
-    ├── scenes/common/       # createPlayableScene, useLevelScene, ground, prop
+    ├── entities/            # actor, player, enemies, ground — factories, components, systems
+    ├── scenes/common/       # createPlayableScene, useLevelScene, prop
     ├── globals/             # bootstrap, sceneManager
     ├── menus/               # React overlay menus (performance, …)
     ├── ui/                  # SandboxApp shell + theme CSS
