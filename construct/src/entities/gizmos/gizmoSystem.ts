@@ -829,6 +829,7 @@ export const installConstructGizmoSystem = (
   const onPointerDown = (e: PointerEvent) => {
     if (!isActive()) return;
     if (e.button !== 0) return;
+    if (e.metaKey) return;
 
     const selEnt = registry.view(CONSTRUCT_KEYS.propSelection)[0];
     const sel = selEnt?.components[CONSTRUCT_KEYS.propSelection] as ConstructPropSelection | undefined;

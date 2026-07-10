@@ -220,10 +220,12 @@ const installOrbitInput = (canvas: HTMLCanvasElement, orbit: ConstructOrbit, isA
 
   const onPointerDown = (e: PointerEvent) => {
     if (!isActive()) return;
-    if (e.button !== 1 && e.button !== 2) return;
+
+    const orbitWithMeta = e.button === 0 && e.metaKey;
+    if (e.button !== 1 && e.button !== 2 && !orbitWithMeta) return;
 
     orbit.dragging = true;
-    orbit.dragButton = e.button as 1 | 2;
+    orbit.dragButton = orbitWithMeta || e.button === 1 ? 1 : 2;
     activePointerId = e.pointerId;
     orbit.lastX = e.clientX;
     orbit.lastY = e.clientY;
