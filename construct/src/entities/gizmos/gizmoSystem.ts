@@ -8,52 +8,45 @@
   type Vec3,
   type Quat,
   type Entity,
-  createInterleavedMesh,
   destroyMesh,
-  createTransform,
   m4,
-  m4Copy,
   m4Invert,
   m4FromTRS,
   m4FromTRSQuat,
+  m4Copy,
   q4,
   v3,
   COMPONENT_KEYS,
 } from 'viberanium';
-import { CONSTRUCT_KEYS } from '../../../catalog/keys/components.ts';
-import { type ConstructPropSelection } from '../components/propSelection.ts';
-import { type ConstructGizmoMode } from '../components/gizmoMode.ts';
-import { createConstructGizmoHandle, type ConstructGizmoHandle } from '../components/gizmoHandle.ts';
-import { type ConstructPropPart } from '../components/propPart.ts';
-import { type PropDocument, type PropEditorTransformMode } from '../../../catalog/props/propDocument.ts';
-import { syncPartLocalToWorld } from '../syncPartLocal.ts';
+import { CONSTRUCT_KEYS } from '../../catalog/keys/components.ts';
+import { type ConstructPropSelection } from '../propEditor/propSelection.ts';
+import { type ConstructGizmoMode } from './gizmoMode.ts';
+import { type ConstructGizmoHandle } from './gizmoHandle.ts';
+import { type ConstructPropPart } from '../propEditor/propPart.ts';
+import { type PropDocument, type PropEditorTransformMode } from '../../catalog/props/propDocument.ts';
+import { syncPartLocalToWorld } from '../propEditor/syncPartLocal.ts';
 import {
   localPivotFromTransform,
   partModelSpaceCenter,
   setLocalPositionForPivot,
   worldFromModelPoint,
-} from '../partPivot.ts';
+} from '../propEditor/partPivot.ts';
+import {
+  type Axis,
+  AXIS_COLORS,
+  AXIS_COLORS_HOVER,
+  AXIS_DIR,
+  CUBE_HALF,
+  CONE_HEIGHT,
+  RING_RADIUS,
+  SHAFT_LEN,
+  SHAFT_TIP_OVERLAP,
+} from './meshes.ts';
+import { createMoveGizmoMeshes, spawnMoveGizmo, type MoveGizmoHandleRef } from './move.ts';
+import { createRotateGizmoMeshes, spawnRotateGizmo, type RotateGizmoHandleRef } from './rotate.ts';
+import { createScaleGizmoMeshes, spawnScaleGizmo, type ScaleGizmoHandleRef } from './scale.ts';
 
-type Axis = 'x' | 'y' | 'z';
 type HandleRole = 'shaft' | 'tip' | 'ring';
-
-const AXIS_COLORS: Record<Axis, [number, number, number, number]> = {
-  x: [0.75, 0.35, 0.35, 1],
-  y: [0.35, 0.75, 0.35, 1],
-  z: [0.35, 0.35, 0.75, 1],
-};
-
-const AXIS_COLORS_HOVER: Record<Axis, [number, number, number, number]> = {
-  x: [0.8, 0.5, 0.5, 1],
-  y: [0.5, 0.8, 0.5, 1],
-  z: [0.5, 0.5, 0.8, 1],
-};
-
-const AXIS_DIR: Record<Axis, [number, number, number]> = {
-  x: [1, 0, 0],
-  y: [0, 1, 0],
-  z: [0, 0, 1],
-};
 
 const RING_ROT: Record<Axis, Quat> = {
   x: q4(0, 0, 0.70710678, 0.70710678),
@@ -73,140 +66,16 @@ const ROT_POS_Y_TO_NEG_AXIS: Record<Axis, Quat> = {
   z: q4(-0.70710678, 0, 0, 0.70710678),
 };
 
-const SHAFT_LEN = 0.85;
-const TIP_SIZE = 0.14;
-const CONE_HEIGHT = TIP_SIZE * 1.35;
-const CUBE_HALF = TIP_SIZE * 0.45;
-const RING_RADIUS = 0.95;
-const RING_TUBE = 0.022;
 const SHAFT_PICK_PX = 12;
 const TIP_COLLIDER_HALF = 0.12;
-const SHAFT_THICKNESS = 0.022;
 const GIZMO_SCALE = 1;
 const RING_SEGMENTS = 48;
 const RING_SEGMENT_PICK_PX = 10;
-const SHAFT_TIP_OVERLAP = 0.008;
 const SHIFT_SNAP = 0.1;
 const SHIFT_ROTATE_SNAP = (15 * Math.PI) / 180;
 
 const snapToIncrement = (value: number, increment: number) =>
   Math.round(value / increment) * increment;
-
-const pushVert = (
-  out: number[],
-  x: number,
-  y: number,
-  z: number,
-  nx: number,
-  ny: number,
-  nz: number,
-) => {
-  out.push(x, y, z, nx, ny, nz, 0, 0);
-};
-
-const createBoxMesh = (gl: WebGL2RenderingContext, hx: number, hy: number, hz: number) => {
-  const v: number[] = [];
-  const idx: number[] = [];
-  const faces: Array<{ n: [number, number, number]; corners: [number, number, number][] }> = [
-    { n: [0, 0, 1], corners: [[-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz]] },
-    { n: [0, 0, -1], corners: [[hx, -hy, -hz], [-hx, -hy, -hz], [-hx, hy, -hz], [hx, hy, -hz]] },
-    { n: [0, 1, 0], corners: [[-hx, hy, -hz], [-hx, hy, hz], [hx, hy, hz], [hx, hy, -hz]] },
-    { n: [0, -1, 0], corners: [[-hx, -hy, hz], [-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, hz]] },
-    { n: [1, 0, 0], corners: [[hx, -hy, -hz], [hx, hy, -hz], [hx, hy, hz], [hx, -hy, hz]] },
-    { n: [-1, 0, 0], corners: [[-hx, -hy, hz], [-hx, hy, hz], [-hx, hy, -hz], [-hx, -hy, -hz]] },
-  ];
-  let base = 0;
-  for (const face of faces) {
-    for (const c of face.corners) pushVert(v, c[0], c[1], c[2], face.n[0], face.n[1], face.n[2]);
-    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-    base += 4;
-  }
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
-};
-
-const createShaftMesh = (gl: WebGL2RenderingContext) =>
-  createBoxMesh(gl, SHAFT_THICKNESS, 0.5, SHAFT_THICKNESS);
-
-const createConeMesh = (gl: WebGL2RenderingContext, radius: number, height: number, seg = 12) => {
-  const v: number[] = [];
-  const idx: number[] = [];
-  const tip = v.length / 8;
-  pushVert(v, 0, height, 0, 0, 1, 0);
-  const baseCenter = v.length / 8;
-  pushVert(v, 0, 0, 0, 0, -1, 0);
-
-  for (let i = 0; i <= seg; i++) {
-    const a = (i / seg) * Math.PI * 2;
-    const x = Math.cos(a) * radius;
-    const z = Math.sin(a) * radius;
-    const nx = Math.cos(a);
-    const nz = Math.sin(a);
-    const ny = radius / Math.max(height, 1e-6);
-    const inv = 1 / Math.hypot(nx, ny, nz);
-    pushVert(v, x, 0, z, nx * inv, ny * inv, nz * inv);
-  }
-
-  for (let i = 0; i < seg; i++) {
-    const a = tip + 2 + i;
-    const b = tip + 2 + i + 1;
-    idx.push(tip, b, a);
-  }
-
-  for (let i = 0; i < seg; i++) {
-    const a = tip + 2 + i;
-    const b = tip + 2 + i + 1;
-    idx.push(baseCenter, b, a);
-  }
-
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
-};
-
-const createTorusMesh = (
-  gl: WebGL2RenderingContext,
-  majorR: number,
-  minorR: number,
-  majorSeg = 64,
-  minorSeg = 10,
-) => {
-  const v: number[] = [];
-  const idx: number[] = [];
-
-  for (let i = 0; i <= majorSeg; i++) {
-    const u = (i / majorSeg) * Math.PI * 2;
-    const cu = Math.cos(u);
-    const su = Math.sin(u);
-    for (let j = 0; j <= minorSeg; j++) {
-      const vv = (j / minorSeg) * Math.PI * 2;
-      const cv = Math.cos(vv);
-      const sv = Math.sin(vv);
-      const x = (majorR + minorR * cv) * cu;
-      const y = minorR * sv;
-      const z = (majorR + minorR * cv) * su;
-      const nx = cv * cu;
-      const ny = sv;
-      const nz = cv * su;
-      pushVert(v, x, y, z, nx, ny, nz);
-    }
-  }
-
-  for (let i = 0; i < majorSeg; i++) {
-    for (let j = 0; j < minorSeg; j++) {
-      const a = i * (minorSeg + 1) + j;
-      const b = a + minorSeg + 1;
-      idx.push(a, a + 1, b, b, a + 1, b + 1);
-    }
-  }
-
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
-};
-
-const axisMaterial = (axis: Axis): Material => ({
-  name: `construct-gizmo-${axis}`,
-  baseColorTex: null,
-  baseColorFactor: [AXIS_COLORS[axis][0], AXIS_COLORS[axis][1], AXIS_COLORS[axis][2], AXIS_COLORS[axis][3]],
-  alphaMode: 'OPAQUE',
-  doubleSided: false,
-});
 
 const findSelectedPart = (registry: Registry, partId: string | null) => {
   if (!partId) return null;
@@ -416,6 +285,13 @@ export type ConstructGizmoController = {
   destroy: () => void;
 };
 
+type HandleRef = {
+  id: number;
+  axis: Axis;
+  role: HandleRole;
+  gizmo: 'move' | 'rotate' | 'scale';
+};
+
 export const installConstructGizmoSystem = (
   gl: WebGL2RenderingContext,
   registry: Registry,
@@ -425,18 +301,15 @@ export const installConstructGizmoSystem = (
   setDocument: (doc: PropDocument) => void,
   isActive: () => boolean,
 ): ConstructGizmoController => {
-  const shaftMesh = createShaftMesh(gl);
-  const coneMesh = createConeMesh(gl, TIP_SIZE * 0.55, CONE_HEIGHT);
-  const cubeMesh = createBoxMesh(gl, TIP_SIZE * 0.45, TIP_SIZE * 0.45, TIP_SIZE * 0.45);
-  const ringMesh = createTorusMesh(gl, RING_RADIUS, RING_TUBE);
+  const moveMeshes = createMoveGizmoMeshes(gl);
+  const rotateMeshes = createRotateGizmoMeshes(gl);
+  const scaleMeshes = createScaleGizmoMeshes(gl);
 
-  type HandleEnt = {
-    id: number;
-    axis: Axis;
-    role: HandleRole;
-  };
+  let moveHandles: MoveGizmoHandleRef[] = [];
+  let rotateHandles: RotateGizmoHandleRef[] = [];
+  let scaleHandles: ScaleGizmoHandleRef[] = [];
+  let handles: HandleRef[] = [];
 
-  const handles: HandleEnt[] = [];
   const _screen = { x: 0, y: 0, behind: false };
   const _screenB = { x: 0, y: 0, behind: false };
   const _rayO = v3();
@@ -452,72 +325,59 @@ export const installConstructGizmoSystem = (
   let hoverAxis: Axis | null = null;
   let pointerOverCanvas = false;
 
-  const spawnHandle = (axis: Axis, role: HandleRole) => {
-    const ent = registry.createBare();
-    const t = createTransform();
-    t.dirty = false;
-    ent.components[COMPONENT_KEYS.transform] = t;
-    ent.components[CONSTRUCT_KEYS.gizmoHandle] = createConstructGizmoHandle(axis, role);
-      ent.components[COMPONENT_KEYS.renderable] = {
-      mesh: role === 'ring' ? ringMesh : role === 'shaft' ? shaftMesh : coneMesh,
-      material: axisMaterial(axis),
-      model: m4(),
-      visible: false,
-      castShadow: false,
-      overlay: true,
-    };
-    registry.register(ent);
-    handles.push({ id: ent.id, axis, role });
+  const rebuildHandleList = () => {
+    handles = [
+      ...moveHandles.map((h) => ({ ...h, gizmo: 'move' as const })),
+      ...rotateHandles.map((h) => ({ ...h, gizmo: 'rotate' as const })),
+      ...scaleHandles.map((h) => ({ ...h, gizmo: 'scale' as const })),
+    ];
   };
 
   const ensureHandles = () => {
     const existing = [...registry.view(CONSTRUCT_KEYS.gizmoHandle)];
     if (existing.length >= 9) {
-      handles.length = 0;
+      moveHandles = [];
+      rotateHandles = [];
+      scaleHandles = [];
       for (const e of existing) {
         const h = e.components[CONSTRUCT_KEYS.gizmoHandle] as ConstructGizmoHandle | undefined;
         if (!h) continue;
         const renderable = e.components[COMPONENT_KEYS.renderable] as {
           overlay?: boolean;
           castShadow?: boolean;
+          material?: Material;
         } | undefined;
         if (renderable) {
           renderable.overlay = true;
           renderable.castShadow = false;
         }
-        const material = (e.components[COMPONENT_KEYS.renderable] as { material?: Material } | undefined)?.material;
-        if (material) setHandleHighlight(material, h.axis, false);
-        handles.push({ id: e.id, axis: h.axis, role: h.role });
+        if (renderable?.material) setHandleHighlight(renderable.material, h.axis, false);
+        const ref = { id: e.id, axis: h.axis, role: h.role };
+        if (h.gizmo === 'move' && (h.role === 'shaft' || h.role === 'tip')) {
+          moveHandles.push({ id: e.id, axis: h.axis, role: h.role });
+        } else if (h.gizmo === 'rotate' && h.role === 'ring') {
+          rotateHandles.push({ id: e.id, axis: h.axis, role: 'ring' });
+        } else if (h.gizmo === 'scale' && (h.role === 'shaft' || h.role === 'tip')) {
+          scaleHandles.push({ id: e.id, axis: h.axis, role: h.role });
+        } else if (h.role === 'ring') {
+          rotateHandles.push({ id: e.id, axis: h.axis, role: 'ring' });
+        } else {
+          moveHandles.push({ id: e.id, axis: h.axis, role: h.role === 'tip' ? 'tip' : 'shaft' });
+        }
+        void ref;
       }
+      rebuildHandleList();
       return;
     }
 
     for (const h of handles) {
       if (registry.get(h.id)) registry.deregister(h.id);
     }
-    handles.length = 0;
 
-    for (const axis of ['x', 'y', 'z'] as const) {
-      spawnHandle(axis, 'shaft');
-      spawnHandle(axis, 'tip');
-      spawnHandle(axis, 'ring');
-    }
-  };
-
-  const setHandleMesh = (
-    renderable: { mesh: unknown },
-    role: HandleRole,
-    mode: PropEditorTransformMode,
-  ) => {
-    if (role === 'ring') {
-      renderable.mesh = ringMesh;
-      return;
-    }
-    if (role === 'shaft') {
-      renderable.mesh = shaftMesh;
-      return;
-    }
-    renderable.mesh = mode === 'scale' ? cubeMesh : coneMesh;
+    moveHandles = spawnMoveGizmo(registry, moveMeshes);
+    rotateHandles = spawnRotateGizmo(registry, rotateMeshes);
+    scaleHandles = spawnScaleGizmo(registry, scaleMeshes);
+    rebuildHandleList();
   };
 
   const setHandleHighlight = (
@@ -1075,8 +935,9 @@ export const installConstructGizmoSystem = (
 
       const wantVisible =
         show &&
-        ((mode === 'rotate' && h.role === 'ring') ||
-          (mode !== 'rotate' && (h.role === 'shaft' || h.role === 'tip')));
+        ((mode === 'move' && h.gizmo === 'move') ||
+          (mode === 'rotate' && h.gizmo === 'rotate') ||
+          (mode === 'scale' && h.gizmo === 'scale'));
 
       renderable.visible = wantVisible;
       if (!wantVisible || !show) {
@@ -1084,7 +945,6 @@ export const installConstructGizmoSystem = (
         continue;
       }
 
-      setHandleMesh(renderable, h.role, mode);
       setHandleHighlight(renderable.material, h.axis, activeAxis === h.axis);
       orientHandle(t, renderable.model, origin, h.axis, h.role, scale, mode, signs[h.axis]);
     }
@@ -1104,10 +964,11 @@ export const installConstructGizmoSystem = (
       for (const h of handles) {
         if (registry.get(h.id)) registry.deregister(h.id);
       }
-      destroyMesh(gl, shaftMesh);
-      destroyMesh(gl, coneMesh);
-      destroyMesh(gl, cubeMesh);
-      destroyMesh(gl, ringMesh);
+      destroyMesh(gl, moveMeshes.shaft);
+      destroyMesh(gl, moveMeshes.cone);
+      destroyMesh(gl, rotateMeshes.ring);
+      destroyMesh(gl, scaleMeshes.shaft);
+      destroyMesh(gl, scaleMeshes.cube);
     },
   };
 };

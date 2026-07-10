@@ -36,9 +36,9 @@ import {
   type PropDocumentPart,
   identityPartLocal,
 } from '../../catalog/props/propDocument.ts';
-import { createConstructPropRoot } from './components/propRoot.ts';
-import { createConstructPropPart, type ConstructPropPart } from './components/propPart.ts';
-import { createConstructColliderWireframe } from './components/colliderWireframe.ts';
+import { createConstructPropRoot } from './propRoot.ts';
+import { createConstructPropPart, type ConstructPropPart } from './propPart.ts';
+import { createConstructColliderWireframe } from './colliderWireframe.ts';
 
 const COLLIDER_COLORS: Record<'box' | 'cylinder' | 'sphere', [number, number, number, number]> = {
   box: [0.22, 0.55, 1.0, 0.35],

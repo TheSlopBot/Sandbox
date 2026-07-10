@@ -44,6 +44,11 @@ export {
 export { createTransform, updateWorldMatrix, type Transform } from './components/transform.ts';
 export { type Renderable } from './components/renderable.ts';
 export {
+  createGroundPlane,
+  type GroundPlane,
+  type GroundPlaneMesh,
+} from './components/groundPlane.ts';
+export {
   aabb,
   createBoxCollider,
   createCylinderCollider,

@@ -53,6 +53,7 @@ The render pipeline collects draw items from:
 
 1. `meshDraws.parts[]` on any entity (skeletal characters, bone-attachment children)
 2. `renderable` on simple entities (static prop sub-entities, legacy paths)
+3. `groundPlane` on the scene ground entity (drawn with the dedicated ground shader)
 
 Each `MeshDrawPart` supplies `mesh`, `material`, `model` (world matrix), optional `skin`, and `visible`/`castShadow` flags. Pose and attachment systems write `part.model` each frame before draw order 0 runs.
 

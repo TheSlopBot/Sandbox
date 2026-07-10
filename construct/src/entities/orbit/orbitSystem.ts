@@ -1,7 +1,7 @@
 import { type Registry, type RenderPipeline, v3Set, COMPONENT_KEYS, type Transform, type Renderable, type Material } from 'viberanium';
-import { CONSTRUCT_KEYS } from '../../../catalog/keys/components.ts';
-import { type ConstructOrbit } from '../components/orbit.ts';
-import { type ConstructOrbitOriginMarker } from '../components/orbitOriginMarker.ts';
+import { CONSTRUCT_KEYS } from '../../catalog/keys/components.ts';
+import { type ConstructOrbit } from './orbit.ts';
+import { type ConstructOrbitOriginMarker } from './orbitOriginMarker.ts';
 
 export const installConstructOrbitSystem = (registry: Registry, pipeline: RenderPipeline) => {
   return registry.addAction('update', (ctx) => {

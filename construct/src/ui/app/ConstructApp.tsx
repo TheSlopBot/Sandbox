@@ -8,11 +8,10 @@ import {
   type KaykitTreeNode,
 } from '../../catalog/manifest/kaykitManifest.ts';
 import { bootstrap, type ConstructSession } from '../../globals/bootstrap.ts';
-import { AppMenu, type ConstructMode } from '../../menus/appMenu/AppMenu.tsx';
+import { AppMenu, type ConstructMode } from '../menu/AppMenu.tsx';
 import { AssetExplorer } from '../explorer/AssetExplorer.tsx';
 import { PropInspector } from '../inspector/PropInspector.tsx';
 import { PropDetails } from '../inspector/PropDetails.tsx';
-import { OrientationCube } from '../orientation/OrientationCube.tsx';
 import {
   type PropDocument,
   type PropEditorTransformMode,
@@ -606,11 +605,6 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               ))}
             </div>
           )}
-          <OrientationCube
-            getAngles={() =>
-              sessionRef.current?.getOrbitAngles() ?? { yawRad: 0, pitchRad: 0 }
-            }
-          />
         </div>
 
         {mode === 'preview' ? (
