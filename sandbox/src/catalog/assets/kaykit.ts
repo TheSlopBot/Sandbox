@@ -19,6 +19,10 @@ export const WEAPONRACK_DECORATED = `${PROTOTYPE_GLTF}/Weaponrack_Decorated.gltf
 export const WORKBENCH_DECORATED = `${PROTOTYPE_GLTF}/Workbench_Decorated.gltf`;
 
 export const DUMMY_GLB = `${KAYKIT}/KayKit Prototype Bits 1.1/Character/Dummy.glb`;
+export const DUMMY_TEX_PRIMARY = `${KAYKIT}/KayKit Prototype Bits 1.1/textures/prototypebits_texture.png`;
+export const DUMMY_TEX_ALT_A = `${KAYKIT}/KayKit Prototype Bits 1.1/textures/prototypebits_texture_alt_A.png`;
+export const DUMMY_TEX_ALT_B = `${KAYKIT}/KayKit Prototype Bits 1.1/textures/prototypebits_texture_alt_B.png`;
+export const DUMMY_TEX_ALT_C = `${KAYKIT}/KayKit Prototype Bits 1.1/textures/prototypebits_texture_alt_C.png`;
 
 export const ROBOT_ONE_GLB = `${KAYKIT}/KayKit Mystery Monthly Series 4/12 - June 2024 - Robot/characters/Robot_One.glb`;
 

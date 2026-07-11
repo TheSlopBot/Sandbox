@@ -6,6 +6,7 @@ export type OrientationCubeAngles = {
 };
 
 export type OrientationCubeProps = {
+  active?: boolean;
   getAngles: () => OrientationCubeAngles;
 };
 
@@ -24,13 +25,15 @@ const FACES: readonly FaceDef[] = [
   { key: 'negZ', label: '-z', axis: 'z' },
 ];
 
-export const OrientationCube = ({ getAngles }: OrientationCubeProps) => {
+export const OrientationCube = ({ active = true, getAngles }: OrientationCubeProps) => {
   const getAnglesRef = useRef(getAngles);
   getAnglesRef.current = getAngles;
 
   const [angles, setAngles] = useState<OrientationCubeAngles>(() => getAngles());
 
   useEffect(() => {
+    if (!active) return;
+
     let frame = 0;
 
     const tick = () => {
@@ -44,7 +47,7 @@ export const OrientationCube = ({ getAngles }: OrientationCubeProps) => {
 
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [active]);
 
   const yawDeg = (angles.yawRad * 180) / Math.PI;
   const pitchDeg = (angles.pitchRad * 180) / Math.PI;

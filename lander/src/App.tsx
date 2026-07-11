@@ -34,12 +34,15 @@ export const App = () => {
 
   return (
     <div className="lander-root">
-      <div className="app-layer" data-active={active === 'sandbox'}>
-        <SandboxApp active={active === 'sandbox'} />
-      </div>
-      <div className="app-layer" data-active={active === 'construct'}>
-        <ConstructApp active={active === 'construct'} />
-      </div>
+      {active === 'sandbox' ? (
+        <div className="app-layer" data-active="true">
+          <SandboxApp active />
+        </div>
+      ) : (
+        <div className="app-layer" data-active="true">
+          <ConstructApp active />
+        </div>
+      )}
     </div>
   );
 };

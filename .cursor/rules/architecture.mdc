@@ -18,6 +18,7 @@ viberanium/                  # Game engine (Viberanium)
     ├── systems/             # install*System processors (movement, physics, animation, …)
     ├── navigation/          # A* pathfinding helpers
     ├── assets/gltf/         # GLB/glTF loader, cache, runtime scene, materials builder
+    ├── definitions/         # Portable Actor/Prop/Skeletal defs + pure helpers (no app coupling)
     ├── render/              # WebGL2 device, passes, pipeline installer
     └── index.ts             # Public barrel export (package entry only)
 sandbox/                     # Game content
@@ -31,7 +32,11 @@ sandbox/                     # Game content
     └── SandboxApp.tsx       # package entry re-export
 ```
 
-Games import the engine via `import { ... } from 'viberanium'`. Game code never lives under `viberanium/`.
+Games import the engine via `import { ... } from 'viberanium'`. Gameplay, Kaykit packs, and editor documents never live under `viberanium/definitions/`.
+
+### `viberanium/definitions` contract
+
+Portable definition shapes and pure data helpers only. Must be understandable with zero knowledge of sandbox or construct. No Kaykit defaults, no `aiPackage`, no spawn/load, no registries, no document parse/serialize.
 
 ## Game vs Scene Registry
 

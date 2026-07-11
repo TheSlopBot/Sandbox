@@ -1,3 +1,7 @@
-export type Dummy = Record<string, never>;
+import { type DummyVariant } from '../../../catalog/actors/kaykitActors.ts';
 
-export const createDummy = (): Dummy => ({});
+export type Dummy = {
+  variant: DummyVariant;
+};
+
+export const createDummy = (variant: DummyVariant): Dummy => ({ variant });

@@ -2,6 +2,13 @@ import { type LoadedGltf } from './loader.ts';
 import { type Material } from '../../render/types.ts';
 import { type TextureCache } from '../../render/gl/texture.ts';
 
+type MaterialCacheEntry = {
+  textures: TextureCache;
+  byKey: Map<string, Material[]>;
+};
+
+const materialCache = new WeakMap<LoadedGltf, MaterialCacheEntry>();
+
 export const buildGltfMaterials = (
   loaded: LoadedGltf,
   prefix: string,
@@ -43,5 +50,27 @@ export const buildGltfMaterials = (
     mats.push({ name: `${prefix}_default`, baseColorTex: fallbackTex, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE' });
   }
 
+  return mats;
+};
+
+export const getOrBuildGltfMaterials = (
+  loaded: LoadedGltf,
+  prefix: string,
+  textures: TextureCache,
+  baseColorOverride: WebGLTexture | null = null,
+): Material[] => {
+  if (baseColorOverride) return buildGltfMaterials(loaded, prefix, textures, baseColorOverride);
+
+  let entry = materialCache.get(loaded);
+  if (!entry || entry.textures !== textures) {
+    entry = { textures, byKey: new Map() };
+    materialCache.set(loaded, entry);
+  }
+
+  const cached = entry.byKey.get(prefix);
+  if (cached) return cached;
+
+  const mats = buildGltfMaterials(loaded, prefix, textures, null);
+  entry.byKey.set(prefix, mats);
   return mats;
 };

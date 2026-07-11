@@ -1,3 +1,14 @@
+import {
+  identityAttachmentLocal as engineIdentityAttachmentLocal,
+  type ActorAttachmentDef,
+  type ActorCharacterDef,
+  type ActorColliderDef,
+  type ActorColliderParent,
+  type ActorColliderShape,
+  type ActorDefinition,
+} from 'viberanium';
+import { slugifyDocumentId } from '../slugify.ts';
+
 export type ActorAiPackage = 'none' | 'testAi';
 
 export type ActorDocumentPartLocal = {
@@ -23,11 +34,7 @@ export type ActorDocumentAttachment = ActorDocumentPartLocal & {
   placeholder: boolean;
 };
 
-export type ActorColliderShape = 'box' | 'cylinder' | 'sphere' | 'capsule';
-
-export type ActorDocumentColliderParent =
-  | { kind: 'bone'; boneName: string }
-  | { kind: 'attachment'; attachmentId: string };
+export type ActorDocumentColliderParent = ActorColliderParent;
 
 export type ActorDocumentCollider = ActorDocumentPartLocal & {
   id: string;
@@ -41,6 +48,19 @@ export type ActorDocumentCollider = ActorDocumentPartLocal & {
   parent: ActorDocumentColliderParent;
 };
 
+export type ActorDocumentAnimPack = {
+  generalGlb: string;
+  movementGlb: string;
+};
+
+export type ActorDocumentClips = {
+  idle: string;
+  run: string;
+  jumpStart: string;
+  jumpIdle: string;
+  jumpLand: string;
+};
+
 export type ActorDocument = {
   version: 1;
   id: string;
@@ -50,6 +70,10 @@ export type ActorDocument = {
   character: ActorDocumentCharacter | null;
   attachments: ActorDocumentAttachment[];
   colliders: ActorDocumentCollider[];
+  animPack?: ActorDocumentAnimPack | null;
+  clips?: ActorDocumentClips | null;
+  baseColorTextureUrl?: string;
+  visualYOffset?: number;
 };
 
 export type ActorEditorSelection =
@@ -58,6 +82,8 @@ export type ActorEditorSelection =
   | { kind: 'attachment'; attachmentId: string }
   | { kind: 'collider'; colliderId: string }
   | null;
+
+export type { ActorColliderShape };
 
 export const createEmptyActorDocument = (): ActorDocument => ({
   version: 1,
@@ -68,6 +94,8 @@ export const createEmptyActorDocument = (): ActorDocument => ({
   character: null,
   attachments: [],
   colliders: [],
+  animPack: null,
+  clips: null,
 });
 
 export const actorNeedsName = (doc: ActorDocument): boolean =>
@@ -75,14 +103,7 @@ export const actorNeedsName = (doc: ActorDocument): boolean =>
   doc.id === 'untitled' ||
   doc.displayName.trim() === 'Untitled Actor';
 
-export const slugifyActorId = (name: string): string => {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return slug || 'untitled';
-};
+export const slugifyActorId = slugifyDocumentId;
 
 export const applyActorName = (doc: ActorDocument, name: string): ActorDocument => {
   const trimmed = name.trim();
@@ -90,16 +111,12 @@ export const applyActorName = (doc: ActorDocument, name: string): ActorDocument 
 
   return {
     ...doc,
-    id: slugifyActorId(trimmed),
+    id: slugifyDocumentId(trimmed),
     displayName: trimmed,
   };
 };
 
-export const identityAttachmentLocal = (): ActorDocumentPartLocal => ({
-  position: [0, 0, 0],
-  rotation: [0, 0, 0, 1],
-  scale: [1, 1, 1],
-});
+export const identityAttachmentLocal = (): ActorDocumentPartLocal => engineIdentityAttachmentLocal();
 
 const normalizeTags = (raw: unknown): string[] => {
   if (!Array.isArray(raw)) return [];
@@ -207,6 +224,42 @@ const normalizeCharacter = (raw: unknown): ActorDocumentCharacter | null => {
   };
 };
 
+const normalizeAnimPack = (raw: unknown): ActorDocumentAnimPack | null => {
+  if (raw === null || raw === undefined) return null;
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid .actor animPack');
+
+  const pack = raw as Partial<ActorDocumentAnimPack>;
+  if (typeof pack.generalGlb !== 'string' || typeof pack.movementGlb !== 'string') {
+    throw new Error('Invalid .actor animPack');
+  }
+
+  return { generalGlb: pack.generalGlb, movementGlb: pack.movementGlb };
+};
+
+const normalizeClips = (raw: unknown): ActorDocumentClips | null => {
+  if (raw === null || raw === undefined) return null;
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid .actor clips');
+
+  const clips = raw as Partial<ActorDocumentClips>;
+  if (
+    typeof clips.idle !== 'string' ||
+    typeof clips.run !== 'string' ||
+    typeof clips.jumpStart !== 'string' ||
+    typeof clips.jumpIdle !== 'string' ||
+    typeof clips.jumpLand !== 'string'
+  ) {
+    throw new Error('Invalid .actor clips');
+  }
+
+  return {
+    idle: clips.idle,
+    run: clips.run,
+    jumpStart: clips.jumpStart,
+    jumpIdle: clips.jumpIdle,
+    jumpLand: clips.jumpLand,
+  };
+};
+
 export const parseActorDocument = (raw: string): ActorDocument => {
   const data: unknown = JSON.parse(raw);
   if (!data || typeof data !== 'object') throw new Error('Invalid .actor file');
@@ -232,6 +285,12 @@ export const parseActorDocument = (raw: string): ActorDocument => {
     character: normalizeCharacter(doc.character),
     attachments: doc.attachments.map(normalizeAttachment),
     colliders,
+    animPack: normalizeAnimPack(doc.animPack),
+    clips: normalizeClips(doc.clips),
+    ...(typeof doc.baseColorTextureUrl === 'string'
+      ? { baseColorTextureUrl: doc.baseColorTextureUrl }
+      : {}),
+    ...(typeof doc.visualYOffset === 'number' ? { visualYOffset: doc.visualYOffset } : {}),
   };
 };
 
@@ -289,3 +348,79 @@ export const collectDocumentTags = (doc: ActorDocument): string[] => {
 
   return [...tags].sort((a, b) => a.localeCompare(b));
 };
+
+const attachmentToDef = (attachment: ActorDocumentAttachment): ActorAttachmentDef => ({
+  id: attachment.id,
+  name: attachment.name,
+  boneName: attachment.boneName,
+  url: attachment.url,
+  materialPrefix: attachment.materialPrefix,
+  textureVariantUrl: attachment.textureVariantUrl,
+  tags: attachment.tags,
+  placeholder: attachment.placeholder,
+  position: attachment.position,
+  rotation: attachment.rotation,
+  scale: attachment.scale,
+});
+
+const colliderToDef = (collider: ActorDocumentCollider): ActorColliderDef => ({
+  id: collider.id,
+  name: collider.name,
+  shape: collider.shape,
+  halfExtents: collider.halfExtents,
+  radius: collider.radius,
+  halfHeight: collider.halfHeight,
+  collision: collider.collision,
+  hitbox: collider.hitbox,
+  parent: collider.parent,
+  position: collider.position,
+  rotation: collider.rotation,
+  scale: collider.scale,
+});
+
+export const toActorDefinition = (doc: ActorDocument): ActorDefinition => {
+  if (!doc.character) throw new Error('Actor document has no character');
+  if (!doc.animPack) throw new Error('Actor document has no animPack');
+  if (!doc.clips) throw new Error('Actor document has no clips');
+
+  const character: ActorCharacterDef = {
+    url: doc.character.url,
+    materialPrefix: doc.character.materialPrefix,
+    textureVariantUrl: doc.character.textureVariantUrl,
+  };
+
+  return {
+    id: doc.id,
+    displayName: doc.displayName,
+    tags: doc.tags,
+    character,
+    attachments: doc.attachments.map(attachmentToDef),
+    colliders: doc.colliders.map(colliderToDef),
+    animPack: doc.animPack,
+    clips: doc.clips,
+    ...(doc.baseColorTextureUrl ? { baseColorTextureUrl: doc.baseColorTextureUrl } : {}),
+    ...(doc.visualYOffset !== undefined ? { visualYOffset: doc.visualYOffset } : {}),
+  };
+};
+
+export const fromActorDefinition = (
+  def: ActorDefinition,
+  aiPackage: ActorAiPackage = 'none',
+): ActorDocument => ({
+  version: 1,
+  id: def.id,
+  displayName: def.displayName,
+  tags: def.tags,
+  aiPackage,
+  character: {
+    url: def.character.url,
+    materialPrefix: def.character.materialPrefix,
+    textureVariantUrl: def.character.textureVariantUrl,
+  },
+  attachments: def.attachments.map((a) => ({ ...a })),
+  colliders: def.colliders.map((c) => ({ ...c })),
+  animPack: { ...def.animPack },
+  clips: { ...def.clips },
+  ...(def.baseColorTextureUrl ? { baseColorTextureUrl: def.baseColorTextureUrl } : {}),
+  ...(def.visualYOffset !== undefined ? { visualYOffset: def.visualYOffset } : {}),
+});

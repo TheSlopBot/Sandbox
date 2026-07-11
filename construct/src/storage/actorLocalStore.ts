@@ -1,95 +1,33 @@
 import { type ActorDocument } from '../catalog/actors/actorDocument.ts';
+import { createLocalStore, type LocalStoreEntry } from './localStore.ts';
 
-export type ActorLocalStoreEntry = {
-  id: string;
-  displayName: string;
-  updatedAt: number;
-  document: ActorDocument;
-};
+export type ActorLocalStoreEntry = LocalStoreEntry<ActorDocument>;
 
-type ActorLocalStore = {
-  version: 1;
-  entries: Record<string, ActorLocalStoreEntry>;
-};
+const store = createLocalStore<ActorDocument>('construct.actorLocalStore');
 
-const STORAGE_KEY = 'construct.actorLocalStore';
-
-const emptyStore = (): ActorLocalStore => ({
+const cloneActorDocumentForStorage = (document: ActorDocument): ActorDocument => ({
   version: 1,
-  entries: {},
+  id: document.id,
+  displayName: document.displayName,
+  tags: [...document.tags],
+  aiPackage: document.aiPackage,
+  character: document.character ? { ...document.character } : null,
+  attachments: document.attachments.map((a) => ({
+    ...a,
+    tags: [...a.tags],
+  })),
+  colliders: document.colliders.map((c) => ({
+    ...c,
+    parent: { ...c.parent },
+    halfExtents: c.halfExtents ? ([...c.halfExtents] as [number, number, number]) : undefined,
+  })),
 });
 
-const readStore = (): ActorLocalStore => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return emptyStore();
+export const listLocalActorEntries = (): ActorLocalStoreEntry[] => store.list();
 
-    const data: unknown = JSON.parse(raw);
-    if (!data || typeof data !== 'object') return emptyStore();
+export const getLocalActorEntry = (id: string): ActorLocalStoreEntry | null => store.get(id);
 
-    const store = data as Partial<ActorLocalStore>;
-    if (store.version !== 1 || !store.entries || typeof store.entries !== 'object') {
-      return emptyStore();
-    }
+export const saveLocalActor = (document: ActorDocument): ActorLocalStoreEntry =>
+  store.save(document, cloneActorDocumentForStorage);
 
-    return { version: 1, entries: store.entries };
-  } catch {
-    return emptyStore();
-  }
-};
-
-const writeStore = (store: ActorLocalStore) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-};
-
-export const listLocalActorEntries = (): ActorLocalStoreEntry[] => {
-  const store = readStore();
-  return Object.values(store.entries).sort((a, b) => b.updatedAt - a.updatedAt);
-};
-
-export const getLocalActorEntry = (id: string): ActorLocalStoreEntry | null => {
-  const store = readStore();
-  return store.entries[id] ?? null;
-};
-
-export const saveLocalActor = (document: ActorDocument): ActorLocalStoreEntry => {
-  const store = readStore();
-  const entry: ActorLocalStoreEntry = {
-    id: document.id,
-    displayName: document.displayName,
-    updatedAt: Date.now(),
-    document: {
-      version: 1,
-      id: document.id,
-      displayName: document.displayName,
-      tags: [...document.tags],
-      aiPackage: document.aiPackage,
-      character: document.character
-        ? {
-            ...document.character,
-          }
-        : null,
-      attachments: document.attachments.map((a) => ({
-        ...a,
-        tags: [...a.tags],
-      })),
-      colliders: document.colliders.map((c) => ({
-        ...c,
-        parent: { ...c.parent },
-        halfExtents: c.halfExtents
-          ? ([...c.halfExtents] as [number, number, number])
-          : undefined,
-      })),
-    },
-  };
-  store.entries[document.id] = entry;
-  writeStore(store);
-  return entry;
-};
-
-export const removeLocalActor = (id: string) => {
-  const store = readStore();
-  if (!(id in store.entries)) return;
-  delete store.entries[id];
-  writeStore(store);
-};
+export const removeLocalActor = (id: string) => store.remove(id);

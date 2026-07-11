@@ -17,18 +17,34 @@ export const useLevelScene = (deps: SceneDeps, definition: LevelDefinition): Sce
     || (definition.combatMechs?.length ?? 0) > 0
     || (definition.dummies?.length ?? 0) > 0;
 
+  const roam = {
+    roamMinX: definition.navGrid.minX,
+    roamMaxX: definition.navGrid.maxX,
+    roamMinZ: definition.navGrid.minZ,
+    roamMaxZ: definition.navGrid.maxZ,
+  };
+
   const spawnNpcs = hasNpcs
     ? async (registry: Registry, sceneDeps: SceneDeps) => {
         for (const robot of definition.robots ?? []) {
-          await createRobot(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, robot);
+          await createRobot(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, {
+            ...robot,
+            ...roam,
+          });
         }
 
         for (const mech of definition.combatMechs ?? []) {
-          await createCombatMech(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, mech);
+          await createCombatMech(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, {
+            ...mech,
+            ...roam,
+          });
         }
 
         for (const dummy of definition.dummies ?? []) {
-          await createDummyNpc(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, dummy);
+          await createDummyNpc(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, {
+            ...dummy,
+            ...roam,
+          });
         }
       }
     : undefined;

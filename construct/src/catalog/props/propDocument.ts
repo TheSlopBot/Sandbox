@@ -1,4 +1,7 @@
-﻿export type PropDocumentPartLocal = {
+﻿import { identityPartLocal as engineIdentityPartLocal, type PropDefinition } from 'viberanium';
+import { slugifyDocumentId } from '../slugify.ts';
+
+export type PropDocumentPartLocal = {
   position: [number, number, number];
   rotation: [number, number, number, number];
   scale: [number, number, number];
@@ -47,14 +50,7 @@ export const propNeedsName = (doc: PropDocument): boolean =>
   doc.id === 'untitled' ||
   doc.displayName.trim() === 'Untitled Prop';
 
-export const slugifyPropId = (name: string): string => {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return slug || 'untitled';
-};
+export const slugifyPropId = slugifyDocumentId;
 
 export const applyPropName = (doc: PropDocument, name: string): PropDocument => {
   const trimmed = name.trim();
@@ -62,16 +58,12 @@ export const applyPropName = (doc: PropDocument, name: string): PropDocument => 
 
   return {
     ...doc,
-    id: slugifyPropId(trimmed),
+    id: slugifyDocumentId(trimmed),
     displayName: trimmed,
   };
 };
 
-export const identityPartLocal = (): PropDocumentPartLocal => ({
-  position: [0, 0, 0],
-  rotation: [0, 0, 0, 1],
-  scale: [1, 1, 1],
-});
+export const identityPartLocal = (): PropDocumentPartLocal => engineIdentityPartLocal();
 
 const normalizePart = (raw: unknown): PropDocumentPart => {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid .prop part');
@@ -166,3 +158,55 @@ export const collectPropDocumentTags = (doc: PropDocument): string[] => {
 
   return [...tags].sort((a, b) => a.localeCompare(b));
 };
+
+export const toPropDefinition = (doc: PropDocument): PropDefinition => ({
+  id: doc.id,
+  displayName: doc.displayName,
+  parts: doc.parts.map((part) => {
+    if (part.kind === 'asset') {
+      return {
+        id: part.id,
+        kind: 'asset' as const,
+        url: part.url,
+        materialPrefix: part.materialPrefix,
+        textureVariantUrl: part.textureVariantUrl,
+        tags: part.tags,
+        position: part.position,
+        rotation: part.rotation,
+        scale: part.scale,
+      };
+    }
+
+    return {
+      id: part.id,
+      kind: 'collider' as const,
+      shape: part.shape,
+      halfExtents: part.halfExtents,
+      radius: part.radius,
+      halfHeight: part.halfHeight,
+      position: part.position,
+      rotation: part.rotation,
+      scale: part.scale,
+    };
+  }),
+});
+
+export const fromPropDefinition = (def: PropDefinition): PropDocument => ({
+  version: 1,
+  id: def.id,
+  displayName: def.displayName,
+  parts: def.parts.map((part) => {
+    if (part.kind === 'asset') {
+      return {
+        ...part,
+        name: part.id,
+        textureVariantUrl: part.textureVariantUrl ?? null,
+      };
+    }
+
+    return {
+      ...part,
+      name: part.id,
+    };
+  }),
+});

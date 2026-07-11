@@ -1,9 +1,10 @@
-import {
+﻿import {
   useGame,
   createInput,
   createGltfCache,
   installRenderPipeline,
   createTextureCache,
+  createSharedMeshCache,
   createAsciiPostProcessStage,
   createEngineOptimizationOptions,
   type EngineOptimizationOptions,
@@ -17,6 +18,7 @@ export type SandboxSession = {
   getAsciiEnabled: () => boolean;
   setAsciiEnabled: (enabled: boolean) => void;
   subscribeAscii: (listener: (enabled: boolean) => void) => () => void;
+  subscribeFps: (listener: (fps: number) => void) => () => void;
 };
 
 export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSession> => {
@@ -34,6 +36,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
   const gl = pipeline.device.gl;
   const textures = createTextureCache(gl);
   const gltfCache = createGltfCache();
+  const meshes = createSharedMeshCache(gl);
 
   const asciiStage = createAsciiPostProcessStage(gl);
   const removeAsciiStage = pipeline.addPostProcess(asciiStage);
@@ -56,6 +59,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
     pipeline,
     textures,
     gltfCache,
+    meshes,
     gl,
     catalog: LEVEL_CATALOG,
     optimization,
@@ -80,11 +84,13 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
       listener(asciiStage.enabled);
       return () => { asciiListeners.delete(listener); };
     },
+    subscribeFps: (listener) => pipeline.subscribeFps(listener),
     unload: () => {
       game.stop();
       game.setActiveScene(null);
 
       pipeline.destroy();
+      meshes.destroy();
       sceneManager.destroy();
       removeCommit();
       removeAsciiToggle();

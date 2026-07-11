@@ -11,6 +11,7 @@ import { v3Set } from '../math/vec3.ts';
 const MIN_DIST = 1.0;
 const GROUND_Y = 0;
 const CAM_RADIUS = 0.15;
+const SPATIAL_CELL = 4;
 
 const wrapTwoPi = (a: number): number => {
   a = a % (Math.PI * 2);
@@ -18,7 +19,54 @@ const wrapTwoPi = (a: number): number => {
   return a;
 };
 
+const cellKey = (cx: number, cz: number): number => ((cx * 73856093) ^ (cz * 19349663)) | 0;
+
+type StaticSpatialIndex = {
+  cellSize: number;
+  cells: Map<number, Collider[]>;
+  sourceCount: number;
+  stamp: number;
+  seen: WeakMap<Collider, number>;
+};
+
+const createStaticSpatialIndex = (): StaticSpatialIndex => ({
+  cellSize: SPATIAL_CELL,
+  cells: new Map(),
+  sourceCount: -1,
+  stamp: 1,
+  seen: new WeakMap(),
+});
+
+const rebuildStaticSpatialIndex = (index: StaticSpatialIndex, colliders: Collider[]): void => {
+  index.cells.clear();
+  index.sourceCount = colliders.length;
+  const inv = 1 / index.cellSize;
+
+  for (const collider of colliders) {
+    if (!collider.isStatic) continue;
+
+    const aabb = collider.aabb;
+    const minCx = Math.floor(aabb.min[0] * inv);
+    const maxCx = Math.floor(aabb.max[0] * inv);
+    const minCz = Math.floor(aabb.min[2] * inv);
+    const maxCz = Math.floor(aabb.max[2] * inv);
+
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      for (let cz = minCz; cz <= maxCz; cz++) {
+        const key = cellKey(cx, cz);
+        let bucket = index.cells.get(key);
+        if (!bucket) {
+          bucket = [];
+          index.cells.set(key, bucket);
+        }
+        bucket.push(collider);
+      }
+    }
+  }
+};
+
 const closestStaticHit = (
+  index: StaticSpatialIndex,
   colliders: Collider[],
   ox: number,
   oy: number,
@@ -28,28 +76,51 @@ const closestStaticHit = (
   dz: number,
   maxDist: number,
 ): number => {
+  if (colliders.length !== index.sourceCount) rebuildStaticSpatialIndex(index, colliders);
+
   let best = maxDist;
+  const endX = ox + dx * maxDist;
+  const endY = oy + dy * maxDist;
+  const endZ = oz + dz * maxDist;
+  const inv = 1 / index.cellSize;
+  const minCx = Math.floor((Math.min(ox, endX) - CAM_RADIUS) * inv);
+  const maxCx = Math.floor((Math.max(ox, endX) + CAM_RADIUS) * inv);
+  const minCz = Math.floor((Math.min(oz, endZ) - CAM_RADIUS) * inv);
+  const maxCz = Math.floor((Math.max(oz, endZ) + CAM_RADIUS) * inv);
+  const stamp = ++index.stamp;
+  if (stamp > 1_000_000_000) index.stamp = 1;
 
-  for (const s of colliders) {
-    if (!s.isStatic) continue;
+  for (let cx = minCx; cx <= maxCx; cx++) {
+    for (let cz = minCz; cz <= maxCz; cz++) {
+      const bucket = index.cells.get(cellKey(cx, cz));
+      if (!bucket) continue;
 
-    const aabb = s.aabb;
-    const hit = rayAabbDistance(
-      ox,
-      oy,
-      oz,
-      dx,
-      dy,
-      dz,
-      aabb.min[0] - CAM_RADIUS,
-      aabb.min[1] - CAM_RADIUS,
-      aabb.min[2] - CAM_RADIUS,
-      aabb.max[0] + CAM_RADIUS,
-      aabb.max[1] + CAM_RADIUS,
-      aabb.max[2] + CAM_RADIUS,
-      best,
-    );
-    if (hit < best) best = hit;
+      for (const collider of bucket) {
+        if (index.seen.get(collider) === stamp) continue;
+        index.seen.set(collider, stamp);
+
+        const aabb = collider.aabb;
+        if (oy + CAM_RADIUS < aabb.min[1] && endY + CAM_RADIUS < aabb.min[1]) continue;
+        if (oy - CAM_RADIUS > aabb.max[1] && endY - CAM_RADIUS > aabb.max[1]) continue;
+
+        const hit = rayAabbDistance(
+          ox,
+          oy,
+          oz,
+          dx,
+          dy,
+          dz,
+          aabb.min[0] - CAM_RADIUS,
+          aabb.min[1] - CAM_RADIUS,
+          aabb.min[2] - CAM_RADIUS,
+          aabb.max[0] + CAM_RADIUS,
+          aabb.max[1] + CAM_RADIUS,
+          aabb.max[2] + CAM_RADIUS,
+          best,
+        );
+        if (hit < best) best = hit;
+      }
+    }
   }
 
   return best;
@@ -60,6 +131,8 @@ export const installCameraFollowSystem = (
   pipeline: RenderPipeline,
   input: Input,
 ) => {
+  const spatial = createStaticSpatialIndex();
+
   registry.addAction('update', (ctx) => {
     const colliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
 
@@ -94,7 +167,7 @@ export const installCameraFollowSystem = (
         if (groundT >= MIN_DIST) dist = Math.min(dist, groundT);
       }
 
-      const hit = closestStaticHit(colliders, pivotX, pivotY, pivotZ, rayX, rayY, rayZ, dist);
+      const hit = closestStaticHit(spatial, colliders, pivotX, pivotY, pivotZ, rayX, rayY, rayZ, dist);
       if (hit < dist) dist = Math.max(MIN_DIST, hit - CAM_RADIUS);
 
       const k = 1 - Math.exp(-15.0 * ctx.dt);

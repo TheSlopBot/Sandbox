@@ -1,4 +1,4 @@
-import {
+﻿import {
   type Scene,
   type Input,
   type RenderPipeline,
@@ -6,6 +6,7 @@ import {
   type GltfCache,
   type TextureCache,
   type EngineOptimizationOptions,
+  type SharedMeshCache,
   useRegistry,
   installMovementSystem,
   installNavGridSystem,
@@ -18,6 +19,7 @@ import {
   installStaticModelSystem,
   createNavGrid,
   COMPONENT_KEYS,
+  markNavGridDirty,
 } from 'viberanium';
 import { type LevelNavGridConfig } from '../../catalog/levels/levelDefinition.ts';
 import { getPropDefinition } from '../../catalog/props/registry.ts';
@@ -33,6 +35,7 @@ export type SceneDeps = {
   pipeline: RenderPipeline;
   textures: TextureCache;
   gltfCache: GltfCache;
+  meshes: SharedMeshCache;
   optimization: EngineOptimizationOptions;
 };
 
@@ -66,7 +69,10 @@ export const createPlayableScene = (
 
   const addProp: AddProp = async (propId, placement = {}) => {
     const def = getPropDefinition(propId);
-    await instantiateProp(deps.gl, registry, deps.textures, deps.gltfCache, def, placement);
+    await instantiateProp(deps.gl, registry, deps.textures, deps.gltfCache, def, placement, {
+      meshes: deps.meshes,
+      markNavDirty: false,
+    });
   };
 
   const load = async () => {
@@ -79,6 +85,7 @@ export const createPlayableScene = (
 
     spawnGround(deps.gl, registry);
     await spawnProps(addProp);
+    markNavGridDirty(registry);
     if (spawnNpcs) await spawnNpcs(registry, deps);
     await createPlayer(registry, deps.gl, deps.textures, deps.gltfCache);
   };

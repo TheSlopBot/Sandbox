@@ -1,9 +1,10 @@
-import {
+﻿import {
   type Registry,
   type Material,
   type Collider,
   type Mat4,
-  type RuntimeScene,
+  type SharedMeshCache,
+  type MeshDrawPart,
   createTransform,
   createLocalTransform,
   createChildOf,
@@ -11,16 +12,12 @@ import {
   addChildId,
   createInterleavedMesh,
   destroyMesh,
+  createMeshDraws,
   type TextureCache,
   type GltfCache,
-  buildRuntimeScene,
-  buildGltfMaterials,
-  createStaticModel,
-  createRenderGroup,
-  createBoxCollider,
-  createCylinderCollider,
-  createCapsuleCollider,
-  createSphereCollider,
+  getOrBuildRuntimeScene,
+  getOrBuildGltfMaterials,
+  colliderFromShape,
   bakeColliderWorldFromLocal,
   updateWorldMatrix,
   m4,
@@ -28,7 +25,6 @@ import {
   m4FromTRS,
   m4FromTRSQuat,
   m4Mul,
-  v3,
   COMPONENT_KEYS,
   markNavGridDirty,
 } from 'viberanium';
@@ -44,6 +40,11 @@ export type PropPlacement = {
   z?: number;
   scale?: number;
   yaw?: number;
+};
+
+export type InstantiatePropOptions = {
+  meshes?: SharedMeshCache;
+  markNavDirty?: boolean;
 };
 
 const expandBoundsFromInterleaved = (
@@ -104,59 +105,14 @@ const bakeChildWorld = (
   childT.dirty = false;
 };
 
-const createColliderFromPart = (part: PropColliderPart): Collider => {
-  if (part.shape === 'box') {
-    return createBoxCollider({
-      halfExtents: v3(
-        part.halfExtents?.[0] ?? 0.5,
-        part.halfExtents?.[1] ?? 0.5,
-        part.halfExtents?.[2] ?? 0.5,
-      ),
-      isStatic: true,
-    });
-  }
-
-  if (part.shape === 'cylinder') {
-    return createCylinderCollider({
-      radius: part.radius ?? 0.35,
-      halfHeight: part.halfHeight ?? 0.5,
-      isStatic: true,
-    });
-  }
-
-  if (part.shape === 'capsule') {
-    return createCapsuleCollider({
-      radius: part.radius ?? 0.3,
-      halfHeight: part.halfHeight ?? 0.5,
-      isStatic: true,
-    });
-  }
-
-  return createSphereCollider({
-    radius: part.radius ?? 0.5,
+const createColliderFromPart = (part: PropColliderPart): Collider =>
+  colliderFromShape({
+    shape: part.shape,
+    halfExtents: part.halfExtents,
+    radius: part.radius,
+    halfHeight: part.halfHeight,
     isStatic: true,
   });
-};
-
-const bakePartRenderModels = (
-  registry: Registry,
-  scene: RuntimeScene,
-  renderEntityIds: readonly number[],
-  childWorld: Mat4,
-): void => {
-  for (const renderId of renderEntityIds) {
-    const re = registry.get(renderId);
-    if (!re) continue;
-
-    const nodeIndex = re.components[COMPONENT_KEYS.gltfNodeIndex] as number;
-    const r = re.components[COMPONENT_KEYS.renderable] as { model?: Mat4 } | undefined;
-    if (!r?.model) continue;
-
-    const nodeWorld = scene.nodes[nodeIndex]?.worldM;
-    if (nodeWorld) m4Mul(r.model, childWorld, nodeWorld);
-    else m4Copy(r.model, childWorld);
-  }
-};
 
 const finalizeStaticChild = (registry: Registry, childId: number): void => {
   const child = registry.get(childId);
@@ -169,6 +125,28 @@ const finalizeStaticChild = (registry: Registry, childId: number): void => {
   if (collider) delete collider.localShape;
 };
 
+const resolveVariantTexture = async (
+  textures: TextureCache,
+  url: string | null | undefined,
+): Promise<WebGLTexture | null> => {
+  if (!url) return null;
+
+  return textures.getOrLoad(url);
+};
+
+const bakeMeshDrawModels = (
+  parts: MeshDrawPart[],
+  rootWorld: Mat4,
+  locals: Mat4[],
+) => {
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]!;
+    const local = locals[i]!;
+    if (!part.model) part.model = m4();
+    m4Mul(part.model, rootWorld, local);
+  }
+};
+
 export const instantiateProp = async (
   gl: WebGL2RenderingContext,
   registry: Registry,
@@ -176,6 +154,7 @@ export const instantiateProp = async (
   gltfCache: GltfCache,
   def: PropDefinition,
   placement: PropPlacement = {},
+  options: InstantiatePropOptions = {},
 ): Promise<boolean> => {
   const root = registry.createBare();
   const rootT = createTransform();
@@ -196,69 +175,65 @@ export const instantiateProp = async (
 
   const boundsMin: [number, number, number] = [Infinity, Infinity, Infinity];
   const boundsMax: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  const meshParts: MeshDrawPart[] = [];
+  const meshLocals: Mat4[] = [];
+  const ownedMeshes: Array<ReturnType<typeof createInterleavedMesh>> = [];
   let spawnedAsset = false;
 
   for (const part of def.parts) {
     if (part.kind === 'asset') {
       const loaded = await gltfCache.getOrLoad(part.url);
-      const scene = buildRuntimeScene(loaded);
-      const mats = buildGltfMaterials(loaded, part.materialPrefix, textures);
+      const scene = getOrBuildRuntimeScene(loaded);
+      const variantTex = await resolveVariantTexture(textures, part.textureVariantUrl);
+      const mats = getOrBuildGltfMaterials(loaded, part.materialPrefix, textures, variantTex);
 
-      const partEntity = registry.createBare();
-      const partT = createTransform();
       const local = createLocalTransform();
       applyPartLocal(local, part);
-      partEntity.components[COMPONENT_KEYS.transform] = partT;
-      partEntity.components[COMPONENT_KEYS.childOf] = createChildOf(root.id);
-      partEntity.components[COMPONENT_KEYS.localTransform] = local;
-
       const partLocalM = m4();
       m4FromTRSQuat(partLocalM, local.position, local.rotation, local.scale);
-
-      const renderEntityIds: number[] = [];
 
       for (const pair of scene.meshNodePairs) {
         const model = scene.models[pair.meshIndex];
         if (!model) continue;
 
         const nodeWorld = scene.nodes[pair.nodeIndex]?.worldM;
-        const combinedLocal = m4();
-        if (nodeWorld) m4Mul(combinedLocal, partLocalM, nodeWorld);
-        else m4Copy(combinedLocal, partLocalM);
 
-        for (const prim of model.primitives) {
+        for (let primIndex = 0; primIndex < model.primitives.length; primIndex++) {
+          const prim = model.primitives[primIndex]!;
           if (prim.kind === 'skinned') continue;
 
-          const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
           const material: Material =
             prim.materialIndex >= 0 && prim.materialIndex < mats.length
               ? mats[prim.materialIndex]!
               : mats[0]!;
 
+          const combinedLocal = m4();
+          if (nodeWorld) m4Mul(combinedLocal, partLocalM, nodeWorld);
+          else m4Copy(combinedLocal, partLocalM);
+
           expandBoundsFromInterleaved(boundsMin, boundsMax, prim.vertices, combinedLocal);
 
-          const renderE = registry.createBare();
-          renderE.components[COMPONENT_KEYS.transform] = partT;
-          renderE.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
-          renderE.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
-          renderE.onDeregister.push(() => destroyMesh(gl, mesh));
-          registry.register(renderE);
-          renderEntityIds.push(renderE.id);
+          const meshKey = `${part.url}#${pair.meshIndex}:${primIndex}`;
+          const mesh = options.meshes
+            ? options.meshes.getInterleaved(meshKey, prim.vertices, prim.indices)
+            : createInterleavedMesh(gl, prim.vertices, prim.indices);
+          if (!options.meshes) ownedMeshes.push(mesh);
+
+          const worldModel = m4();
+          m4Mul(worldModel, rootT.world, combinedLocal);
+
+          meshParts.push({
+            mesh,
+            material,
+            gltfNodeIndex: pair.nodeIndex,
+            model: worldModel,
+            castShadow: true,
+          });
+          meshLocals.push(combinedLocal);
         }
       }
 
-      if (renderEntityIds.length === 0) {
-        registry.deregister(partEntity.id);
-        continue;
-      }
-
-      partEntity.components[COMPONENT_KEYS.staticModel] = createStaticModel(scene);
-      partEntity.components[COMPONENT_KEYS.renderGroup] = createRenderGroup(renderEntityIds);
-      registry.register(partEntity);
-      addChildId(children, partEntity.id);
-      bakeChildWorld(rootT, partT, local);
-      bakePartRenderModels(registry, scene, renderEntityIds, partT.world);
-      spawnedAsset = true;
+      if (meshParts.length > 0) spawnedAsset = true;
       continue;
     }
 
@@ -289,6 +264,8 @@ export const instantiateProp = async (
     m4FromTRS(rootT.world, rootT.position, rootT.yaw, rootT.scale);
     rootT.dirty = false;
 
+    bakeMeshDrawModels(meshParts, rootT.world, meshLocals);
+
     for (const childId of children.ids) {
       const child = registry.get(childId);
       if (!child) continue;
@@ -301,15 +278,20 @@ export const instantiateProp = async (
 
       const collider = child.components[COMPONENT_KEYS.collider] as Collider | undefined;
       if (collider) bakeColliderWorldFromLocal(collider, childT.world);
+    }
+  }
 
-      const staticModel = child.components[COMPONENT_KEYS.staticModel] as { scene: RuntimeScene } | undefined;
-      const renderGroup = child.components[COMPONENT_KEYS.renderGroup] as { entityIds: number[] } | undefined;
-      if (staticModel && renderGroup) bakePartRenderModels(registry, staticModel.scene, renderGroup.entityIds, childT.world);
+  if (meshParts.length > 0) {
+    registry.addComponent(root, COMPONENT_KEYS.meshDraws, createMeshDraws(meshParts));
+    if (ownedMeshes.length > 0) {
+      root.onDeregister.push(() => {
+        for (const mesh of ownedMeshes) destroyMesh(gl, mesh);
+      });
     }
   }
 
   for (const childId of children.ids) finalizeStaticChild(registry, childId);
 
-  markNavGridDirty(registry);
+  if (options.markNavDirty !== false) markNavGridDirty(registry);
   return true;
 };

@@ -203,6 +203,17 @@ const readIndices = (gltf: Gltf, buffers: ArrayBuffer[], accessorIndex: number):
 
 const nodeName = (n: NonNullable<Gltf['nodes']>[number] | undefined, idx: number): string => n?.name ?? `node${idx}`;
 
+const runtimeSceneCache = new WeakMap<LoadedGltf, RuntimeScene>();
+
+export const getOrBuildRuntimeScene = (loaded: LoadedGltf): RuntimeScene => {
+  const cached = runtimeSceneCache.get(loaded);
+  if (cached) return cached;
+
+  const scene = buildRuntimeScene(loaded);
+  runtimeSceneCache.set(loaded, scene);
+  return scene;
+};
+
 export const buildRuntimeScene = (loaded: LoadedGltf): RuntimeScene => {
   const { gltf, buffers } = loaded;
 

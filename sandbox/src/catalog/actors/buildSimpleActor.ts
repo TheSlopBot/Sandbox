@@ -1,24 +1,12 @@
 import { KAYKIT_MEDIUM_ANIM_PACK, KAYKIT_MEDIUM_CLIPS } from '../animations/kaykitMedium.ts';
 import {
-  identityAttachmentLocal,
-  type ActorAiPackage,
+  buildSimpleActor as buildPortableSimpleActor,
   type ActorAttachmentDef,
-  type ActorDefinition,
-} from './actorDefinition.ts';
+  type SimpleActorAttachment,
+} from 'viberanium';
+import { type ActorAiPackage, type GameActorDefinition } from './actorDefinition.ts';
 
-export type SimpleActorAttachment = {
-  id: string;
-  name: string;
-  boneName: string;
-  url: string;
-  materialPrefix: string;
-  textureVariantUrl?: string | null;
-  tags?: string[];
-  placeholder?: boolean;
-  position?: [number, number, number];
-  rotation?: [number, number, number, number];
-  scale?: [number, number, number];
-};
+export type { SimpleActorAttachment };
 
 export type BuildSimpleActorOpts = {
   tags?: string[];
@@ -27,24 +15,10 @@ export type BuildSimpleActorOpts = {
   textureVariantUrl?: string | null;
   baseColorTextureUrl?: string;
   visualYOffset?: number;
-  animPack?: ActorDefinition['animPack'];
-  clips?: ActorDefinition['clips'];
+  animPack?: GameActorDefinition['animPack'];
+  clips?: GameActorDefinition['clips'];
+  colliders?: GameActorDefinition['colliders'];
 };
-
-const buildAttachment = (partial: SimpleActorAttachment): ActorAttachmentDef => ({
-  ...identityAttachmentLocal(),
-  id: partial.id,
-  name: partial.name,
-  boneName: partial.boneName,
-  url: partial.url,
-  materialPrefix: partial.materialPrefix,
-  textureVariantUrl: partial.textureVariantUrl,
-  tags: partial.tags ?? [],
-  placeholder: partial.placeholder ?? false,
-  ...(partial.position ? { position: partial.position } : {}),
-  ...(partial.rotation ? { rotation: partial.rotation } : {}),
-  ...(partial.scale ? { scale: partial.scale } : {}),
-});
 
 export const buildSimpleActor = (
   id: string,
@@ -52,19 +26,18 @@ export const buildSimpleActor = (
   bodyGlb: string,
   materialPrefix: string,
   opts: BuildSimpleActorOpts = {},
-): ActorDefinition => ({
-  id,
-  displayName,
-  tags: opts.tags ?? [],
-  aiPackage: opts.aiPackage ?? 'none',
-  character: {
-    url: bodyGlb,
-    materialPrefix,
+): GameActorDefinition => ({
+  ...buildPortableSimpleActor(id, displayName, bodyGlb, materialPrefix, {
+    tags: opts.tags,
+    attachments: opts.attachments,
     textureVariantUrl: opts.textureVariantUrl,
-  },
-  attachments: (opts.attachments ?? []).map(buildAttachment),
-  animPack: opts.animPack ?? KAYKIT_MEDIUM_ANIM_PACK,
-  clips: opts.clips ?? KAYKIT_MEDIUM_CLIPS,
-  ...(opts.baseColorTextureUrl ? { baseColorTextureUrl: opts.baseColorTextureUrl } : {}),
-  ...(opts.visualYOffset !== undefined ? { visualYOffset: opts.visualYOffset } : {}),
+    baseColorTextureUrl: opts.baseColorTextureUrl,
+    visualYOffset: opts.visualYOffset,
+    animPack: opts.animPack ?? KAYKIT_MEDIUM_ANIM_PACK,
+    clips: opts.clips ?? KAYKIT_MEDIUM_CLIPS,
+    colliders: opts.colliders,
+  }),
+  aiPackage: opts.aiPackage ?? 'none',
 });
+
+export type { ActorAttachmentDef };

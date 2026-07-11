@@ -39,6 +39,8 @@ export type RenderPipeline = {
   readonly target: Vec3;
   addPostProcess: (stage: PostProcessStage) => () => void;
   getPostProcessStages: () => ReadonlyArray<PostProcessStage>;
+  getFps: () => number;
+  subscribeFps: (listener: (fps: number) => void) => () => void;
   destroy: () => void;
 };
 
@@ -188,6 +190,8 @@ export const installRenderPipeline = (
   let fpsAccum = 0;
   let fpsFrameCount = 0;
   let lastShownFps = -1;
+  let currentFps = 0;
+  const fpsListeners = new Set<(fps: number) => void>();
 
   const removeDraw = registry.addAction('draw', () => {
     device.resize();
@@ -347,6 +351,10 @@ export const installRenderPipeline = (
     const fps = Math.round(fpsFrameCount / fpsAccum);
     fpsAccum = 0;
     fpsFrameCount = 0;
+    currentFps = fps;
+
+    for (const listener of fpsListeners) listener(fps);
+
     if (fpsEl === undefined) fpsEl = document.querySelector<HTMLSpanElement>('#fps');
     if (!fpsEl || fps === lastShownFps) return;
 
@@ -361,6 +369,7 @@ export const installRenderPipeline = (
 
     removeDraw();
     removeFps();
+    fpsListeners.clear();
 
     for (const s of postStages) s.destroy?.();
     postStages.length = 0;
@@ -373,6 +382,7 @@ export const installRenderPipeline = (
     shadowFbo.destroy();
     pingFbos[0].destroy();
     pingFbos[1].destroy();
+    device.destroy();
   };
 
   return {
@@ -388,6 +398,12 @@ export const installRenderPipeline = (
       };
     },
     getPostProcessStages: () => postStages,
+    getFps: () => currentFps,
+    subscribeFps: (listener) => {
+      fpsListeners.add(listener);
+      if (currentFps > 0) listener(currentFps);
+      return () => { fpsListeners.delete(listener); };
+    },
     destroy,
   };
 };

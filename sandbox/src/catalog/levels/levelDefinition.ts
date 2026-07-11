@@ -1,4 +1,4 @@
-import { type CombatMechVariant } from '../actors/kaykitActors.ts';
+import { type CombatMechVariant, type DummyVariant } from '../actors/kaykitActors.ts';
 
 export type LevelPropPlacement = {
   propId: string;
@@ -27,6 +27,7 @@ export type LevelCombatMechSpawn = {
 export type LevelDummySpawn = {
   x: number;
   z: number;
+  variant?: DummyVariant;
   y?: number;
 };
 

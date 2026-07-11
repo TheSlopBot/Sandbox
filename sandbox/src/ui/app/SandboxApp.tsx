@@ -20,6 +20,9 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
 
   const [bootError, setBootError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [subscribeFps, setSubscribeFps] = useState<
+    ((listener: (fps: number) => void) => () => void) | undefined
+  >(undefined);
 
   useEffect(() => {
     if (!active) {
@@ -29,6 +32,8 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
         sessionRef.current = null;
       }
 
+      setSubscribeFps(undefined);
+      setLoading(true);
       return;
     }
 
@@ -48,6 +53,7 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
       try {
         const session = await bootstrap(gameCanvas);
         sessionRef.current = session;
+        setSubscribeFps(() => session.subscribeFps);
         setBootError(null);
       } catch (err) {
         setBootError(String(err));
@@ -67,8 +73,9 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
       </div>
       <canvas ref={gameCanvasRef} id="game" />
       <PerformanceMenu
-        visible={!loading}
+        visible={active && !loading}
         bootError={bootError}
+        subscribeFps={subscribeFps}
       />
     </div>
   );

@@ -1,0 +1,114 @@
+---
+description: Construct folder layout — catalog, entities, scenes, session, storage, ui
+globs: construct/src/**
+alwaysApply: true
+---
+
+# Construct Directory Structure
+
+Construct is the standalone editor app (prop/actor builder). **Never** add editor logic to `viberanium/` or gameplay logic from `sandbox/`.
+
+## Layout
+
+```
+construct/src/
+├── ConstructApp.tsx        # package entry re-export only
+├── catalog/                # documents, keys, manifest, document↔def converters
+│   ├── actors/              # ActorDocument type + parse/serialize/convert
+│   ├── props/               # PropDocument type + parse/serialize/convert
+│   ├── keys/                # CONSTRUCT_KEYS component key strings
+│   ├── manifest/            # KaykitManifest types, loader, tree filters, lookup helpers
+│   └── slugify.ts            # shared document-id slugify helper
+├── entities/                # factories, components, systems
+│   ├── editorCommon/         # shared origin marker, colliders, editableTarget, TRS, materials
+│   ├── actorEditor/          # actor root/character/attachment/collider spawn + systems
+│   ├── propEditor/           # prop root/part spawn + systems
+│   ├── gizmos/               # move/scale/rotate gizmo meshes, input, picking, system
+│   ├── orbit/                # orbit camera + origin marker + anim preview entity
+│   ├── viewer/                # standalone preview helpers (model bounds)
+│   └── ground/               # spawnGround — editor ground plane
+├── scenes/                  # editorScene load/unload + scaffold helpers
+├── session/                 # preview, propEditor, actorEditor, anim session slices + types
+├── globals/                 # bootstrap — thin composition only
+├── storage/                 # localStore factory + actor/prop local store wrappers
+└── ui/
+    ├── app/                  # ConstructApp shell + useConstruct* hooks
+    ├── explorer/             # AssetExplorer, Tree
+    ├── inspector/             # PropInspector/ActorInspector, *Details, shared.tsx, euler
+    ├── menu/                  # AppMenu (File menu, mode switch)
+    ├── modals/                # Confirm/LoadProp/LoadActor/Rename/Tag modals
+    ├── orientation/           # OrientationCube
+    ├── viewer/                # ViewerAnimHud
+    └── theme/                 # style.css
+```
+
+## Catalog rule
+
+`catalog/` holds document types, parse/serialize, and manifest data — **no registry writes, no spawn logic**.
+
+| Belongs in `catalog/` | Belongs outside `catalog/` |
+|-----------------------|----------------------------|
+| `PropDocument` / `ActorDocument` types + parse/serialize | `spawnPropEditor`, `spawnActorEditor` |
+| `CONSTRUCT_KEYS` component key strings | `install*System` |
+| `KaykitManifest` types, `loadKaykitManifest`, tree filters | `bootstrap` composition |
+| Document ↔ `PropDefinition`/`ActorDefinition` converters | Session slices (`session/*`) |
+| `slugifyDocumentId` | UI hooks, React components |
+
+**`catalog/` must not import from `entities/`, `session/`, `scenes/`, `globals/`, or `ui/`.**
+
+## Entity rule
+
+| Folder | Role |
+|--------|------|
+| `entities/editorCommon/` | Shared mechanics: origin marker, collider shape resources, `editableTarget`, `editorSelection`, materials, TRS, `syncPartLocal` |
+| `entities/actorEditor/` | Actor root/character/attachment/collider components + `spawnActor*` + `installActorColliderFollowSystem` |
+| `entities/propEditor/` | Prop root/part components + `spawnAssetPart`/`spawnColliderPart`/`spawnPropEditor` |
+| `entities/gizmos/` | Move/scale/rotate gizmo meshes, picking, input, `installConstructGizmoSystem` |
+| `entities/orbit/` | Orbit camera state, origin marker, anim preview entity, `installConstructOrbitSystem` |
+
+Shared editor mechanics (used by both prop and actor editors) live in `entities/editorCommon/` — never duplicate origin marker, collider, or TRS logic per-editor.
+
+## Session rule
+
+- `session/types.ts` — `ConstructSession`, `ConstructSessionState`, `ConstructSessionDeps` types + `createConstructSessionState`
+- `session/preview.ts` — standalone asset preview load/texture-variant slice
+- `session/propEditor.ts` — prop document mutation slice (add/remove/rename/update parts)
+- `session/actorEditor.ts` — actor document mutation slice (character/attachments/colliders)
+- `session/anim.ts` — animation pack load/apply/clear slice
+
+Session slices are pure functions of `(deps, state, ...)` returning updated documents — no React, no JSX.
+
+## Globals rule
+
+`globals/bootstrap.ts` composes engine primitives (render pipeline, orbit, gizmos, systems) into a `ConstructSession` — composition only, no document mutation logic (that lives in `session/`).
+
+## Storage rule
+
+- `storage/localStore.ts` — generic `createLocalStore<TDoc>(storageKey)` factory (list/get/save/remove)
+- `storage/actorLocalStore.ts` / `storage/propLocalStore.ts` — thin wrappers binding the factory to `ActorDocument`/`PropDocument` with a storage-clone function
+
+Do not reimplement read/write/list/remove localStorage logic per document type — extend `localStore.ts`.
+
+## UI rule
+
+- `ui/app/ConstructApp.tsx` — layout shell only: panels, modals wiring, mode switch UI. Delegates lifecycle and workflow logic to `ui/app/useConstruct*.ts` hooks
+- `ui/app/useConstructSession.ts` — bootstrap lifecycle, session ref, prop/actor document state + listeners
+- `ui/app/useManifestExplorer.ts` — manifest load, asset/character trees, explorer search + expand state
+- `ui/app/useConstructViewer.ts` — preview model loading, texture variant + animation preview state
+- `ui/app/useConstructMode.ts` — mode + transform-mode state, tab-cycle input, enter-prop/actor-mode effect
+- `ui/app/useConstructSelection.ts` — selected prop part / actor selection state
+- `ui/app/useConstructDocumentActions.ts` — New/Save/Load/Import/Export/Rename workflows + modals
+- `ui/app/useConstructAssetActions.ts` — add asset/character/collider from the explorer
+- `ui/app/useConstructInspectorActions.ts` — per-field edit handlers wired into `PropDetails`/`ActorDetails`
+- UI talks only to `ConstructSession` (via `bootstrap`) or catalog document helpers — **never import `entities/` from `ui/`**
+- `ui/inspector/shared.tsx` — shared `AxisRow`, `DetailsHeader`, `formatNum`/`parseNum` for `PropDetails`/`ActorDetails`
+
+## Forbidden
+
+- Barrel `index.ts` anywhere under `construct/src/`
+- Comments in agent-generated `.ts`/`.tsx` source
+- God objects in `globals/bootstrap.ts` or `ui/app/ConstructApp.tsx` — one concern per file/hook
+- Component key strings outside `catalog/keys/components.ts`
+- Duplicated `AxisRow`/`formatNum`/`parseNum`/rename-header JSX across inspector panels — use `ui/inspector/shared.tsx`
+- Duplicated localStorage read/write/list/remove logic across `storage/*LocalStore.ts` — use `storage/localStore.ts`
+- `entities/` imports from `ui/`

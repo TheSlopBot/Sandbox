@@ -2,20 +2,17 @@ import {
   type TextureCache,
   type GltfCache,
   type Material,
-  type MeshDrawPart,
   type AnimationClip,
   type SkeletalModel,
   type MeshDraws,
-  createSkinInstance,
-  createInterleavedMesh,
-  createSkinnedMesh,
   createSkeletalModel,
-  createMeshDraws,
   createAnimationClip,
   createAttachmentOffset,
   buildRetargetedClips,
   buildRuntimeScene,
   buildGltfMaterials,
+  buildMeshDrawsFromRuntimeScene,
+  findBoneNodeIndex,
   updateWorldFromLocals,
   type RuntimeScene,
   type Mat4,
@@ -56,62 +53,6 @@ export type SkeletalCharacterLoad = {
     jumpLand: AnimationClip;
   };
   attachments: LoadedAttachment[];
-};
-
-const findBoneNodeIndex = (nodes: RuntimeScene['nodes'], boneName: string): number => {
-  for (let i = 0; i < nodes.length; i++) {
-    if (nodes[i].name === boneName) return i;
-  }
-
-  throw new Error(`Missing bone '${boneName}' on character rig`);
-};
-
-const buildBodyMeshDraws = (
-  gl: WebGL2RenderingContext,
-  bodyScene: RuntimeScene,
-  mats: Material[],
-): MeshDraws => {
-  const parts: MeshDrawPart[] = [];
-  const nameToBody = new Map<string, number>();
-
-  for (let i = 0; i < bodyScene.nodes.length; i++) nameToBody.set(bodyScene.nodes[i].name, i);
-
-  for (const pair of bodyScene.meshNodePairs) {
-    const model = bodyScene.models[pair.meshIndex];
-    if (!model) continue;
-
-    let skinInst = null as ReturnType<typeof createSkinInstance> | null;
-    if (pair.skinIndex >= 0) {
-      const srcSkin = bodyScene.skins[pair.skinIndex];
-      if (!srcSkin) continue;
-
-      const remappedJoints: number[] = [];
-      for (const jNode of srcSkin.joints) {
-        const jName = bodyScene.nodes[jNode]?.name;
-        remappedJoints.push(jName ? (nameToBody.get(jName) ?? 0) : 0);
-      }
-
-      const fakeScene = { ...bodyScene, nodes: bodyScene.nodes, skins: [{ ...srcSkin, joints: remappedJoints }] } as RuntimeScene;
-      skinInst = createSkinInstance(fakeScene, 0, pair.nodeIndex);
-    }
-
-    for (const prim of model.primitives) {
-      const material = prim.materialIndex >= 0 && prim.materialIndex < mats.length
-        ? mats[prim.materialIndex]
-        : mats[0];
-
-      if (prim.kind === 'skinned' && skinInst) {
-        const mesh = createSkinnedMesh(gl, prim.vertices, prim.joints, prim.weights, prim.indices, skinInst.jointCount);
-        parts.push({ mesh, material, gltfNodeIndex: pair.nodeIndex, skin: skinInst });
-        continue;
-      }
-
-      const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
-      parts.push({ mesh, material, gltfNodeIndex: pair.nodeIndex });
-    }
-  }
-
-  return createMeshDraws(parts);
 };
 
 const loadAttachment = async (
@@ -183,7 +124,7 @@ export const loadSkeletalCharacter = async (
     jumpLand: createAnimationClip(pickClip(moveClips, def.clips.jumpLand)),
   };
 
-  const meshDraws = buildBodyMeshDraws(deps.gl, bodyScene, bodyMats);
+  const meshDraws = buildMeshDrawsFromRuntimeScene(deps.gl, bodyScene, bodyMats);
   const model = createSkeletalModel(bodyScene, def.visualYOffset ?? -0.55);
 
   const attachments = def.attachments?.length

@@ -106,6 +106,7 @@ export { loadGltf, type LoadedGltf } from './assets/gltf/loader.ts';
 export { createGltfCache, type GltfCache } from './assets/gltf/cache.ts';
 export {
   buildRuntimeScene,
+  getOrBuildRuntimeScene,
   computeSkinPalette,
   snapshotPose,
   updateWorldFromLocals,
@@ -113,7 +114,12 @@ export {
   type RuntimeScene,
 } from './assets/gltf/runtime.ts';
 export { buildRuntimeModel } from './assets/gltf/buildRuntime.ts';
-export { buildGltfMaterials } from './assets/gltf/materials.ts';
+export { buildGltfMaterials, getOrBuildGltfMaterials } from './assets/gltf/materials.ts';
+export {
+  buildMeshDrawsFromRuntimeScene,
+  findBoneNodeIndex,
+} from './assets/gltf/buildMeshDrawsFromRuntimeScene.ts';
+export { colliderFromShape, type ColliderShapeSpec } from './components/colliderFromShape.ts';
 
 export { buildNavGrid, updateNavGridBlocked, isWalkableWorld, worldToCell, cellToWorld, type NavGrid } from './navigation/navGrid.ts';
 export { markNavGridDirty } from './navigation/markNavGridDirty.ts';
@@ -145,6 +151,7 @@ export {
 } from './render/pipeline.ts';
 export { createTextureCache, type TextureCache } from './render/gl/texture.ts';
 export { createInterleavedMesh, createSkinnedMesh, destroyMesh } from './render/gl/mesh.ts';
+export { createSharedMeshCache, type SharedMeshCache } from './render/gl/sharedMeshCache.ts';
 export { type Material, type DrawItem, type Camera, DIRECTIONAL_LIGHT } from './render/types.ts';
 export {
   createLoadingScreen,
@@ -157,3 +164,38 @@ export {
   createAsciiPostProcessStage,
   type AsciiStageOptions,
 } from './render/createAsciiPostProcessStage.ts';
+
+export {
+  type ActorAttachmentDef,
+  type ActorCharacterDef,
+  type ActorColliderDef,
+  type ActorColliderParent,
+  type ActorColliderShape,
+  type ActorDefinition,
+  identityAttachmentLocal,
+  collectUrlsFromActor,
+} from './definitions/actors/actorDefinition.ts';
+export { actorDefinitionToSkeletalDef } from './definitions/actors/actorDefinitionToSkeletalDef.ts';
+export {
+  buildSimpleActor,
+  type BuildSimpleActorOpts,
+  type SimpleActorAttachment,
+} from './definitions/actors/buildSimpleActor.ts';
+export {
+  type PropPartLocal,
+  type PropAssetPart,
+  type PropColliderPart,
+  type PropDefinition,
+  identityPartLocal,
+} from './definitions/props/propDefinition.ts';
+export {
+  buildSimpleProp,
+  type SimplePropCollider,
+} from './definitions/props/buildSimpleProp.ts';
+export {
+  type AnimClipRef,
+  type BoneAttachmentDef,
+  type SkeletalCharacterDef,
+  type SkeletalCharacterClipNames,
+  collectUrlsFromDef,
+} from './definitions/characters/skeletalCharacterDef.ts';

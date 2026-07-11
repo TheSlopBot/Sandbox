@@ -62,6 +62,7 @@ viberanium/src/
   systems/      install*System processors
   navigation/   A* pathfinding helpers
   assets/       loaders (gltf/)
+  definitions/  portable Actor/Prop/Skeletal defs + pure helpers (no app coupling)
   render/       pipeline, passes, shaders, gl/
   index.ts      package public API (barrel — only permitted index.ts)
 
@@ -76,9 +77,10 @@ sandbox/src/
 
 Feature code lives in its own slice folder under `entities/`. Do not add logic to `globals/bootstrap.ts` beyond composition wiring.
 
-### Catalog vs entities
+### Catalog vs entities vs definitions
 
-- **catalog/** — declarative data only (URLs, defs, level spawns, prop definitions, component keys). No registry writes.
+- **viberanium/definitions/** — portable `ActorDefinition`, `PropDefinition`, `SkeletalCharacterDef`, pure converters/builders/URL collectors. No Kaykit, no `aiPackage`, no spawn.
+- **sandbox catalog/** — app resource registries (URLs, Kaykit packs, `GameActorDefinition` with `aiPackage`, level spawns). No registry writes.
 - **entities/** — factories (`createPlayer`, `spawnActor`), components, systems.
 - **scenes/common/** — level plumbing (`instantiateProp` from `PropDefinition`, `createPlayableScene`).
 
@@ -86,7 +88,7 @@ See `.cursor/rules/sandbox-structure.mdc` for the full layout contract.
 
 ### Skeletal characters
 
-1. Define assets in `catalog/characters/*.ts` (types in `catalog/characters/characterDef.ts`)
+1. Define assets via `ActorDefinition` / `SkeletalCharacterDef` (engine types; sandbox kaykit wrappers in `catalog/`)
 2. `loadSkeletalCharacter(deps, def)` in `entities/actor/` — returns model, meshDraws, clips, attachment data
 3. `spawnSkeletalCharacter(registry, entity, loaded)` — components + hierarchy children
 4. Game factory adds gameplay components, then `registry.register(entity)`

@@ -5,6 +5,7 @@ import {
   type RenderPipeline,
   type GltfCache,
   type TextureCache,
+  type SharedMeshCache,
   type EngineOptimizationOptions,
 } from 'viberanium';
 import { collectLevelAssetUrls } from '../catalog/levels/collectAssetUrls.ts';
@@ -18,6 +19,7 @@ export type SceneManagerDeps = {
   pipeline: RenderPipeline;
   textures: TextureCache;
   gltfCache: GltfCache;
+  meshes: SharedMeshCache;
   gl: WebGL2RenderingContext;
   catalog: Record<string, LevelDefinition>;
   optimization: EngineOptimizationOptions;
@@ -35,6 +37,7 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     pipeline: deps.pipeline,
     textures: deps.textures,
     gltfCache: deps.gltfCache,
+    meshes: deps.meshes,
     optimization: deps.optimization,
   });
 
@@ -66,6 +69,7 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     if (deps.input.pressed('Digit1')) void switchTo('testOne');
     if (deps.input.pressed('Digit2')) void switchTo('testTwo');
     if (deps.input.pressed('Digit3')) void switchTo('testThree');
+    if (deps.input.pressed('Digit4')) void switchTo('testFour');
   }, 0);
 
   return {
