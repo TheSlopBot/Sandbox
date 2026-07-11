@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Material,
   type Mat4,
   type Quat,
@@ -67,14 +68,14 @@ const setHandleHighlight = (material: Material, axis: Axis, highlighted: boolean
 };
 
 export const installConstructGizmoPose = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   pipeline: RenderPipeline,
   input: ConstructGizmoInputController,
 ): ConstructGizmoPoseController => {
-  const moveMeshes = createMoveGizmoMeshes(gl);
-  const rotateMeshes = createRotateGizmoMeshes(gl);
-  const scaleMeshes = createScaleGizmoMeshes(gl);
+  const moveMeshes = createMoveGizmoMeshes(device);
+  const rotateMeshes = createRotateGizmoMeshes(device);
+  const scaleMeshes = createScaleGizmoMeshes(device);
 
   let moveHandles: MoveGizmoHandleRef[] = [];
   let rotateHandles: RotateGizmoHandleRef[] = [];
@@ -262,11 +263,11 @@ export const installConstructGizmoPose = (
       for (const h of handles) {
         if (registry.get(h.id)) registry.deregister(h.id);
       }
-      destroyMesh(gl, moveMeshes.shaft);
-      destroyMesh(gl, moveMeshes.cone);
-      destroyMesh(gl, rotateMeshes.ring);
-      destroyMesh(gl, scaleMeshes.shaft);
-      destroyMesh(gl, scaleMeshes.cube);
+      destroyMesh(device, moveMeshes.shaft);
+      destroyMesh(device, moveMeshes.cone);
+      destroyMesh(device, rotateMeshes.ring);
+      destroyMesh(device, scaleMeshes.shaft);
+      destroyMesh(device, scaleMeshes.cube);
     },
   };
 };

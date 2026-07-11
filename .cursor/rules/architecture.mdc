@@ -19,7 +19,7 @@ viberanium/                  # Game engine (Viberanium)
     ├── navigation/          # A* pathfinding helpers
     ├── assets/gltf/         # GLB/glTF loader, cache, runtime scene, materials builder
     ├── definitions/         # Portable Actor/Prop/Skeletal defs + pure helpers (no app coupling)
-    ├── render/              # WebGL2 device, passes, pipeline installer
+    ├── render/              # WebGPU device, passes, compute, pipeline installer
     └── index.ts             # Public barrel export (package entry only)
 sandbox/                     # Game content
 └── src/

@@ -48,5 +48,5 @@ export const createTestAi = (opts: TestAiOpts): TestAi => ({
   roamMaxZ: opts.roamMaxZ ?? 18,
   jumpCooldown: 4 + Math.random() * 4,
   jumpTimer: 1 + Math.random() * 3,
-  jumpChance: 0.35,
+  jumpChance: 0.08,
 });

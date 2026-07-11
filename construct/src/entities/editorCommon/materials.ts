@@ -1,9 +1,9 @@
-import { type Material } from 'viberanium';
+import { type Material, type TextureHandle } from 'viberanium';
 
 export const applyTextureToMaterials = (
   materials: Material[],
-  tex: WebGLTexture | null,
-  defaultTex: WebGLTexture | null,
+  tex: TextureHandle | null,
+  defaultTex: TextureHandle | null,
 ) => {
   const next = tex ?? defaultTex;
 

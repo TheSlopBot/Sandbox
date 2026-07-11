@@ -4,6 +4,7 @@ import { type Scene } from './scene.ts';
 export type Game = {
   readonly registry: Registry;
   setActiveScene: (scene: Scene | null) => void;
+  setPostUpdateFlush: (fn: (() => Promise<void>) | null) => void;
   start: () => void;
   stop: () => void;
 };
@@ -31,6 +32,7 @@ export const useGame = (): Game => {
 
     const ctx = { dt, time: simTime };
     runPhase('update', ctx);
+    runPhase('postUpdate', ctx);
     runPhase('draw', ctx);
     runPhase('commit', ctx);
 
@@ -55,5 +57,11 @@ export const useGame = (): Game => {
     activeScene = scene;
   };
 
-  return { registry: gameRegistry, setActiveScene, start, stop };
+  return {
+    registry: gameRegistry,
+    setActiveScene,
+    setPostUpdateFlush: () => {},
+    start,
+    stop,
+  };
 };

@@ -1,0 +1,21 @@
+---
+description: Analyze Chrome DevTools performance traces with the repo script — do not reinvent ad-hoc parsers
+alwaysApply: true
+---
+
+# Chrome performance traces
+
+When the user provides a Chrome DevTools Performance / Trace JSON (e.g. `Trace-*.json` under Downloads):
+
+1. **Use the existing script** — do not write a one-off analyzer in `/tmp` or the repo root.
+2. Run:
+
+```powershell
+python scripts/analyze-chrome-trace.py "C:\Users\…\Trace-….json"
+```
+
+Multiple traces can be passed in one invocation.
+
+3. Interpret output in this order: `frameInterval` / implied FPS → `FireAnimationFrame work` vs interval gap → `GPUTask perFrame` → CPU self-time top (ignore `(idle)` / `(program)` noise).
+4. If RAF work ≪ frame interval, the bottleneck is GPU/queue/presentation or waits outside the animation callback — not “make physics faster” first.
+5. Extend `scripts/analyze-chrome-trace.py` when new metrics are needed; keep it in `scripts/`.

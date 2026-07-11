@@ -19,7 +19,7 @@ export const extractFrustumPlanes = (out: FrustumPlanes, viewProj: Mat4): void =
   setPlane(4, viewProj[3]! - viewProj[0]!, viewProj[7]! - viewProj[4]!, viewProj[11]! - viewProj[8]!, viewProj[15]! - viewProj[12]!);
   setPlane(8, viewProj[3]! + viewProj[1]!, viewProj[7]! + viewProj[5]!, viewProj[11]! + viewProj[9]!, viewProj[15]! + viewProj[13]!);
   setPlane(12, viewProj[3]! - viewProj[1]!, viewProj[7]! - viewProj[5]!, viewProj[11]! - viewProj[9]!, viewProj[15]! - viewProj[13]!);
-  setPlane(16, viewProj[3]! + viewProj[2]!, viewProj[7]! + viewProj[6]!, viewProj[11]! + viewProj[10]!, viewProj[15]! + viewProj[14]!);
+  setPlane(16, viewProj[2]!, viewProj[6]!, viewProj[10]!, viewProj[14]!);
   setPlane(20, viewProj[3]! - viewProj[2]!, viewProj[7]! - viewProj[6]!, viewProj[11]! - viewProj[10]!, viewProj[15]! - viewProj[14]!);
 };
 

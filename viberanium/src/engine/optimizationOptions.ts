@@ -38,7 +38,8 @@ export const createEngineOptimizationOptions = (
     shadowCullDist: overrides?.shadowCullDist ?? DEFAULT_ENGINE_OPTIMIZATION.shadowCullDist,
     forwardCullDist: overrides?.forwardCullDist ?? DEFAULT_ENGINE_OPTIMIZATION.forwardCullDist,
     skeletonLod: {
-      skipStartDist: skeletonLodOverrides?.skipStartDist ?? DEFAULT_ENGINE_OPTIMIZATION.skeletonLod.skipStartDist,
+      skipStartDist:
+        skeletonLodOverrides?.skipStartDist ?? DEFAULT_ENGINE_OPTIMIZATION.skeletonLod.skipStartDist,
       freezeDist: skeletonLodOverrides?.freezeDist ?? DEFAULT_ENGINE_OPTIMIZATION.skeletonLod.freezeDist,
       baseRate: skeletonLodOverrides?.baseRate ?? DEFAULT_ENGINE_OPTIMIZATION.skeletonLod.baseRate,
     },

@@ -86,7 +86,9 @@ export const stopActorSystems = (state: ConstructSessionState) => {
 
 const ensureActorSystems = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
   if (!state.removeSkeletalSystem) {
-    state.removeSkeletalSystem = installSkeletalCharacterSystems(deps.registry);
+    state.removeSkeletalSystem = installSkeletalCharacterSystems(deps.registry, {
+      device: deps.device,
+    });
   }
   if (!state.removeSkeletonOverlaySystem) {
     state.removeSkeletonOverlaySystem = installSkeletonOverlaySystem(deps.registry);
@@ -98,7 +100,7 @@ const ensureActorSystems = (deps: ConstructSessionDeps, state: ConstructSessionS
 
 const ensureActorRootWithOrigin = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
   const rootId = ensureActorRoot(deps.registry, state.actorDocument);
-  ensureActorOriginMarker(deps.gl, deps.registry, rootId);
+  ensureActorOriginMarker(deps.device, deps.registry, rootId);
   return rootId;
 };
 
@@ -111,17 +113,17 @@ const respawnActorContent = async (deps: ConstructSessionDeps, state: ConstructS
   ensureActorSystems(deps, state);
 
   const spawned = await spawnActorCharacter(
-    deps.gl,
+    deps.device,
     deps.registry,
     deps.textures,
     deps.gltfCache,
     state.actorDocument.character,
   );
-  spawnSkeletonOverlay(deps.gl, deps.registry, spawned.bodyScene, spawned.boneNames);
+  spawnSkeletonOverlay(deps.device, deps.registry, spawned.bodyScene, spawned.boneNames);
 
   for (const attachment of state.actorDocument.attachments) {
     await spawnActorAttachment(
-      deps.gl,
+      deps.device,
       deps.registry,
       deps.textures,
       deps.gltfCache,
@@ -132,7 +134,7 @@ const respawnActorContent = async (deps: ConstructSessionDeps, state: ConstructS
   }
 
   for (const collider of state.actorDocument.colliders) {
-    spawnActorCollider(deps.gl, deps.registry, spawned.entityId, spawned.bodyScene, collider);
+    spawnActorCollider(deps.device, deps.registry, spawned.entityId, spawned.bodyScene, collider);
   }
 };
 
@@ -287,7 +289,7 @@ export const addActorAttachment = async (
   };
 
   await spawnActorAttachment(
-    deps.gl,
+    deps.device,
     deps.registry,
     deps.textures,
     deps.gltfCache,
@@ -443,7 +445,7 @@ export const updateAttachmentPlaceholder = async (
 
   removeActorAttachmentEntity(deps.registry, attachmentId);
   await spawnActorAttachment(
-    deps.gl,
+    deps.device,
     deps.registry,
     deps.textures,
     deps.gltfCache,
@@ -474,7 +476,7 @@ export const updateAttachmentTextureVariant = async (
 
   removeActorAttachmentEntity(deps.registry, attachmentId);
   await spawnActorAttachment(
-    deps.gl,
+    deps.device,
     deps.registry,
     deps.textures,
     deps.gltfCache,
@@ -558,7 +560,7 @@ export const addActorCollider = (
     colliders: [...state.actorDocument.colliders, collider],
   };
 
-  spawnActorCollider(deps.gl, deps.registry, characterEntity.id, bodyScene, collider);
+  spawnActorCollider(deps.device, deps.registry, characterEntity.id, bodyScene, collider);
 
   selectActor(deps, state, { kind: 'collider', colliderId: collider.id });
   notifyActorDoc(state);

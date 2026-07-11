@@ -1,4 +1,5 @@
 import {
+  type TextureHandle,
   type Material,
   buildGltfMaterials,
   buildMeshDrawsFromRuntimeScene,
@@ -36,7 +37,7 @@ import {
   type ConstructTextureVariant,
 } from './types.ts';
 
-const applyTextureToMaterials = (materials: Material[], tex: WebGLTexture | null) => {
+const applyTextureToMaterials = (materials: Material[], tex: TextureHandle | null) => {
   for (const mat of materials) {
     if (tex) mat.baseColorTex = tex;
   }
@@ -112,9 +113,9 @@ export const loadModel = async (
 
     const wrapped = createAnimationClip({ name: 'idle', duration: 1, channels: [] });
 
-    const meshDraws = buildMeshDrawsFromRuntimeScene(deps.gl, runtimeScene, mats);
+    const meshDraws = buildMeshDrawsFromRuntimeScene(deps.device, runtimeScene, mats);
     for (const part of meshDraws.parts) {
-      entity.onDeregister.push(() => destroyMesh(deps.gl, part.mesh));
+      entity.onDeregister.push(() => destroyMesh(deps.device, part.mesh));
     }
 
     entity.components[COMPONENT_KEYS.skeletalModel] = createSkeletalModel(runtimeScene, 0);
@@ -130,7 +131,9 @@ export const loadModel = async (
     deps.registry.register(entity);
 
     if (state.removeSkeletalSystem) state.removeSkeletalSystem();
-    state.removeSkeletalSystem = installSkeletalCharacterSystems(deps.registry);
+    state.removeSkeletalSystem = installSkeletalCharacterSystems(deps.registry, {
+      device: deps.device,
+    });
 
     const boneNames =
       runtimeScene.skins[0]?.joints
@@ -157,12 +160,12 @@ export const loadModel = async (
 
       if (prim.kind === 'skinned' && pair.skinIndex >= 0) continue;
 
-      const mesh = createInterleavedMesh(deps.gl, prim.vertices, prim.indices);
+      const mesh = createInterleavedMesh(deps.device, prim.vertices, prim.indices);
       const re = deps.registry.createBare();
       re.components[COMPONENT_KEYS.transform] = rootT;
       re.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
       re.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
-      re.onDeregister.push(() => destroyMesh(deps.gl, mesh));
+      re.onDeregister.push(() => destroyMesh(deps.device, mesh));
       deps.registry.register(re);
       renderEntityIds.push(re.id);
     }

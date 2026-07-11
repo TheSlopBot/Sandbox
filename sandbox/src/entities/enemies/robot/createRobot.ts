@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   type TextureCache,
   type GltfCache,
@@ -18,14 +19,14 @@ export type RobotSpawnOpts = TestAiOpts & {
 
 export const createRobot = async (
   registry: Registry,
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   textures: TextureCache,
   gltfCache: GltfCache,
   opts: RobotSpawnOpts,
 ) =>
   spawnActor(
     registry,
-    gl,
+    device,
     textures,
     gltfCache,
     actorDefinitionToSkeletalDef(

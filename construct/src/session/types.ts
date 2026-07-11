@@ -1,4 +1,6 @@
 import {
+  type GpuDevice,
+  type TextureHandle,
   type Entity,
   type GltfCache,
   type Material,
@@ -115,7 +117,7 @@ export type ConstructSession = {
 export type ConstructEditorMode = 'preview' | 'prop' | 'actor';
 
 export type ConstructSessionDeps = {
-  gl: WebGL2RenderingContext;
+  device: GpuDevice;
   registry: Registry;
   textures: TextureCache;
   gltfCache: GltfCache;
@@ -145,7 +147,7 @@ export type ConstructSessionState = {
   activeMaterials: Material[];
   textureVariants: ConstructTextureVariant[];
   activeTextureVariantUrl: string | null;
-  defaultBaseColorTex: WebGLTexture | null;
+  defaultBaseColorTex: TextureHandle | null;
 };
 
 export const createConstructSessionState = (selectionEnt: Entity): ConstructSessionState => ({

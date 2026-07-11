@@ -9,16 +9,22 @@ import {
   resolveCapsuleHorizontal,
   resolveCapsuleVertical,
 } from '../collision/capsule.ts';
-import { getObstacles } from './collisionSystem.ts';
+import { getNearbyObstacles } from './collisionSystem.ts';
 
 const PHYSICS_STEP_SEC = 1 / 144;
+const MAX_PHYSICS_SUBSTEPS = 4;
 
 const _box: Aabb = {
   min: new Float32Array(3),
   max: new Float32Array(3),
 };
 
-export const installCharacterPhysicsSystem = (registry: Registry) => {
+export const installCharacterPhysicsSystem = (
+  registry: Registry,
+  options: { skip?: boolean } = {},
+) => {
+  if (options.skip) return;
+
   registry.addAction('update', (ctx) => {
     for (const e of registry.view(COMPONENT_KEYS.character)) {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
@@ -31,17 +37,26 @@ export const installCharacterPhysicsSystem = (registry: Registry) => {
         cc.velocity[2] * cc.velocity[2];
       if (speed2 < 1e-10 && cc.onGround) continue;
 
-      const obstacles = getObstacles(registry, cc.obstructiveColliderKeys);
       const foot = characterFootOffset(cc);
+      const queryRadius = Math.max(2, cc.radius * 8 + Math.hypot(cc.velocity[0], cc.velocity[2]) * 0.1);
+      const obstacles = getNearbyObstacles(
+        registry,
+        cc.obstructiveColliderKeys,
+        t.position[0],
+        t.position[2],
+        queryRadius,
+      );
 
       const prevX = t.position[0];
       const prevY = t.position[1];
       const prevZ = t.position[2];
 
       let physicsRemaining = ctx.dt;
-      while (physicsRemaining > 1e-12) {
+      let substeps = 0;
+      while (physicsRemaining > 1e-12 && substeps < MAX_PHYSICS_SUBSTEPS) {
         const step = Math.min(physicsRemaining, PHYSICS_STEP_SEC);
         physicsRemaining -= step;
+        substeps += 1;
 
         const stepPrevY = t.position[1];
 

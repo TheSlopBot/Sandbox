@@ -1,11 +1,12 @@
 ﻿import { createInterleavedMesh, destroyMesh, type Mesh } from './mesh.ts';
+import { type GpuDevice } from './device.ts';
 
 export type SharedMeshCache = {
   getInterleaved: (key: string, vertices: Float32Array, indices: Uint32Array) => Mesh;
   destroy: () => void;
 };
 
-export const createSharedMeshCache = (gl: WebGL2RenderingContext): SharedMeshCache => {
+export const createSharedMeshCache = (device: GpuDevice): SharedMeshCache => {
   const meshes = new Map<string, Mesh>();
 
   return {
@@ -13,12 +14,12 @@ export const createSharedMeshCache = (gl: WebGL2RenderingContext): SharedMeshCac
       const existing = meshes.get(key);
       if (existing) return existing;
 
-      const mesh = createInterleavedMesh(gl, vertices, indices);
+      const mesh = createInterleavedMesh(device, vertices, indices);
       meshes.set(key, mesh);
       return mesh;
     },
     destroy: () => {
-      for (const mesh of meshes.values()) destroyMesh(gl, mesh);
+      for (const mesh of meshes.values()) destroyMesh(device, mesh);
       meshes.clear();
     },
   };

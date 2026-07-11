@@ -175,7 +175,7 @@ export const m4FromTRSQuat = (out: Mat4, t: Vec3, r: Quat, s: Vec3): Mat4 => {
 export const m4Ortho = (out: Mat4, left: number, right: number, bottom: number, top: number, near: number, far: number): Mat4 => {
   const rl = 1 / (right - left);
   const tb = 1 / (top - bottom);
-  const fn = 1 / (far - near);
+  const nf = 1 / (near - far);
   out[0] = 2 * rl;
   out[1] = 0;
   out[2] = 0;
@@ -186,11 +186,11 @@ export const m4Ortho = (out: Mat4, left: number, right: number, bottom: number, 
   out[7] = 0;
   out[8] = 0;
   out[9] = 0;
-  out[10] = -2 * fn;
+  out[10] = nf;
   out[11] = 0;
   out[12] = -(right + left) * rl;
   out[13] = -(top + bottom) * tb;
-  out[14] = -(far + near) * fn;
+  out[14] = near * nf;
   out[15] = 1;
   return out;
 };
@@ -203,11 +203,11 @@ export const m4Perspective = (out: Mat4, fovyRad: number, aspect: number, near: 
   out[11] = -1;
   if (Number.isFinite(far)) {
     const nf = 1 / (near - far);
-    out[10] = (far + near) * nf;
-    out[14] = 2 * far * near * nf;
+    out[10] = far * nf;
+    out[14] = far * near * nf;
   } else {
     out[10] = -1;
-    out[14] = -2 * near;
+    out[14] = -near;
   }
   return out;
 };

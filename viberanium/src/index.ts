@@ -79,7 +79,7 @@ export { createCameraFollow, type CameraFollow } from './components/cameraFollow
 export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
 export { createNavGrid, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
 export { createSkeletalModel, type SkeletalModel } from './components/skeletalModel.ts';
-export { createMeshDraws, type MeshDraws, type MeshDrawPart } from './components/meshDraws.ts';
+export { createMeshDraws, type MeshDraws, type MeshDrawPart, type GpuModelSource } from './components/meshDraws.ts';
 export { createChildOf, type ChildOf } from './components/childOf.ts';
 export { createChildren, addChildId, removeChildId, type Children } from './components/children.ts';
 export { createLocalTransform, type LocalTransform } from './components/localTransform.ts';
@@ -128,7 +128,7 @@ export { findPath, pickRandomObjective } from './navigation/astar.ts';
 export { installMovementSystem } from './systems/movementSystem.ts';
 export { installNavGridSystem } from './systems/navGridSystem.ts';
 export { installCharacterPhysicsSystem } from './systems/characterPhysicsSystem.ts';
-export { installCollisionSystem, getObstacles } from './systems/collisionSystem.ts';
+export { installCollisionSystem, getObstacles, getNearbyObstacles, type CollisionSystemOptions } from './systems/collisionSystem.ts';
 export { installColliderTransformSystem } from './systems/colliderTransformSystem.ts';
 export { installCharacterStateSystem } from './systems/characterStateSystem.ts';
 export { installAnimationFsmSystem } from './systems/animationFsmSystem.ts';
@@ -141,17 +141,25 @@ export {
   installSkeletalCharacterSystems,
   type SkeletalCharacterSystemsOptions,
 } from './systems/installSkeletalCharacterSystems.ts';
+export { installSkeletalGpuPoseSystem } from './systems/skeletalGpuPoseSystem.ts';
 export { installStaticModelSystem } from './systems/staticModelSystem.ts';
 
+export { createDevice, type GpuDevice } from './render/gl/device.ts';
 export {
   installRenderPipeline,
   type RenderPipeline,
   type PostProcessStage,
   type PipelineOptions,
 } from './render/pipeline.ts';
-export { createTextureCache, type TextureCache } from './render/gl/texture.ts';
-export { createInterleavedMesh, createSkinnedMesh, destroyMesh } from './render/gl/mesh.ts';
+export { createTextureCache, type TextureCache, type TextureHandle } from './render/gl/texture.ts';
+export { createInterleavedMesh, createSkinnedMesh, destroyMesh, type Mesh, type SkinnedMesh } from './render/gl/mesh.ts';
 export { createSharedMeshCache, type SharedMeshCache } from './render/gl/sharedMeshCache.ts';
+export {
+  createStaticPropBatcher,
+  type StaticPropBatcher,
+  type StaticPropBatchHandle,
+  type PreparedStaticBatch,
+} from './render/gl/staticPropBatcher.ts';
 export { type Material, type DrawItem, type Camera, DIRECTIONAL_LIGHT } from './render/types.ts';
 export {
   createLoadingScreen,

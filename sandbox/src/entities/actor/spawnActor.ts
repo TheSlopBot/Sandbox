@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   createTransform,
   createCharacterController,
@@ -22,7 +23,7 @@ export type SpawnActorOpts = {
 
 export const spawnActor = async (
   registry: Registry,
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   textures: TextureCache,
   gltfCache: GltfCache,
   def: SkeletalCharacterDef,
@@ -45,8 +46,8 @@ export const spawnActor = async (
     }
   }
 
-  const loaded = await loadSkeletalCharacter({ gl, textures, gltfCache }, def);
-  spawnSkeletalCharacter(registry, entity, loaded, { gl });
+  const loaded = await loadSkeletalCharacter({ device, textures, gltfCache }, def);
+  spawnSkeletalCharacter(registry, entity, loaded, { device });
 
   const cc = entity.components[COMPONENT_KEYS.character] as CharacterController;
   cc.moveSpeed = opts.moveSpeed ?? 3.8;

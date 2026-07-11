@@ -28,6 +28,7 @@ export const cloneActorDoc = (doc: ActorDocument): ActorDocument => ({
 export type UseConstructSessionResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   sessionRef: RefObject<ConstructSession | null>;
+  sessionReady: number;
   propDoc: PropDocument;
   setPropDoc: Dispatch<SetStateAction<PropDocument>>;
   actorDoc: ActorDocument;
@@ -43,6 +44,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
   const [propDoc, setPropDoc] = useState<PropDocument>(() => createEmptyPropDocument());
   const [actorDoc, setActorDoc] = useState<ActorDocument>(() => createEmptyActorDocument());
   const [actorBoneNames, setActorBoneNames] = useState<string[]>([]);
+  const [sessionReady, setSessionReady] = useState(0);
 
   useEffect(() => {
     if (!active) return;
@@ -51,7 +53,22 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    sessionRef.current = bootstrap(canvas);
+    let cancelled = false;
+
+    void bootstrap(canvas).then((session) => {
+      if (cancelled) {
+        session.unload();
+        return;
+      }
+
+      sessionRef.current = session;
+      session.setActive(true);
+      setSessionReady((n) => n + 1);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [active]);
 
   useEffect(() => {
@@ -59,7 +76,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
     if (!session) return;
 
     session.setActive(active);
-  }, [active]);
+  }, [active, sessionReady]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -77,7 +94,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
       session.setPropDocumentListener(null);
       session.setActorDocumentListener(null);
     };
-  }, [active]);
+  }, [active, sessionReady]);
 
   useEffect(() => {
     if (active) return;
@@ -92,6 +109,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
   return {
     canvasRef,
     sessionRef,
+    sessionReady,
     propDoc,
     setPropDoc,
     actorDoc,

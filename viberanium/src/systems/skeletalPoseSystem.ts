@@ -124,10 +124,11 @@ export const installSkeletalPoseSystem = (registry: Registry, options: SkeletalP
 
       sampleClipToNodes(clip, nodes, time * speed, 1, isLoopingState(fsm.current));
 
+      const topo = bodyScene.nodeTopoOrder;
       if (animated.length === 0) {
-        updateWorldFromLocals(nodes);
+        updateWorldFromLocals(nodes, topo);
       } else {
-        updateWorldFromLocalsDirty(nodes, cache.dirty);
+        updateWorldFromLocalsDirty(nodes, cache.dirty, topo);
       }
 
       model.poseDirty = true;

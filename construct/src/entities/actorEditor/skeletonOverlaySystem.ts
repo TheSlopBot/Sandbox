@@ -5,9 +5,14 @@ import {
   type SkeletalModel,
   type Mat4,
   type Quat,
+  m4,
+  m4Copy,
+  m4Mul,
   m4FromTRSQuat,
   q4,
   v3,
+  updateWorldMatrix,
+  updateWorldFromLocals,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { CONSTRUCT_KEYS } from '../../catalog/keys/components.ts';
@@ -16,6 +21,10 @@ import { type ConstructActorSelection } from './actorSelection.ts';
 
 const WHITE: [number, number, number, number] = [1, 1, 1, 0.95];
 const RED: [number, number, number, number] = [1, 0.2, 0.2, 0.95];
+
+const _renderRoot = m4();
+const _boneWorld = m4();
+const _parentWorld = m4();
 
 const translationFromMat4 = (out: ReturnType<typeof v3>, m: Mat4) => {
   out[0] = m[12]!;
@@ -83,7 +92,12 @@ export const installSkeletonOverlaySystem = (registry: Registry) =>
       const skeletal = characterEnt?.components[COMPONENT_KEYS.skeletalModel] as
         | SkeletalModel
         | undefined;
-      if (!skeletal) return;
+      const charT = characterEnt?.components[COMPONENT_KEYS.transform] as Transform | undefined;
+      if (!skeletal || !charT) return;
+
+      updateWorldMatrix(charT);
+      m4Copy(_renderRoot, charT.world);
+      _renderRoot[13]! += skeletal.visualYOffset;
 
       const selEnt = registry.view(CONSTRUCT_KEYS.actorSelection)[0];
       const actorSel = selEnt?.components[CONSTRUCT_KEYS.actorSelection] as
@@ -93,10 +107,11 @@ export const installSkeletonOverlaySystem = (registry: Registry) =>
         actorSel && actorSel.kind === 'bone' ? actorSel.boneName : null;
 
       const nodes = skeletal.bodyScene.nodes;
-      const nameToWorld = new Map<string, Mat4>();
+      updateWorldFromLocals(nodes, skeletal.bodyScene.nodeTopoOrder);
+      const nameToModelWorld = new Map<string, Mat4>();
 
       for (const node of nodes) {
-        if (node.name) nameToWorld.set(node.name, node.worldM);
+        if (node.name) nameToModelWorld.set(node.name, node.worldM);
       }
 
       const _pos = v3();
@@ -121,13 +136,17 @@ export const installSkeletonOverlaySystem = (registry: Registry) =>
                 overlay.parentBoneName === selectedBone)));
 
         if (overlay.role === 'joint') {
-          const worldM = nameToWorld.get(overlay.boneName);
-          if (!worldM) continue;
+          const modelM = nameToModelWorld.get(overlay.boneName);
+          if (!modelM) continue;
 
-          translationFromMat4(_pos, worldM);
+          m4Mul(_boneWorld, _renderRoot, modelM);
+          translationFromMat4(_pos, _boneWorld);
           t.position[0] = _pos[0];
           t.position[1] = _pos[1];
           t.position[2] = _pos[2];
+          _scale[0] = 1;
+          _scale[1] = 1;
+          _scale[2] = 1;
           m4FromTRSQuat(t.world, _pos, q4(0, 0, 0, 1), _scale);
           t.dirty = false;
           setColor(renderable.material, selected);
@@ -136,16 +155,19 @@ export const installSkeletonOverlaySystem = (registry: Registry) =>
 
         if (!overlay.parentBoneName) continue;
 
-        const childM = nameToWorld.get(overlay.boneName);
-        const parentM = nameToWorld.get(overlay.parentBoneName);
-        if (!childM || !parentM) continue;
+        const childModel = nameToModelWorld.get(overlay.boneName);
+        const parentModel = nameToModelWorld.get(overlay.parentBoneName);
+        if (!childModel || !parentModel) continue;
 
-        const cx = childM[12]!;
-        const cy = childM[13]!;
-        const cz = childM[14]!;
-        const px = parentM[12]!;
-        const py = parentM[13]!;
-        const pz = parentM[14]!;
+        m4Mul(_boneWorld, _renderRoot, childModel);
+        m4Mul(_parentWorld, _renderRoot, parentModel);
+
+        const cx = _boneWorld[12]!;
+        const cy = _boneWorld[13]!;
+        const cz = _boneWorld[14]!;
+        const px = _parentWorld[12]!;
+        const py = _parentWorld[13]!;
+        const pz = _parentWorld[14]!;
         const dx = cx - px;
         const dy = cy - py;
         const dz = cz - pz;

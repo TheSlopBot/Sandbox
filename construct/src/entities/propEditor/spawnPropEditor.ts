@@ -1,4 +1,5 @@
-﻿import {
+import {
+  type GpuDevice,
   type Registry,
   type Entity,
   createTransform,
@@ -67,14 +68,14 @@ export const ensurePropRoot = (registry: Registry, doc: PropDocument) => {
 };
 
 export const ensurePropOriginMarker = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   rootId: number,
 ) => {
   if (registry.view(CONSTRUCT_KEYS.propOriginMarker)[0]) return;
 
   spawnOriginMarkerChild(
-    gl,
+    device,
     registry,
     rootId,
     CONSTRUCT_KEYS.propOriginMarker,

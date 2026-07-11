@@ -133,7 +133,7 @@ export const installCameraFollowSystem = (
 ) => {
   const spatial = createStaticSpatialIndex();
 
-  registry.addAction('update', (ctx) => {
+  registry.addAction('postUpdate', (ctx) => {
     const colliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
 
     for (const e of registry.view(COMPONENT_KEYS.cameraFollow)) {

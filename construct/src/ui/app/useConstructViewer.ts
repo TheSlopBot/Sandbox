@@ -16,6 +16,7 @@ export type UseConstructViewerParams = {
   active: boolean;
   mode: ConstructMode;
   sessionRef: RefObject<ConstructSession | null>;
+  sessionReady: number;
   manifest: KaykitManifest | null;
   entriesByPath: Map<string, KaykitManifestEntry>;
   selectedEntry: KaykitManifestEntry | null;
@@ -30,6 +31,7 @@ export const useConstructViewer = ({
   active,
   mode,
   sessionRef,
+  sessionReady,
   manifest,
   entriesByPath,
   selectedEntry,
@@ -102,7 +104,7 @@ export const useConstructViewer = ({
     setSelectedEntry(entry);
     setExpanded((prev) => expandVariantPaths(prev, entry.path, 'assets'));
     void loadEntry(entry);
-  }, [active, manifest, entriesByPath, mode]);
+  }, [active, manifest, entriesByPath, mode, sessionReady]);
 
   const compatibleAnimPacks = useMemo(() => {
     if (!manifest) return [];

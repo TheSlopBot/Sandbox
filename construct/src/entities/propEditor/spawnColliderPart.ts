@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   destroyMesh,
   createTransform,
@@ -18,7 +19,7 @@ import { applyLocalFromTRS, bakeChildWorld } from '../editorCommon/trs.ts';
 import { createColliderShapeResources } from '../editorCommon/colliderShapeResources.ts';
 
 export const spawnColliderPartEntity = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   rootId: number,
   part: PropDocumentColliderPart,
@@ -41,7 +42,7 @@ export const spawnColliderPartEntity = (
   child.components[CONSTRUCT_KEYS.editableTarget] = createConstructEditableTarget(part.id);
   child.components[CONSTRUCT_KEYS.colliderWireframe] = createConstructColliderWireframe(part.shape);
 
-  const resources = createColliderShapeResources(gl, part.shape, {
+  const resources = createColliderShapeResources(device, part.shape, {
     halfExtents: part.halfExtents,
     radius: part.radius,
     halfHeight: part.halfHeight,
@@ -54,7 +55,7 @@ export const spawnColliderPartEntity = (
     castShadow: false,
     overlay: true,
   };
-  child.onDeregister.push(() => destroyMesh(gl, mesh));
+  child.onDeregister.push(() => destroyMesh(device, mesh));
 
   registry.register(child);
   addChildId(children, child.id);

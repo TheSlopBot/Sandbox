@@ -1,253 +1,831 @@
-import { DIRECTIONAL_LIGHT, type Camera, type DrawItem, type ShadowState } from '../types.ts';
-import { type ShaderProgram } from '../gl/shader.ts';
+import { type GpuDevice } from '../gl/device.ts';
+import { createSolidTexture, type TextureHandle } from '../gl/texture.ts';
+import { createShadowMap } from '../gl/shadowMap.ts';
+import { createSceneTargets } from '../gl/sceneTargets.ts';
+import { type Mesh, type SkinnedMesh } from '../gl/mesh.ts';
+import { type Mat4 } from '../../math/mat4.ts';
+import { DIRECTIONAL_LIGHT, type Camera, type DrawItem, type GroundDraw } from '../types.ts';
+import { litWGSL } from '../shaders/litWgsl.ts';
+import { groundWGSL } from '../shaders/groundWgsl.ts';
+import { instancedLitWGSL } from '../shaders/instancedLitWgsl.ts';
+import { createShadowPass } from './shadowPass.ts';
+import { type PreparedStaticBatch } from '../gl/staticPropBatcher.ts';
+
+const FRAME_UNIFORM_FLOATS = 44;
+const FRAME_UNIFORM_SIZE = FRAME_UNIFORM_FLOATS * 4;
+const OBJECT_UNIFORM_SIZE = 80;
+const OBJECT_UNIFORM_ALIGN = 256;
+const MAX_JOINTS = 128;
+const JOINT_MATRIX_FLOATS = 16;
+const JOINT_BUFFER_SIZE = MAX_JOINTS * JOINT_MATRIX_FLOATS * 4;
+const MSAA_SAMPLES = 4;
+const IDENTITY_MODEL = new Float32Array([
+  1, 0, 0, 0,
+  0, 1, 0, 0,
+  0, 0, 1, 0,
+  0, 0, 0, 1,
+]);
+
+const STATIC_VERTEX_LAYOUT: GPUVertexBufferLayout = {
+  arrayStride: 32,
+  attributes: [
+    { shaderLocation: 0, offset: 0, format: 'float32x3' },
+    { shaderLocation: 1, offset: 12, format: 'float32x3' },
+    { shaderLocation: 2, offset: 24, format: 'float32x2' },
+  ],
+};
+
+const SKINNED_VERTEX_LAYOUTS: GPUVertexBufferLayout[] = [
+  STATIC_VERTEX_LAYOUT,
+  {
+    arrayStride: 8,
+    attributes: [{ shaderLocation: 3, offset: 0, format: 'uint16x4' }],
+  },
+  {
+    arrayStride: 16,
+    attributes: [{ shaderLocation: 4, offset: 0, format: 'float32x4' }],
+  },
+];
+
+const BLEND_ALPHA: GPUBlendState = {
+  color: {
+    srcFactor: 'src-alpha',
+    dstFactor: 'one-minus-src-alpha',
+    operation: 'add',
+  },
+  alpha: {
+    srcFactor: 'one',
+    dstFactor: 'one-minus-src-alpha',
+    operation: 'add',
+  },
+};
 
 export type ForwardPass = {
-  draw: (camera: Camera, shadow: ShadowState, groundItem: DrawItem | null, items: DrawItem[]) => void;
+  encode: (
+    encoder: GPUCommandEncoder,
+    camera: Camera,
+    lightViewProj: Mat4,
+    ground: GroundDraw | null,
+    opaque: readonly DrawItem[],
+    transparent: readonly DrawItem[],
+    overlay: readonly DrawItem[],
+    shadowCasters: readonly DrawItem[],
+    staticBatches?: readonly PreparedStaticBatch[],
+  ) => { width: number; height: number };
+  getSceneView: () => GPUTextureView;
   destroy: () => void;
 };
 
-const skinSortIds = new WeakMap<Float32Array, number>();
-let nextSkinSortId = 1;
-const skinSortId = (palette: Float32Array) => {
-  let id = skinSortIds.get(palette);
-  if (id === undefined) {
-    id = nextSkinSortId++;
-    skinSortIds.set(palette, id);
-  }
-  return id;
+type LitPipelineKey = 'opaqueCull' | 'opaqueNone' | 'blendCull' | 'blendNone';
+
+type PaletteGpu = {
+  buffer: GPUBuffer;
+  bindGroup: GPUBindGroup;
 };
 
-export const createForwardPass = (
-  gl: WebGL2RenderingContext,
-  lit: ShaderProgram,
-  litSkinned: ShaderProgram,
-  ground: ShaderProgram,
-): ForwardPass => {
-  const whiteTex = gl.createTexture();
-  if (!whiteTex) throw new Error('Failed to create white texture');
+const isSkinnedMesh = (mesh: Mesh): mesh is SkinnedMesh => 'jointBuffer' in mesh;
 
-  gl.bindTexture(gl.TEXTURE_2D, whiteTex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+export const createForwardPass = (device: GpuDevice): ForwardPass => {
+  const gpu = device.gpu;
+  const litShader = gpu.createShaderModule({ code: litWGSL });
+  const groundShader = gpu.createShaderModule({ code: groundWGSL });
+  const instancedLitShader = gpu.createShaderModule({ code: instancedLitWGSL });
+  const whiteTex = createSolidTexture(device);
+  const shadowMap = createShadowMap(device, 2048);
+  const sceneTargets = createSceneTargets(device, MSAA_SAMPLES);
+  const shadowPass = createShadowPass(device, shadowMap);
+  const sampleCount = sceneTargets.samples;
 
-  let destroyed = false;
-  const destroy = () => {
-    if (destroyed) return;
-    destroyed = true;
-    gl.deleteTexture(whiteTex);
-    lit.destroy();
-    litSkinned.destroy();
-    ground.destroy();
+  const frameBindGroupLayout = gpu.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        buffer: { type: 'uniform' },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { sampleType: 'depth' },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: { type: 'comparison' },
+      },
+    ],
+  });
+
+  const objectBindGroupLayout = gpu.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        buffer: { type: 'uniform', hasDynamicOffset: true },
+      },
+    ],
+  });
+
+  const textureBindGroupLayout = gpu.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { sampleType: 'float' },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: { type: 'filtering' },
+      },
+    ],
+  });
+
+  const jointBindGroupLayout = gpu.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: 'read-only-storage' },
+      },
+    ],
+  });
+
+  const litPipelineLayout = gpu.createPipelineLayout({
+    bindGroupLayouts: [frameBindGroupLayout, objectBindGroupLayout, textureBindGroupLayout],
+  });
+
+  const skinnedPipelineLayout = gpu.createPipelineLayout({
+    bindGroupLayouts: [
+      frameBindGroupLayout,
+      objectBindGroupLayout,
+      textureBindGroupLayout,
+      jointBindGroupLayout,
+    ],
+  });
+
+  const groundPipelineLayout = gpu.createPipelineLayout({
+    bindGroupLayouts: [frameBindGroupLayout, objectBindGroupLayout],
+  });
+
+  const instanceBindGroupLayout = gpu.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        buffer: { type: 'read-only-storage' },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: 'read-only-storage' },
+      },
+    ],
+  });
+
+  const instancedPipelineLayout = gpu.createPipelineLayout({
+    bindGroupLayouts: [frameBindGroupLayout, instanceBindGroupLayout, textureBindGroupLayout],
+  });
+
+  const makeLitPipeline = (
+    layout: GPUPipelineLayout,
+    entryPoint: 'vsMain' | 'vsSkinned',
+    buffers: GPUVertexBufferLayout[],
+    cullMode: GPUCullMode,
+    blend: boolean,
+    samples: number,
+    depthBias = 0,
+    depthBiasSlopeScale = 0,
+  ): GPURenderPipeline =>
+    gpu.createRenderPipeline({
+      layout,
+      vertex: {
+        module: litShader,
+        entryPoint,
+        buffers,
+      },
+      fragment: {
+        module: litShader,
+        entryPoint: 'fsMain',
+        targets: [
+          {
+            format: device.format,
+            blend: blend ? BLEND_ALPHA : undefined,
+            writeMask: GPUColorWrite.ALL,
+          },
+        ],
+      },
+      primitive: {
+        topology: 'triangle-list',
+        cullMode,
+        frontFace: 'ccw',
+      },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: !blend,
+        depthCompare: 'less-equal',
+        depthBias,
+        depthBiasSlopeScale,
+        depthBiasClamp: 0,
+      },
+      multisample: { count: samples },
+    });
+
+  const litPipelines: Record<LitPipelineKey, GPURenderPipeline> = {
+    opaqueCull: makeLitPipeline(litPipelineLayout, 'vsMain', [STATIC_VERTEX_LAYOUT], 'back', false, sampleCount),
+    opaqueNone: makeLitPipeline(litPipelineLayout, 'vsMain', [STATIC_VERTEX_LAYOUT], 'none', false, sampleCount),
+    blendCull: makeLitPipeline(litPipelineLayout, 'vsMain', [STATIC_VERTEX_LAYOUT], 'back', true, sampleCount),
+    blendNone: makeLitPipeline(litPipelineLayout, 'vsMain', [STATIC_VERTEX_LAYOUT], 'none', true, sampleCount),
   };
 
-  const opaque: DrawItem[] = [];
-  const transparent: DrawItem[] = [];
-  const jointViewCache = new WeakMap<Float32Array, Float32Array>();
+  const skinnedPipelines: Record<LitPipelineKey, GPURenderPipeline> = {
+    opaqueCull: makeLitPipeline(skinnedPipelineLayout, 'vsSkinned', SKINNED_VERTEX_LAYOUTS, 'back', false, sampleCount),
+    opaqueNone: makeLitPipeline(skinnedPipelineLayout, 'vsSkinned', SKINNED_VERTEX_LAYOUTS, 'none', false, sampleCount),
+    blendCull: makeLitPipeline(skinnedPipelineLayout, 'vsSkinned', SKINNED_VERTEX_LAYOUTS, 'back', true, sampleCount),
+    blendNone: makeLitPipeline(skinnedPipelineLayout, 'vsSkinned', SKINNED_VERTEX_LAYOUTS, 'none', true, sampleCount),
+  };
 
-  const jointsView = (palette: Float32Array, jointCount: number) => {
-    const floats = Math.min(64, jointCount) * 16;
-    let view = jointViewCache.get(palette);
-    if (!view || view.length !== floats) {
-      view = palette.subarray(0, floats);
-      jointViewCache.set(palette, view);
+  const overlayLitPipelines: Record<LitPipelineKey, GPURenderPipeline> = {
+    opaqueCull: makeLitPipeline(litPipelineLayout, 'vsMain', [STATIC_VERTEX_LAYOUT], 'back', false, 1, 1, 1),
+    opaqueNone: makeLitPipeline(litPipelineLayout, 'vsMain', [STATIC_VERTEX_LAYOUT], 'none', false, 1, 1, 1),
+    blendCull: makeLitPipeline(litPipelineLayout, 'vsMain', [STATIC_VERTEX_LAYOUT], 'back', true, 1, 1, 1),
+    blendNone: makeLitPipeline(litPipelineLayout, 'vsMain', [STATIC_VERTEX_LAYOUT], 'none', true, 1, 1, 1),
+  };
+
+  const overlaySkinnedPipelines: Record<LitPipelineKey, GPURenderPipeline> = {
+    opaqueCull: makeLitPipeline(skinnedPipelineLayout, 'vsSkinned', SKINNED_VERTEX_LAYOUTS, 'back', false, 1, 1, 1),
+    opaqueNone: makeLitPipeline(skinnedPipelineLayout, 'vsSkinned', SKINNED_VERTEX_LAYOUTS, 'none', false, 1, 1, 1),
+    blendCull: makeLitPipeline(skinnedPipelineLayout, 'vsSkinned', SKINNED_VERTEX_LAYOUTS, 'back', true, 1, 1, 1),
+    blendNone: makeLitPipeline(skinnedPipelineLayout, 'vsSkinned', SKINNED_VERTEX_LAYOUTS, 'none', true, 1, 1, 1),
+  };
+
+  const makeGroundPipeline = (blend: boolean): GPURenderPipeline =>
+    gpu.createRenderPipeline({
+      layout: groundPipelineLayout,
+      vertex: {
+        module: groundShader,
+        entryPoint: 'vsMain',
+        buffers: [STATIC_VERTEX_LAYOUT],
+      },
+      fragment: {
+        module: groundShader,
+        entryPoint: 'fsMain',
+        targets: [
+          {
+            format: device.format,
+            blend: blend ? BLEND_ALPHA : undefined,
+            writeMask: GPUColorWrite.ALL,
+          },
+        ],
+      },
+      primitive: {
+        topology: 'triangle-list',
+        cullMode: 'none',
+        frontFace: 'ccw',
+      },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: !blend,
+        depthCompare: 'less-equal',
+      },
+      multisample: { count: sampleCount },
+    });
+
+  const groundOpaquePipeline = makeGroundPipeline(false);
+  const groundBlendPipeline = makeGroundPipeline(true);
+
+  const makeInstancedLitPipeline = (cullMode: GPUCullMode): GPURenderPipeline =>
+    gpu.createRenderPipeline({
+      layout: instancedPipelineLayout,
+      vertex: {
+        module: instancedLitShader,
+        entryPoint: 'vsMain',
+        buffers: [STATIC_VERTEX_LAYOUT],
+      },
+      fragment: {
+        module: instancedLitShader,
+        entryPoint: 'fsMain',
+        targets: [{ format: device.format, writeMask: GPUColorWrite.ALL }],
+      },
+      primitive: {
+        topology: 'triangle-list',
+        cullMode,
+        frontFace: 'ccw',
+      },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: true,
+        depthCompare: 'less-equal',
+      },
+      multisample: { count: sampleCount },
+    });
+
+  const instancedCullPipeline = makeInstancedLitPipeline('back');
+  const instancedNonePipeline = makeInstancedLitPipeline('none');
+
+  const frameUniformBuffer = gpu.createBuffer({
+    size: Math.max(256, FRAME_UNIFORM_SIZE),
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  const frameBindGroup = gpu.createBindGroup({
+    layout: frameBindGroupLayout,
+    entries: [
+      { binding: 0, resource: { buffer: frameUniformBuffer } },
+      { binding: 1, resource: shadowMap.view },
+      { binding: 2, resource: shadowMap.sampler },
+    ],
+  });
+
+  let objectCapacity = 64;
+  let objectUniformBuffer = gpu.createBuffer({
+    size: objectCapacity * OBJECT_UNIFORM_ALIGN,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+  });
+  let objectBindGroup = gpu.createBindGroup({
+    layout: objectBindGroupLayout,
+    entries: [
+      {
+        binding: 0,
+        resource: {
+          buffer: objectUniformBuffer,
+          size: OBJECT_UNIFORM_SIZE,
+        },
+      },
+    ],
+  });
+
+  const textureBindGroups = new WeakMap<GPUTexture, GPUBindGroup>();
+  const paletteCache = new Map<Float32Array, PaletteGpu>();
+  const frameBytes = new Float32Array(FRAME_UNIFORM_FLOATS);
+  let objectStaging = new Float32Array(objectCapacity * (OBJECT_UNIFORM_ALIGN / 4));
+  const meshOrder = new WeakMap<object, number>();
+  let nextMeshOrder = 1;
+
+  const meshSortKey = (mesh: Mesh): number => {
+    const existing = meshOrder.get(mesh);
+    if (existing) return existing;
+    const id = nextMeshOrder++;
+    meshOrder.set(mesh, id);
+    return id;
+  };
+
+  const ensureObjectCapacity = (count: number) => {
+    if (count <= objectCapacity) return;
+
+    objectUniformBuffer.destroy();
+    objectCapacity = Math.max(objectCapacity * 2, count);
+    objectUniformBuffer = gpu.createBuffer({
+      size: objectCapacity * OBJECT_UNIFORM_ALIGN,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+    });
+    objectBindGroup = gpu.createBindGroup({
+      layout: objectBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: objectUniformBuffer,
+            size: OBJECT_UNIFORM_SIZE,
+          },
+        },
+      ],
+    });
+    objectStaging = new Float32Array(objectCapacity * (OBJECT_UNIFORM_ALIGN / 4));
+  };
+
+  const getTextureBindGroup = (tex: TextureHandle): GPUBindGroup => {
+    const existing = textureBindGroups.get(tex.texture);
+    if (existing) return existing;
+
+    const bindGroup = gpu.createBindGroup({
+      layout: textureBindGroupLayout,
+      entries: [
+        { binding: 0, resource: tex.view },
+        { binding: 1, resource: tex.sampler },
+      ],
+    });
+    textureBindGroups.set(tex.texture, bindGroup);
+    return bindGroup;
+  };
+
+  const instanceBindByIndex = new WeakMap<GPUBuffer, GPUBindGroup>();
+
+  const getOrCreatePaletteGpu = (palette: Float32Array): PaletteGpu => {
+    const existing = paletteCache.get(palette);
+    if (existing) return existing;
+
+    const buffer = gpu.createBuffer({
+      size: JOINT_BUFFER_SIZE,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    const bindGroup = gpu.createBindGroup({
+      layout: jointBindGroupLayout,
+      entries: [{ binding: 0, resource: { buffer } }],
+    });
+    const entry = { buffer, bindGroup };
+    paletteCache.set(palette, entry);
+    return entry;
+  };
+
+  const resolvePaletteBindGroup = (skin: NonNullable<DrawItem['skin']>): GPUBindGroup => {
+    if (skin.paletteGpu) return skin.paletteGpu.bindGroup;
+    return getOrCreatePaletteGpu(skin.palette).bindGroup;
+  };
+
+  const uploadPalettes = (items: readonly DrawItem[]) => {
+    const seen = new Set<Float32Array>();
+    for (const item of items) {
+      const skin = item.skin;
+      if (!skin || skin.paletteGpu) continue;
+      if (seen.has(skin.palette)) continue;
+      seen.add(skin.palette);
+
+      const jointCount = Math.min(MAX_JOINTS, Math.max(1, skin.jointCount));
+      const floatCount = jointCount * JOINT_MATRIX_FLOATS;
+      const gpuPalette = getOrCreatePaletteGpu(skin.palette);
+      gpu.queue.writeBuffer(
+        gpuPalette.buffer,
+        0,
+        skin.palette.buffer as ArrayBuffer,
+        skin.palette.byteOffset,
+        floatCount * 4,
+      );
     }
-    return view;
+  };
+
+  const writeObject = (index: number, model: Mat4, color: readonly [number, number, number, number]) => {
+    const base = index * (OBJECT_UNIFORM_ALIGN / 4);
+    objectStaging.set(model, base);
+    objectStaging[base + 16] = color[0];
+    objectStaging[base + 17] = color[1];
+    objectStaging[base + 18] = color[2];
+    objectStaging[base + 19] = color[3];
+  };
+
+  const flushObjectStaging = (count: number) => {
+    if (count <= 0) return;
+    gpu.queue.writeBuffer(
+      objectUniformBuffer,
+      0,
+      objectStaging.buffer as ArrayBuffer,
+      objectStaging.byteOffset,
+      count * OBJECT_UNIFORM_ALIGN,
+    );
+  };
+
+  const litKeyFor = (item: DrawItem, blend: boolean): LitPipelineKey => {
+    const none = item.material.doubleSided === true;
+    if (blend) return none ? 'blendNone' : 'blendCull';
+    return none ? 'opaqueNone' : 'opaqueCull';
+  };
+
+  const sortForSkinBatch = (items: DrawItem[], backToFront: boolean) => {
+    items.sort((a, b) => {
+      const aSkin = a.skin ? 1 : 0;
+      const bSkin = b.skin ? 1 : 0;
+      if (aSkin !== bSkin) return aSkin - bSkin;
+
+      const meshDiff = meshSortKey(a.mesh) - meshSortKey(b.mesh);
+      if (meshDiff !== 0) return meshDiff;
+
+      if (a.skin && b.skin) {
+        const aKey = a.skin.paletteGpu?.bindGroup ?? a.skin.palette;
+        const bKey = b.skin.paletteGpu?.bindGroup ?? b.skin.palette;
+        if (aKey !== bKey) return a.skin.jointCount - b.skin.jointCount;
+      }
+      return backToFront ? b.sortZ - a.sortZ : a.sortZ - b.sortZ;
+    });
+  };
+
+  const encode = (
+    encoder: GPUCommandEncoder,
+    camera: Camera,
+    lightViewProj: Mat4,
+    ground: GroundDraw | null,
+    opaque: readonly DrawItem[],
+    transparent: readonly DrawItem[],
+    overlay: readonly DrawItem[],
+    shadowCasters: readonly DrawItem[],
+    staticBatches: readonly PreparedStaticBatch[] = [],
+  ) => {
+    shadowPass.encode(encoder, lightViewProj, ground, shadowCasters, staticBatches);
+
+    device.resize();
+    const size = device.getSize();
+    sceneTargets.resize(size.width, size.height);
+
+    const opaqueList = opaque.slice() as DrawItem[];
+    const transparentList = transparent.slice() as DrawItem[];
+    const overlayOpaque: DrawItem[] = [];
+    const overlayBlend: DrawItem[] = [];
+    for (const item of overlay) {
+      if (item.material.alphaMode === 'BLEND') overlayBlend.push(item);
+      else overlayOpaque.push(item);
+    }
+    sortForSkinBatch(opaqueList, false);
+    sortForSkinBatch(transparentList, true);
+    sortForSkinBatch(overlayOpaque, false);
+    sortForSkinBatch(overlayBlend, true);
+    const overlayList = overlayOpaque.concat(overlayBlend);
+
+    const totalObjects =
+      opaqueList.length + transparentList.length + overlayList.length + (ground ? 1 : 0);
+    ensureObjectCapacity(Math.max(1, totalObjects));
+
+    uploadPalettes(opaqueList);
+    uploadPalettes(transparentList);
+    uploadPalettes(overlayList);
+
+    const light = DIRECTIONAL_LIGHT;
+    frameBytes.set(camera.viewProj, 0);
+    frameBytes.set(lightViewProj, 16);
+    frameBytes[32] = light.dir[0];
+    frameBytes[33] = light.dir[1];
+    frameBytes[34] = light.dir[2];
+    frameBytes[35] = ground?.alpha ?? 1;
+    frameBytes[36] = light.ambient[0];
+    frameBytes[37] = light.ambient[1];
+    frameBytes[38] = light.ambient[2];
+    frameBytes[39] = shadowMap.size;
+    frameBytes[40] = light.color[0];
+    frameBytes[41] = light.color[1];
+    frameBytes[42] = light.color[2];
+    frameBytes[43] = 0;
+    gpu.queue.writeBuffer(
+      frameUniformBuffer,
+      0,
+      frameBytes.buffer as ArrayBuffer,
+      frameBytes.byteOffset,
+      FRAME_UNIFORM_SIZE,
+    );
+
+    let objectIndex = 0;
+    const groundObjectIndex = ground ? objectIndex++ : -1;
+
+    const opaqueIndices: number[] = [];
+    for (const _item of opaqueList) opaqueIndices.push(objectIndex++);
+
+    const transparentIndices: number[] = [];
+    for (const _item of transparentList) transparentIndices.push(objectIndex++);
+
+    const overlayIndices: number[] = [];
+    for (const _item of overlayList) overlayIndices.push(objectIndex++);
+
+    const writeItemObject = (item: DrawItem, index: number) => {
+      if (item.skin?.paletteGpu) {
+        writeObject(index, IDENTITY_MODEL, item.material.baseColorFactor);
+        return;
+      }
+      if (item.gpuModel) {
+        writeObject(index, IDENTITY_MODEL, item.material.baseColorFactor);
+        return;
+      }
+      writeObject(index, item.model, item.material.baseColorFactor);
+    };
+
+    if (ground && groundObjectIndex >= 0) {
+      writeObject(groundObjectIndex, ground.model, [1, 1, 1, 1]);
+    }
+    for (let i = 0; i < opaqueList.length; i++) writeItemObject(opaqueList[i]!, opaqueIndices[i]!);
+    for (let i = 0; i < transparentList.length; i++) {
+      writeItemObject(transparentList[i]!, transparentIndices[i]!);
+    }
+    for (let i = 0; i < overlayList.length; i++) writeItemObject(overlayList[i]!, overlayIndices[i]!);
+
+    flushObjectStaging(objectIndex);
+
+    for (let i = 0; i < opaqueList.length; i++) {
+      const item = opaqueList[i]!;
+      if (!item.gpuModel || item.skin?.paletteGpu) continue;
+      encoder.copyBufferToBuffer(
+        item.gpuModel.buffer,
+        item.gpuModel.byteOffset,
+        objectUniformBuffer,
+        opaqueIndices[i]! * OBJECT_UNIFORM_ALIGN,
+        64,
+      );
+    }
+    for (let i = 0; i < transparentList.length; i++) {
+      const item = transparentList[i]!;
+      if (!item.gpuModel || item.skin?.paletteGpu) continue;
+      encoder.copyBufferToBuffer(
+        item.gpuModel.buffer,
+        item.gpuModel.byteOffset,
+        objectUniformBuffer,
+        transparentIndices[i]! * OBJECT_UNIFORM_ALIGN,
+        64,
+      );
+    }
+    for (let i = 0; i < overlayList.length; i++) {
+      const item = overlayList[i]!;
+      if (!item.gpuModel || item.skin?.paletteGpu) continue;
+      encoder.copyBufferToBuffer(
+        item.gpuModel.buffer,
+        item.gpuModel.byteOffset,
+        objectUniformBuffer,
+        overlayIndices[i]! * OBJECT_UNIFORM_ALIGN,
+        64,
+      );
+    }
+
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: sceneTargets.getColorView(),
+          resolveTarget: sceneTargets.getResolveView(),
+          clearValue: { r: 0.56, g: 0.66, b: 0.82, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'discard',
+        },
+      ],
+      depthStencilAttachment: {
+        view: sceneTargets.getDepthView(),
+        depthClearValue: 1,
+        depthLoadOp: 'clear',
+        depthStoreOp: 'discard',
+      },
+    });
+
+    pass.setBindGroup(0, frameBindGroup);
+
+    let lastPaletteKey: GPUBindGroup | Float32Array | null = null;
+    let lastVertex: GPUBuffer | null = null;
+    let lastJoint: GPUBuffer | null = null;
+    let lastWeight: GPUBuffer | null = null;
+    let lastIndex: GPUBuffer | null = null;
+    let lastTexKey: GPUTexture | null = null;
+
+    const bindMesh = (
+      encoderPass: GPURenderPassEncoder,
+      mesh: Mesh,
+      skinned: boolean,
+    ) => {
+      if (mesh.vertexBuffer !== lastVertex) {
+        encoderPass.setVertexBuffer(0, mesh.vertexBuffer);
+        lastVertex = mesh.vertexBuffer;
+      }
+      if (skinned && isSkinnedMesh(mesh)) {
+        if (mesh.jointBuffer !== lastJoint) {
+          encoderPass.setVertexBuffer(1, mesh.jointBuffer);
+          lastJoint = mesh.jointBuffer;
+        }
+        if (mesh.weightBuffer !== lastWeight) {
+          encoderPass.setVertexBuffer(2, mesh.weightBuffer);
+          lastWeight = mesh.weightBuffer;
+        }
+      } else {
+        lastJoint = null;
+        lastWeight = null;
+      }
+      if (mesh.indexBuffer !== lastIndex) {
+        encoderPass.setIndexBuffer(mesh.indexBuffer, 'uint32');
+        lastIndex = mesh.indexBuffer;
+      }
+    };
+
+    const drawLitItem = (
+      item: DrawItem,
+      index: number,
+      blend: boolean,
+      pipelines: Record<LitPipelineKey, GPURenderPipeline>,
+      skinned: Record<LitPipelineKey, GPURenderPipeline>,
+      encoderPass: GPURenderPassEncoder,
+    ) => {
+      const key = litKeyFor(item, blend);
+      const skin = item.skin;
+      const tex = item.material.baseColorTex ?? whiteTex;
+      if (skin && isSkinnedMesh(item.mesh)) {
+        const paletteKey = skin.paletteGpu?.bindGroup ?? skin.palette;
+        if (paletteKey !== lastPaletteKey) {
+          encoderPass.setBindGroup(3, resolvePaletteBindGroup(skin));
+          lastPaletteKey = paletteKey;
+        }
+        encoderPass.setPipeline(skinned[key]);
+        encoderPass.setBindGroup(1, objectBindGroup, [index * OBJECT_UNIFORM_ALIGN]);
+        if (tex.texture !== lastTexKey) {
+          encoderPass.setBindGroup(2, getTextureBindGroup(tex));
+          lastTexKey = tex.texture;
+        }
+        bindMesh(encoderPass, item.mesh, true);
+        encoderPass.drawIndexed(item.mesh.indexCount);
+        return;
+      }
+
+      lastPaletteKey = null;
+      encoderPass.setPipeline(pipelines[key]);
+      encoderPass.setBindGroup(1, objectBindGroup, [index * OBJECT_UNIFORM_ALIGN]);
+      if (tex.texture !== lastTexKey) {
+        encoderPass.setBindGroup(2, getTextureBindGroup(tex));
+        lastTexKey = tex.texture;
+      }
+      bindMesh(encoderPass, item.mesh, false);
+      encoderPass.drawIndexed(item.mesh.indexCount);
+    };
+
+    const drawGround = (blend: boolean) => {
+      if (!ground || groundObjectIndex < 0) return;
+      lastPaletteKey = null;
+      lastTexKey = null;
+      pass.setPipeline(blend ? groundBlendPipeline : groundOpaquePipeline);
+      pass.setBindGroup(1, objectBindGroup, [groundObjectIndex * OBJECT_UNIFORM_ALIGN]);
+      bindMesh(pass, ground.mesh, false);
+      pass.drawIndexed(ground.mesh.indexCount);
+    };
+
+    if (ground && ground.alpha >= 0.999) drawGround(false);
+
+    for (let i = 0; i < opaqueList.length; i++) {
+      drawLitItem(opaqueList[i]!, opaqueIndices[i]!, false, litPipelines, skinnedPipelines, pass);
+    }
+
+    for (const batch of staticBatches) {
+      lastPaletteKey = null;
+      lastTexKey = null;
+      let instanceBindGroup = instanceBindByIndex.get(batch.forwardIndexBuffer);
+      if (!instanceBindGroup) {
+        instanceBindGroup = gpu.createBindGroup({
+          layout: instanceBindGroupLayout,
+          entries: [
+            { binding: 0, resource: { buffer: batch.instanceBuffer } },
+            { binding: 1, resource: { buffer: batch.forwardIndexBuffer } },
+          ],
+        });
+        instanceBindByIndex.set(batch.forwardIndexBuffer, instanceBindGroup);
+      }
+      pass.setPipeline(batch.doubleSided ? instancedNonePipeline : instancedCullPipeline);
+      pass.setBindGroup(1, instanceBindGroup);
+      pass.setBindGroup(2, getTextureBindGroup(batch.material.baseColorTex ?? whiteTex));
+      bindMesh(pass, batch.mesh, false);
+      pass.drawIndexedIndirect(batch.forwardIndirectBuffer, 0);
+    }
+
+    if (ground && ground.alpha < 0.999) drawGround(true);
+
+    for (let i = 0; i < transparentList.length; i++) {
+      drawLitItem(transparentList[i]!, transparentIndices[i]!, true, litPipelines, skinnedPipelines, pass);
+    }
+
+    pass.end();
+
+    if (overlayList.length > 0) {
+      const overlayPass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: sceneTargets.getResolveView(),
+            loadOp: 'load',
+            storeOp: 'store',
+          },
+        ],
+        depthStencilAttachment: {
+          view: sceneTargets.getOverlayDepthView(),
+          depthClearValue: 1,
+          depthLoadOp: 'clear',
+          depthStoreOp: 'discard',
+        },
+      });
+
+      overlayPass.setBindGroup(0, frameBindGroup);
+      lastPaletteKey = null;
+      lastTexKey = null;
+      lastVertex = null;
+      lastJoint = null;
+      lastWeight = null;
+      lastIndex = null;
+
+      for (let i = 0; i < overlayList.length; i++) {
+        const item = overlayList[i]!;
+        const blend = item.material.alphaMode === 'BLEND';
+        drawLitItem(
+          item,
+          overlayIndices[i]!,
+          blend,
+          overlayLitPipelines,
+          overlaySkinnedPipelines,
+          overlayPass,
+        );
+      }
+
+      overlayPass.end();
+    }
+
+    return { width: size.width, height: size.height };
+  };
+
+  const destroy = () => {
+    shadowPass.destroy();
+    shadowMap.destroy();
+    sceneTargets.destroy();
+    frameUniformBuffer.destroy();
+    objectUniformBuffer.destroy();
+    whiteTex.texture.destroy();
+    for (const entry of paletteCache.values()) entry.buffer.destroy();
+    paletteCache.clear();
   };
 
   return {
-    draw: (camera, shadow, groundItem, items) => {
-    gl.clearColor(0.56, 0.66, 0.82, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    const bindShadowUniforms = (p: ShaderProgram) => {
-      gl.uniformMatrix4fv(p.u('u_lightViewProj'), false, shadow.lightViewProj);
-      gl.uniform1f(p.u('u_shadowMapSize'), shadow.mapSize);
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, shadow.map);
-      gl.uniform1i(p.u('u_shadowMap'), 1);
-    };
-
-    const groundY = groundItem ? groundItem.model[13] : 0;
-    const groundAlpha = groundItem && camera.position[1] < groundY ? 0.25 : 1.0;
-    const groundIsTransparent = groundItem ? groundAlpha < 0.999 : false;
-
-    if (groundItem && !groundIsTransparent) {
-      ground.use();
-      gl.uniformMatrix4fv(ground.u('u_viewProj'), false, camera.viewProj);
-      gl.uniformMatrix4fv(ground.u('u_model'), false, groundItem.model);
-      gl.uniform3f(ground.u('u_lightDir'), DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
-      gl.uniform1f(ground.u('u_alpha'), 1.0);
-      bindShadowUniforms(ground);
-      gl.bindVertexArray(groundItem.mesh.vao);
-      gl.disable(gl.BLEND);
-      gl.disable(gl.CULL_FACE);
-      gl.drawElements(gl.TRIANGLES, groundItem.mesh.indexCount, gl.UNSIGNED_INT, 0);
-      gl.enable(gl.CULL_FACE);
-    }
-
-    opaque.length = 0;
-    transparent.length = 0;
-    const overlay: DrawItem[] = [];
-    for (const it of items) {
-      if (it.overlay) overlay.push(it);
-      else (it.material.alphaMode === 'BLEND' ? transparent : opaque).push(it);
-    }
-
-    opaque.sort((a, b) => {
-      const aSkin = a.skin?.palette;
-      const bSkin = b.skin?.palette;
-      if (aSkin !== bSkin) {
-        if (!aSkin) return -1;
-        if (!bSkin) return 1;
-        return skinSortId(aSkin) - skinSortId(bSkin);
-      }
-      if (a.material.baseColorTex !== b.material.baseColorTex) return a.material.baseColorTex ? 1 : -1;
-      if (a.mesh.vao !== b.mesh.vao) return a.mesh.vao > b.mesh.vao ? 1 : -1;
-      return a.sortZ - b.sortZ;
-    });
-
-    transparent.sort((a, b) => b.sortZ - a.sortZ);
-
-    let lastTex: WebGLTexture | null = null;
-    let lastVao: WebGLVertexArrayObject | null = null;
-    let lastProgram: ShaderProgram | null = null;
-    let lastJoints: Float32Array | null = null;
-    let lastBaseColor: DrawItem['material']['baseColorFactor'] | null = null;
-
-    const useProgram = (p: ShaderProgram) => {
-      if (lastProgram === p) return;
-      lastProgram = p;
-      p.use();
-      gl.uniformMatrix4fv(p.u('u_viewProj'), false, camera.viewProj);
-      gl.uniform3f(p.u('u_lightDir'), DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
-      gl.uniform3f(p.u('u_ambient'), DIRECTIONAL_LIGHT.ambient[0], DIRECTIONAL_LIGHT.ambient[1], DIRECTIONAL_LIGHT.ambient[2]);
-      gl.uniform3f(p.u('u_lightColor'), DIRECTIONAL_LIGHT.color[0], DIRECTIONAL_LIGHT.color[1], DIRECTIONAL_LIGHT.color[2]);
-      bindShadowUniforms(p);
-      lastTex = null;
-      lastVao = null;
-      lastJoints = null;
-      lastBaseColor = null;
-    };
-
-    const bindItem = (it: DrawItem) => {
-      const program = it.skin ? litSkinned : lit;
-      useProgram(program);
-      gl.uniformMatrix4fv(program.u('u_model'), false, it.model);
-      if (it.material.baseColorFactor !== lastBaseColor) {
-        lastBaseColor = it.material.baseColorFactor;
-        gl.uniform4f(
-          program.u('u_baseColorFactor'),
-          lastBaseColor[0],
-          lastBaseColor[1],
-          lastBaseColor[2],
-          lastBaseColor[3],
-        );
-      }
-      if (it.skin) {
-        const joints = jointsView(it.skin.palette, it.skin.jointCount);
-        if (joints !== lastJoints) {
-          lastJoints = joints;
-          gl.uniformMatrix4fv(program.u('u_joints'), false, joints);
-        }
-      }
-      const desiredTex = it.material.baseColorTex ?? whiteTex;
-      if (desiredTex !== lastTex) {
-        lastTex = desiredTex;
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, desiredTex);
-        gl.uniform1i(program.u('u_baseColorTex'), 0);
-      }
-      if (it.mesh.vao !== lastVao) {
-        lastVao = it.mesh.vao;
-        gl.bindVertexArray(lastVao);
-      }
-    };
-
-    let lastDoubleSided = false;
-    const applyCull = (doubleSided: boolean) => {
-      if (doubleSided === lastDoubleSided) return;
-      lastDoubleSided = doubleSided;
-      if (doubleSided) gl.disable(gl.CULL_FACE);
-      else gl.enable(gl.CULL_FACE);
-    };
-
-    gl.disable(gl.BLEND);
-    for (const it of opaque) {
-      bindItem(it);
-      applyCull(it.material.doubleSided === true);
-      gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
-    }
-
-    if (groundItem && groundIsTransparent) {
-      ground.use();
-      gl.uniformMatrix4fv(ground.u('u_viewProj'), false, camera.viewProj);
-      gl.uniformMatrix4fv(ground.u('u_model'), false, groundItem.model);
-      gl.uniform3f(ground.u('u_lightDir'), DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
-      gl.uniform1f(ground.u('u_alpha'), groundAlpha);
-      bindShadowUniforms(ground);
-      gl.bindVertexArray(groundItem.mesh.vao);
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      gl.depthMask(false);
-      gl.disable(gl.CULL_FACE);
-      gl.drawElements(gl.TRIANGLES, groundItem.mesh.indexCount, gl.UNSIGNED_INT, 0);
-      gl.enable(gl.CULL_FACE);
-      gl.depthMask(true);
-      lastProgram = null;
-      lastTex = null;
-      lastVao = null;
-      lastJoints = null;
-      lastBaseColor = null;
-      lastDoubleSided = false;
-    }
-
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.depthMask(false);
-    for (const it of transparent) {
-      bindItem(it);
-      applyCull(it.material.doubleSided === true);
-      gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
-    }
-    gl.depthMask(true);
-
-    if (overlay.length > 0) {
-      overlay.sort((a, b) => a.sortZ - b.sortZ);
-      gl.clear(gl.DEPTH_BUFFER_BIT);
-      gl.enable(gl.DEPTH_TEST);
-      gl.depthFunc(gl.LEQUAL);
-      gl.enable(gl.CULL_FACE);
-      gl.enable(gl.POLYGON_OFFSET_FILL);
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      let overlayIndex = 0;
-      for (const it of overlay) {
-        const isBlend = it.material.alphaMode === 'BLEND';
-        if (isBlend) {
-          gl.enable(gl.BLEND);
-          gl.depthMask(false);
-        } else {
-          gl.disable(gl.BLEND);
-          gl.depthMask(true);
-        }
-        gl.polygonOffset(1, overlayIndex * 8);
-        overlayIndex += 1;
-        bindItem(it);
-        applyCull(it.material.doubleSided === true);
-        gl.drawElements(gl.TRIANGLES, it.mesh.indexCount, gl.UNSIGNED_INT, 0);
-      }
-      gl.disable(gl.POLYGON_OFFSET_FILL);
-      gl.polygonOffset(0, 0);
-      gl.disable(gl.BLEND);
-      gl.depthMask(true);
-      gl.enable(gl.DEPTH_TEST);
-    }
-
-    if (lastDoubleSided) gl.enable(gl.CULL_FACE);
-    gl.bindVertexArray(null);
-    },
+    encode,
+    getSceneView: () => sceneTargets.getResolveView(),
     destroy,
   };
 };

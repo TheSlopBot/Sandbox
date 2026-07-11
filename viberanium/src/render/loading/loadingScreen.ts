@@ -1,9 +1,10 @@
-import { ASCII_DENSITY, createGlyphAtlasTexture } from '../ascii/glyphAtlas.ts';
-import { createShaderProgram } from '../gl/shader.ts';
-import { loadingBokehFS, loadingBokehVS } from './loadingBokehShaders.ts';
+import { ASCII_DENSITY, createGlyphAtlasHandle } from '../ascii/glyphAtlas.ts';
+import { loadingBokehWGSL } from '../shaders/loadingBokehWgsl.ts';
 
 const MAX_DPR = 2;
 const FADE_MS = 420;
+const UNIFORM_FLOATS = 32;
+const UNIFORM_BYTES = UNIFORM_FLOATS * 4;
 
 export type LoadingScreenColors = {
   bgDeep: readonly [number, number, number];
@@ -23,26 +24,74 @@ export type LoadingScreen = {
   destroy: () => void;
 };
 
-export const createLoadingScreen = (
+export const createLoadingScreen = async (
   canvas: HTMLCanvasElement,
   options: LoadingScreenOptions,
-): LoadingScreen => {
+): Promise<LoadingScreen> => {
   const { colors } = options;
-  const glCtx = canvas.getContext('webgl2', {
-    alpha: false,
-    antialias: false,
-    depth: false,
-    stencil: false,
-    premultipliedAlpha: false,
-    powerPreference: 'high-performance',
-  });
-  if (!glCtx) throw new Error('WebGL2 unavailable for loading screen');
-  const gl = glCtx;
+  if (!navigator.gpu) throw new Error('WebGPU not supported for loading screen');
 
-  const program = createShaderProgram(gl, loadingBokehVS, loadingBokehFS);
-  const glyphTex = createGlyphAtlasTexture(gl);
-  const vao = gl.createVertexArray();
-  if (!vao) throw new Error('createVertexArray failed');
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) throw new Error('No WebGPU adapter for loading screen');
+
+  const gpu = await adapter.requestDevice();
+  const context = canvas.getContext('webgpu') as GPUCanvasContext | null;
+  if (!context) throw new Error('Failed to get WebGPU canvas context for loading screen');
+
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  context.configure({
+    device: gpu,
+    format,
+    alphaMode: 'opaque',
+  });
+
+  const glyphAtlas = createGlyphAtlasHandle({ gpu });
+
+  const shader = gpu.createShaderModule({ code: loadingBokehWGSL });
+  const bindGroupLayout = gpu.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: 'uniform' },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { sampleType: 'float' },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: { type: 'filtering' },
+      },
+    ],
+  });
+
+  const pipeline = gpu.createRenderPipeline({
+    layout: gpu.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+    vertex: { module: shader, entryPoint: 'vsMain' },
+    fragment: {
+      module: shader,
+      entryPoint: 'fsMain',
+      targets: [{ format }],
+    },
+    primitive: { topology: 'triangle-list' },
+  });
+
+  const uniformBuffer = gpu.createBuffer({
+    size: UNIFORM_BYTES,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const uniformBytes = new Float32Array(UNIFORM_FLOATS);
+  const bindGroup = gpu.createBindGroup({
+    layout: bindGroupLayout,
+    entries: [
+      { binding: 0, resource: { buffer: uniformBuffer } },
+      { binding: 1, resource: glyphAtlas.view },
+      { binding: 2, resource: glyphAtlas.sampler },
+    ],
+  });
 
   let running = true;
   let animating = false;
@@ -54,6 +103,12 @@ export const createLoadingScreen = (
   const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   let reducedMotion = motionQuery.matches;
 
+  const writeColor = (offset: number, rgb: readonly [number, number, number]) => {
+    uniformBytes[offset] = rgb[0];
+    uniformBytes[offset + 1] = rgb[1];
+    uniformBytes[offset + 2] = rgb[2];
+  };
+
   const resize = () => {
     const { width, height } = canvas.getBoundingClientRect();
     if (width === 0 || height === 0) return;
@@ -61,38 +116,63 @@ export const createLoadingScreen = (
     cssWidth = width;
     cssHeight = height;
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    const pixelW = Math.max(1, Math.floor(width * dpr));
+    const pixelH = Math.max(1, Math.floor(height * dpr));
+    if (canvas.width !== pixelW || canvas.height !== pixelH) {
+      canvas.width = pixelW;
+      canvas.height = pixelH;
+      context.configure({
+        device: gpu,
+        format,
+        alphaMode: 'opaque',
+      });
+    }
   };
 
   const draw = (time: number) => {
     if (!running || cssWidth === 0 || cssHeight === 0) return;
 
-    gl.disable(gl.DEPTH_TEST);
-    gl.disable(gl.BLEND);
-    gl.clearColor(colors.bgDeep[0] * 0.92, colors.bgDeep[1] * 0.92, colors.bgDeep[2] * 0.92, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    uniformBytes[0] = reducedMotion ? 0 : time;
+    uniformBytes[1] = ASCII_DENSITY.length;
+    uniformBytes[2] = cssWidth;
+    uniformBytes[3] = cssHeight;
+    writeColor(4, colors.bgDeep);
+    writeColor(8, colors.textMuted);
+    writeColor(12, colors.accentCyan);
+    writeColor(16, colors.accentBlue);
+    writeColor(20, colors.accentPrimary);
+    writeColor(24, colors.accentPurple);
+    writeColor(28, colors.accentOrange);
 
-    program.use();
-    gl.uniform1f(program.u('u_time'), reducedMotion ? 0 : time);
-    gl.uniform2f(program.u('u_resolution'), cssWidth, cssHeight);
-    gl.uniform1f(program.u('u_glyphCount'), ASCII_DENSITY.length);
-    gl.uniform3f(program.u('u_bgDeep'), colors.bgDeep[0], colors.bgDeep[1], colors.bgDeep[2]);
-    gl.uniform3f(program.u('u_textMuted'), colors.textMuted[0], colors.textMuted[1], colors.textMuted[2]);
-    gl.uniform3f(program.u('u_accentCyan'), colors.accentCyan[0], colors.accentCyan[1], colors.accentCyan[2]);
-    gl.uniform3f(program.u('u_accentBlue'), colors.accentBlue[0], colors.accentBlue[1], colors.accentBlue[2]);
-    gl.uniform3f(program.u('u_accentPrimary'), colors.accentPrimary[0], colors.accentPrimary[1], colors.accentPrimary[2]);
-    gl.uniform3f(program.u('u_accentPurple'), colors.accentPurple[0], colors.accentPurple[1], colors.accentPurple[2]);
-    gl.uniform3f(program.u('u_accentOrange'), colors.accentOrange[0], colors.accentOrange[1], colors.accentOrange[2]);
+    gpu.queue.writeBuffer(
+      uniformBuffer,
+      0,
+      uniformBytes.buffer as ArrayBuffer,
+      uniformBytes.byteOffset,
+      UNIFORM_BYTES,
+    );
 
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, glyphTex);
-    gl.uniform1i(program.u('u_glyphAtlas'), 0);
-
-    gl.bindVertexArray(vao);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.bindVertexArray(null);
+    const encoder = gpu.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: context.getCurrentTexture().createView(),
+          loadOp: 'clear',
+          storeOp: 'store',
+          clearValue: {
+            r: colors.bgDeep[0] * 0.92,
+            g: colors.bgDeep[1] * 0.92,
+            b: colors.bgDeep[2] * 0.92,
+            a: 1,
+          },
+        },
+      ],
+    });
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(3);
+    pass.end();
+    gpu.queue.submit([encoder.finish()]);
   };
 
   const loop = (now: number) => {
@@ -144,9 +224,9 @@ export const createLoadingScreen = (
       observer.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
       motionQuery.removeEventListener('change', onMotionPreference);
-      gl.deleteTexture(glyphTex);
-      gl.deleteVertexArray(vao);
-      program.destroy();
+      glyphAtlas.texture.destroy();
+      uniformBuffer.destroy();
+      gpu.destroy();
     },
   };
 };

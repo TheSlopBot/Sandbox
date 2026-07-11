@@ -1,4 +1,6 @@
-﻿import { type LocalTransform, type Registry, type RenderPipeline } from 'viberanium';
+import {
+  type GpuDevice,
+ type LocalTransform, type Registry, type RenderPipeline } from 'viberanium';
 import { type PropDocument } from '../../catalog/props/propDocument.ts';
 import { installConstructGizmoInput } from './gizmoInput.ts';
 import { installConstructGizmoPose } from './gizmoPose.ts';
@@ -9,7 +11,7 @@ export type ConstructGizmoController = {
 };
 
 export const installConstructGizmoSystem = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   pipeline: RenderPipeline,
   canvas: HTMLCanvasElement,
@@ -27,7 +29,7 @@ export const installConstructGizmoSystem = (
     setDocument,
     onPartLocalCommit,
   );
-  const pose = installConstructGizmoPose(gl, registry, pipeline, input);
+  const pose = installConstructGizmoPose(device, registry, pipeline, input);
 
   return {
     isDragging: () => input.isDragging(),

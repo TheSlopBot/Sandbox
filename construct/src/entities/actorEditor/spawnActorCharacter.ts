@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type GltfCache,
   type RuntimeScene,
   type TextureCache,
@@ -22,7 +23,7 @@ import { createConstructActorCharacter } from './actorCharacter.ts';
 import { applyTextureToMaterials } from '../editorCommon/materials.ts';
 
 export const spawnActorCharacter = async (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   textures: TextureCache,
   gltfCache: GltfCache,
@@ -40,7 +41,7 @@ export const spawnActorCharacter = async (
 
   const emptyClip = (name: string) => ({ name, duration: 1, channels: [] });
   const wrapped = createAnimationClip(emptyClip('idle'));
-  const meshDraws = buildMeshDrawsFromRuntimeScene(gl, bodyScene, mats);
+  const meshDraws = buildMeshDrawsFromRuntimeScene(device, bodyScene, mats);
 
   const entity = registry.createBare();
   const t = createTransform();
@@ -61,7 +62,7 @@ export const spawnActorCharacter = async (
   entity.components[CONSTRUCT_KEYS.actorCharacter] = createConstructActorCharacter(character.url);
 
   for (const part of meshDraws.parts) {
-    entity.onDeregister.push(() => destroyMesh(gl, part.mesh));
+    entity.onDeregister.push(() => destroyMesh(device, part.mesh));
   }
 
   registry.register(entity);

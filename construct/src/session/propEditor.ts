@@ -39,7 +39,7 @@ import {
 
 const ensurePropRootWithOrigin = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
   const rootId = ensurePropRoot(deps.registry, state.propDocument);
-  ensurePropOriginMarker(deps.gl, deps.registry, rootId);
+  ensurePropOriginMarker(deps.device, deps.registry, rootId);
   return rootId;
 };
 
@@ -90,9 +90,9 @@ export const enterPropMode = async (
 
   for (const part of state.propDocument.parts) {
     if (part.kind === 'collider') {
-      spawnColliderPartEntity(deps.gl, deps.registry, rootId, part);
+      spawnColliderPartEntity(deps.device, deps.registry, rootId, part);
     } else {
-      await spawnAssetPartEntity(deps.gl, deps.registry, deps.textures, deps.gltfCache, rootId, part);
+      await spawnAssetPartEntity(deps.device, deps.registry, deps.textures, deps.gltfCache, rootId, part);
     }
   }
 
@@ -130,9 +130,9 @@ export const loadPropDocument = async (
 
   for (const part of state.propDocument.parts) {
     if (part.kind === 'collider') {
-      spawnColliderPartEntity(deps.gl, deps.registry, rootId, part);
+      spawnColliderPartEntity(deps.device, deps.registry, rootId, part);
     } else {
-      await spawnAssetPartEntity(deps.gl, deps.registry, deps.textures, deps.gltfCache, rootId, part);
+      await spawnAssetPartEntity(deps.device, deps.registry, deps.textures, deps.gltfCache, rootId, part);
     }
   }
 
@@ -161,7 +161,7 @@ export const addAssetPart = async (
   state.propDocument = { ...state.propDocument, parts: [...state.propDocument.parts, part] };
 
   if (!state.removeStaticModelSystem) state.removeStaticModelSystem = installStaticModelSystem(deps.registry);
-  await spawnAssetPartEntity(deps.gl, deps.registry, deps.textures, deps.gltfCache, rootId, part);
+  await spawnAssetPartEntity(deps.device, deps.registry, deps.textures, deps.gltfCache, rootId, part);
 
   ensureSelectionEntity(deps, state);
   const sel = state.selectionEnt.components[CONSTRUCT_KEYS.editorSelection] as ConstructEditorSelection;
@@ -178,7 +178,7 @@ export const addColliderPart = (
   state.partCounter += 1;
   const part = defaultColliderPart(shape, `col_${state.partCounter}`);
   state.propDocument = { ...state.propDocument, parts: [...state.propDocument.parts, part] };
-  spawnColliderPartEntity(deps.gl, deps.registry, rootId, part);
+  spawnColliderPartEntity(deps.device, deps.registry, rootId, part);
 
   ensureSelectionEntity(deps, state);
   const sel = state.selectionEnt.components[CONSTRUCT_KEYS.editorSelection] as ConstructEditorSelection;

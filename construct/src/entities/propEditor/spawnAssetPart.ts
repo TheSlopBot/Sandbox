@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type GltfCache,
   type Material,
   type Registry,
@@ -27,7 +28,7 @@ import { applyLocalFromTRS } from '../editorCommon/trs.ts';
 import { syncPartLocalToWorld } from '../editorCommon/syncPartLocal.ts';
 
 export const spawnAssetPartEntity = async (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   textures: TextureCache,
   gltfCache: GltfCache,
@@ -74,7 +75,7 @@ export const spawnAssetPartEntity = async (
     for (const prim of model.primitives) {
       if (prim.kind === 'skinned') continue;
 
-      const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+      const mesh = createInterleavedMesh(device, prim.vertices, prim.indices);
       const material: Material =
         prim.materialIndex >= 0 && prim.materialIndex < mats.length
           ? mats[prim.materialIndex]!
@@ -84,7 +85,7 @@ export const spawnAssetPartEntity = async (
       renderE.components[COMPONENT_KEYS.transform] = t;
       renderE.components[COMPONENT_KEYS.gltfNodeIndex] = pair.nodeIndex;
       renderE.components[COMPONENT_KEYS.renderable] = { mesh, material, model: m4() };
-      renderE.onDeregister.push(() => destroyMesh(gl, mesh));
+      renderE.onDeregister.push(() => destroyMesh(device, mesh));
       registry.register(renderE);
       renderEntityIds.push(renderE.id);
     }

@@ -1,32 +1,48 @@
-export type GLDevice = {
-  gl: WebGL2RenderingContext;
-  canvas: HTMLCanvasElement;
+export type GpuFrameTargets = {
+  width: number;
+  height: number;
+  colorView: GPUTextureView;
+  depthView: GPUTextureView;
+};
+
+export type GpuDevice = {
+  readonly gpu: GPUDevice;
+  readonly context: GPUCanvasContext;
+  readonly format: GPUTextureFormat;
+  readonly canvas: HTMLCanvasElement;
   resize: () => void;
+  getSize: () => { width: number; height: number };
+  ensureFrame: () => GpuFrameTargets;
+  clear: (r?: number, g?: number, b?: number, a?: number) => void;
   destroy: () => void;
 };
 
-export const createDevice = (canvas: HTMLCanvasElement): GLDevice => {
-  const gl = canvas.getContext('webgl2', {
-    alpha: false,
-    antialias: false,
-    depth: false,
-    stencil: false,
-    premultipliedAlpha: false,
-    preserveDrawingBuffer: false,
-    powerPreference: 'high-performance',
-  }) as WebGL2RenderingContext | null;
-  if (!gl) throw new Error('WebGL2 not supported');
-  const gl2: WebGL2RenderingContext = gl;
+export const createDevice = async (canvas: HTMLCanvasElement): Promise<GpuDevice> => {
+  if (!navigator.gpu) throw new Error('WebGPU not supported');
 
-  gl2.enable(gl2.DEPTH_TEST);
-  gl2.depthFunc(gl2.LEQUAL);
-  gl2.enable(gl2.CULL_FACE);
-  gl2.cullFace(gl2.BACK);
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  if (!adapter) throw new Error('No WebGPU adapter');
+
+  const gpu = await adapter.requestDevice();
+  const context = canvas.getContext('webgpu') as GPUCanvasContext | null;
+  if (!context) throw new Error('Failed to get WebGPU canvas context');
+
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  context.configure({
+    device: gpu,
+    format,
+    alphaMode: 'opaque',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  });
 
   let cssW = 0;
   let cssH = 0;
   let dpr = 1;
   let sizeDirty = true;
+  let width = 0;
+  let height = 0;
+  let depthTexture: GPUTexture | null = null;
+  let destroyed = false;
 
   const measure = () => {
     dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
@@ -51,23 +67,91 @@ export const createDevice = (canvas: HTMLCanvasElement): GLDevice => {
       : null;
   observer?.observe(canvas);
 
+  const ensureDepth = (w: number, h: number) => {
+    if (depthTexture && depthTexture.width === w && depthTexture.height === h) return;
+
+    depthTexture?.destroy();
+    depthTexture = gpu.createTexture({
+      size: { width: w, height: h },
+      format: 'depth24plus',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+  };
+
   const resize = () => {
     if (!sizeDirty) return;
 
     sizeDirty = false;
-    const w = Math.floor(cssW * dpr);
-    const h = Math.floor(cssH * dpr);
+    const w = Math.max(1, Math.floor(cssW * dpr));
+    const h = Math.max(1, Math.floor(cssH * dpr));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
-      gl2.viewport(0, 0, w, h);
     }
+    width = w;
+    height = h;
+    ensureDepth(w, h);
+    context.configure({
+      device: gpu,
+      format,
+      alphaMode: 'opaque',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
   };
+
+  const getSize = () => ({ width, height });
+
+  const ensureFrame = (): GpuFrameTargets => {
+    resize();
+    if (!depthTexture) ensureDepth(width, height);
+
+    return {
+      width,
+      height,
+      colorView: context.getCurrentTexture().createView(),
+      depthView: depthTexture!.createView(),
+    };
+  };
+
+  const clear = (r = 0.56, g = 0.66, b = 0.82, a = 1) => {
+    const frame = ensureFrame();
+    const encoder = gpu.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: frame.colorView,
+          clearValue: { r, g, b, a },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+      depthStencilAttachment: {
+        view: frame.depthView,
+        depthClearValue: 1,
+        depthLoadOp: 'clear',
+        depthStoreOp: 'store',
+      },
+    });
+    pass.end();
+    gpu.queue.submit([encoder.finish()]);
+  };
+
+  gpu.lost.then((info) => {
+    if (destroyed) return;
+    console.error('WebGPU device lost:', info.message);
+  });
 
   const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
     window.removeEventListener('resize', onWindowResize);
     observer?.disconnect();
+    depthTexture?.destroy();
+    depthTexture = null;
+    gpu.destroy();
   };
 
-  return { gl: gl2, canvas, resize, destroy };
+  resize();
+
+  return { gpu, context, format, canvas, resize, getSize, ensureFrame, clear, destroy };
 };

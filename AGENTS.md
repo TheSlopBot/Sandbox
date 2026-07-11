@@ -20,13 +20,13 @@ const helper = (x: number) => {};
 ```
 
 ### No `class`
-Factories return plain objects. Render-pass *classes* are the only permitted exception (they are WebGL resource holders, not game-logic objects).
+Factories return plain objects. Render-pass *classes* are the only permitted exception (they are GPU resource holders, not game-logic objects).
 
 ### No `any`
 Use `unknown` and narrow, or use a concrete interface/type. Never cast to `any`.
 
 ### No comments in agent-generated code
-Code must be self-documenting through names and types. Do not add `//` inline comments or `/** */` JSDoc blocks to `.ts` source files. Rule files (`.mdc`, `.md`) and GLSL strings are exempt.
+Code must be self-documenting through names and types. Do not add `//` inline comments or `/** */` JSDoc blocks to `.ts` source files. Rule files (`.mdc`, `.md`) and WGSL strings are exempt.
 
 ### Arrow function style
 - Single-expression bodies: one-line, no braces — `const double = (x: number) => x * 2`.
@@ -63,7 +63,7 @@ viberanium/src/
   navigation/   A* pathfinding helpers
   assets/       loaders (gltf/)
   definitions/  portable Actor/Prop/Skeletal defs + pure helpers (no app coupling)
-  render/       pipeline, passes, shaders, gl/
+  render/       WebGPU pipeline, passes, WGSL shaders, gl/ device helpers
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/

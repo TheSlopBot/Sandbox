@@ -29,16 +29,16 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
 
   const optimization = createEngineOptimizationOptions();
 
-  const pipeline = installRenderPipeline(game.registry, canvas, {
+  const pipeline = await installRenderPipeline(game.registry, canvas, {
     getEntityRegistry: () => activeSceneRegistry,
     optimization,
   });
-  const gl = pipeline.device.gl;
-  const textures = createTextureCache(gl);
+  const device = pipeline.device;
+  const textures = createTextureCache(device);
   const gltfCache = createGltfCache();
-  const meshes = createSharedMeshCache(gl);
+  const meshes = createSharedMeshCache(device);
 
-  const asciiStage = createAsciiPostProcessStage(gl);
+  const asciiStage = createAsciiPostProcessStage(device);
   const removeAsciiStage = pipeline.addPostProcess(asciiStage);
   const asciiListeners = new Set<(enabled: boolean) => void>();
 
@@ -60,7 +60,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
     textures,
     gltfCache,
     meshes,
-    gl,
+    device,
     catalog: LEVEL_CATALOG,
     optimization,
     setActiveSceneRegistry: (registry) => { activeSceneRegistry = registry; },

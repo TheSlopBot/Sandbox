@@ -1,5 +1,6 @@
 import { type Material } from '../../render/types.ts';
 import { createInterleavedMesh, createSkinnedMesh } from '../../render/gl/mesh.ts';
+import { type GpuDevice } from '../../render/gl/device.ts';
 import { createSkinInstance } from '../../components/skin.ts';
 import { createMeshDraws, type MeshDrawPart, type MeshDraws } from '../../components/meshDraws.ts';
 import { type RuntimeScene } from './runtime.ts';
@@ -16,12 +17,13 @@ export const findBoneNodeIndex = (
 };
 
 export const buildMeshDrawsFromRuntimeScene = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   bodyScene: RuntimeScene,
   mats: Material[],
 ): MeshDraws => {
   const parts: MeshDrawPart[] = [];
   const nameToBody = new Map<string, number>();
+  const skinByIndex = new Map<number, ReturnType<typeof createSkinInstance>>();
 
   for (let i = 0; i < bodyScene.nodes.length; i++) nameToBody.set(bodyScene.nodes[i]!.name, i);
 
@@ -32,22 +34,28 @@ export const buildMeshDrawsFromRuntimeScene = (
     let skinInst = null as ReturnType<typeof createSkinInstance> | null;
 
     if (pair.skinIndex >= 0) {
-      const srcSkin = bodyScene.skins[pair.skinIndex];
-      if (!srcSkin) continue;
+      const existing = skinByIndex.get(pair.skinIndex);
+      if (existing) {
+        skinInst = existing;
+      } else {
+        const srcSkin = bodyScene.skins[pair.skinIndex];
+        if (!srcSkin) continue;
 
-      const remappedJoints: number[] = [];
+        const remappedJoints: number[] = [];
 
-      for (const jNode of srcSkin.joints) {
-        const jName = bodyScene.nodes[jNode]?.name;
-        remappedJoints.push(jName ? (nameToBody.get(jName) ?? 0) : 0);
+        for (const jNode of srcSkin.joints) {
+          const jName = bodyScene.nodes[jNode]?.name;
+          remappedJoints.push(jName ? (nameToBody.get(jName) ?? 0) : 0);
+        }
+
+        const fakeScene = {
+          ...bodyScene,
+          nodes: bodyScene.nodes,
+          skins: [{ ...srcSkin, joints: remappedJoints }],
+        } as RuntimeScene;
+        skinInst = createSkinInstance(fakeScene, 0, pair.nodeIndex);
+        skinByIndex.set(pair.skinIndex, skinInst);
       }
-
-      const fakeScene = {
-        ...bodyScene,
-        nodes: bodyScene.nodes,
-        skins: [{ ...srcSkin, joints: remappedJoints }],
-      } as RuntimeScene;
-      skinInst = createSkinInstance(fakeScene, 0, pair.nodeIndex);
     }
 
     for (const prim of model.primitives) {
@@ -58,7 +66,7 @@ export const buildMeshDrawsFromRuntimeScene = (
 
       if (prim.kind === 'skinned' && skinInst) {
         const mesh = createSkinnedMesh(
-          gl,
+          device,
           prim.vertices,
           prim.joints,
           prim.weights,
@@ -69,7 +77,7 @@ export const buildMeshDrawsFromRuntimeScene = (
         continue;
       }
 
-      const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+      const mesh = createInterleavedMesh(device, prim.vertices, prim.indices);
       parts.push({ mesh, material, gltfNodeIndex: pair.nodeIndex });
     }
   }

@@ -1,26 +1,33 @@
 import { type Mat4 } from '../math/mat4.ts';
+import { type Mesh } from './gl/mesh.ts';
+import { type TextureHandle } from './gl/texture.ts';
 
 export type Material = {
   name: string;
-  baseColorTex: WebGLTexture | null;
+  baseColorTex: TextureHandle | null;
   baseColorFactor: [number, number, number, number];
   alphaMode: 'OPAQUE' | 'BLEND';
   doubleSided?: boolean;
 };
 
+export type DrawItemGpuModel = {
+  buffer: GPUBuffer;
+  byteOffset: number;
+};
+
+export type DrawItemSkin = {
+  palette: Float32Array;
+  jointCount: number;
+  paletteGpu?: { buffer: GPUBuffer; bindGroup: GPUBindGroup } | null;
+};
+
 export type DrawItem = {
-  mesh: {
-    vao: WebGLVertexArrayObject;
-    indexCount: number;
-    boundsMin: readonly [number, number, number];
-    boundsMax: readonly [number, number, number];
-    boundsCenter: readonly [number, number, number];
-    boundsRadius: number;
-  };
+  mesh: Mesh;
   material: Material;
   model: Mat4;
   sortZ: number;
-  skin?: { palette: Float32Array; jointCount: number };
+  skin?: DrawItemSkin;
+  gpuModel?: DrawItemGpuModel;
   castShadow: boolean;
   overlay?: boolean;
 };
@@ -38,7 +45,11 @@ export const DIRECTIONAL_LIGHT = {
 
 export type ShadowState = {
   lightViewProj: Mat4;
-  map: WebGLTexture;
   mapSize: number;
 };
 
+export type GroundDraw = {
+  mesh: Mesh;
+  model: Mat4;
+  alpha: number;
+};
