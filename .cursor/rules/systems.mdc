@@ -24,7 +24,7 @@ Lower `order` runs first within a phase. Reserve bands:
 | 6 | update | test AI pathfinding (sandbox `installTestAiSystem`) |
 | 7 | update | transform hierarchy (`installTransformHierarchySystem`) |
 | 8 | update | movement (intent → velocity, jump → FSM) |
-| 10 | update | GPU collision pack (resolve via `setSimFlush` before postUpdate) |
+| 9–10 | update | CPU character physics (`installCharacterPhysicsSystem`: broadphase@9, resolve@10) |
 | 12 | update | animation FSM (`installAnimationFsmSystem`) |
 | 13 | update | character yaw (`installCharacterStateSystem`) |
 | 0 | postUpdate | camera follow; GPU skeletal pose gather (`installSkeletalGpuPoseSystem`) |
@@ -131,4 +131,4 @@ Sandbox `createPlayableScene` installs `installSkeletalCharacterSystems` (not a 
 | `installAnimationFsmSystem` | update | `animationStateMachine` state + timers |
 | `installSkeletalGpuPoseSystem` | postUpdate gather; draw encode | GPU joint palettes + mesh/attachment models |
 
-Install `installCharacterStateSystem` and `installMovementSystem` separately on the scene registry. Character collision is GPU-only via `installCollisionSystem({ device, setSimFlush })`.
+Install `installCharacterStateSystem` and `installMovementSystem` separately on the scene registry. Character collision is CPU via `installCharacterPhysicsSystem` (broadphase query + capsule resolve); GPU pose/cull/render stay unchanged.

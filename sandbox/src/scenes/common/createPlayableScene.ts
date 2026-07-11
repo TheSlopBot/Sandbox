@@ -12,7 +12,7 @@ import {
   useRegistry,
   installMovementSystem,
   installNavGridSystem,
-  installCollisionSystem,
+  installCharacterPhysicsSystem,
   installColliderTransformSystem,
   installCharacterStateSystem,
   installCameraFollowSystem,
@@ -59,10 +59,7 @@ export const createPlayableScene = (
   installNavGridSystem(registry);
   installTestAiSystem(registry);
   installMovementSystem(registry);
-  const removeGpuCollision = installCollisionSystem(registry, {
-    device: deps.device,
-    setSimFlush: deps.setSimFlush,
-  });
+  installCharacterPhysicsSystem(registry);
   installColliderTransformSystem(registry);
   installCharacterStateSystem(registry);
   installCameraFollowSystem(registry, deps.pipeline, deps.input);
@@ -101,7 +98,6 @@ export const createPlayableScene = (
   const unload = () => {
     if (!loaded) return;
 
-    removeGpuCollision?.();
     deps.setSimFlush(null);
 
     const ids = [...registry.all()].map((entity) => entity.id);

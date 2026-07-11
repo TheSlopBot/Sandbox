@@ -128,6 +128,10 @@ export { findPath, pickRandomObjective } from './navigation/astar.ts';
 export { installMovementSystem } from './systems/movementSystem.ts';
 export { installNavGridSystem } from './systems/navGridSystem.ts';
 export { installCollisionSystem, type CollisionSystemOptions } from './systems/collisionSystem.ts';
+export {
+  installCharacterPhysicsSystem,
+  type CharacterPhysicsSystemOptions,
+} from './systems/characterPhysicsSystem.ts';
 export { installColliderTransformSystem } from './systems/colliderTransformSystem.ts';
 export { installCharacterStateSystem } from './systems/characterStateSystem.ts';
 export { installAnimationFsmSystem } from './systems/animationFsmSystem.ts';

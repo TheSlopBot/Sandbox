@@ -12,6 +12,7 @@ export type CapsuleY = {
 };
 
 const SURFACE_EPS = 0.02;
+const SURFACE_SNAP = 0.12;
 const _local = v3();
 const _tmpQ = new Float32Array(4) as Quat;
 const _toPoint = v3();
@@ -285,7 +286,7 @@ export const getCapsuleSupportSurfaceY = (
   }
 
   if (bestTop === -Infinity) return null;
-  if (footY >= bestTop - SURFACE_EPS && footY <= bestTop + SURFACE_EPS) return bestTop;
+  if (footY >= bestTop - SURFACE_SNAP && footY <= bestTop + SURFACE_EPS) return bestTop;
   return null;
 };
 
