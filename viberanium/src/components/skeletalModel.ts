@@ -4,6 +4,7 @@ export type SkeletalModel = {
   bodyScene: RuntimeScene;
   visualYOffset: number;
   poseDirty: boolean;
+  clipsDirty: boolean;
 };
 
 export const createSkeletalModel = (
@@ -13,4 +14,5 @@ export const createSkeletalModel = (
   bodyScene,
   visualYOffset,
   poseDirty: true,
+  clipsDirty: false,
 });

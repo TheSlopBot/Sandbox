@@ -41,7 +41,6 @@ export type SkeletalGpuPoseOptions = {
 type GpuPoseState = {
   asset: SkeletonGpuAsset;
   slotIndex: number;
-  clipMapRef: AnimationClipMap;
 };
 
 type SharedAssetEntry = {
@@ -89,6 +88,16 @@ export const installSkeletalGpuPoseSystem = (
     clipMap: AnimationClipMap,
   ): SkeletonGpuAsset => {
     const gltf = model.bodyScene.gltf;
+
+    if (model.clipsDirty) {
+      const stale = sharedAssets.get(gltf);
+      if (stale) {
+        stale.asset.destroy();
+        sharedAssets.delete(gltf);
+      }
+      model.clipsDirty = false;
+    }
+
     const cached = sharedAssets.get(gltf);
     if (cached) return cached.asset;
 
@@ -112,14 +121,12 @@ export const installSkeletalGpuPoseSystem = (
     let state = stateByModel.get(model);
     if (state) {
       state.asset = asset;
-      state.clipMapRef = clipMap;
       return state;
     }
 
     state = {
       asset,
       slotIndex: posePass.allocSlot(),
-      clipMapRef: clipMap,
     };
     stateByModel.set(model, state);
     return state;

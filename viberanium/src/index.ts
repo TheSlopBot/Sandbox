@@ -109,9 +109,11 @@ export {
   getOrBuildRuntimeScene,
   computeSkinPalette,
   snapshotPose,
+  applyPose,
   updateWorldFromLocals,
   updateWorldFromLocalsDirty,
   type RuntimeScene,
+  type RuntimePose,
 } from './assets/gltf/runtime.ts';
 export { buildRuntimeModel } from './assets/gltf/buildRuntime.ts';
 export { buildGltfMaterials, getOrBuildGltfMaterials } from './assets/gltf/materials.ts';

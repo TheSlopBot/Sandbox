@@ -296,6 +296,15 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
 
     if (byAsset.size === 0) return;
 
+    let alignedFloatNeeded = 0;
+    let groupIndex = 0;
+    for (const group of byAsset.values()) {
+      if (groupIndex >= MAX_POSE_GROUPS) break;
+      alignedFloatNeeded = align256(alignedFloatNeeded * 4) >> 2;
+      alignedFloatNeeded += group.length * POSE_INSTANCE_FLOATS;
+      groupIndex++;
+    }
+
     const groups: {
       asset: SkeletonGpuAsset;
       group: PoseDispatchEntry[];
@@ -320,7 +329,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
       }
     }
 
-    const instanceFloatNeeded = entries.length * POSE_INSTANCE_FLOATS;
+    const instanceFloatNeeded = Math.max(entries.length * POSE_INSTANCE_FLOATS, alignedFloatNeeded);
     if (instanceCpu.length < instanceFloatNeeded) {
       instanceCpu = new Float32Array(Math.max(instanceFloatNeeded, slotCapacity * POSE_INSTANCE_FLOATS));
       instanceU32 = new Uint32Array(instanceCpu.buffer);

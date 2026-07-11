@@ -3,8 +3,12 @@ import {
   type Material,
   type Transform,
   type SkeletalModel,
+  type AnimationStateMachine,
+  type AnimationClipMap,
   type Mat4,
   type Quat,
+  type RuntimePose,
+  type RuntimeScene,
   m4,
   m4Copy,
   m4Mul,
@@ -13,6 +17,9 @@ import {
   v3,
   updateWorldMatrix,
   updateWorldFromLocals,
+  applyPose,
+  snapshotPose,
+  sampleClipToNodes,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { CONSTRUCT_KEYS } from '../../catalog/keys/components.ts';
@@ -25,6 +32,10 @@ const RED: [number, number, number, number] = [1, 0.2, 0.2, 0.95];
 const _renderRoot = m4();
 const _boneWorld = m4();
 const _parentWorld = m4();
+const bindPoseByScene = new WeakMap<RuntimeScene, RuntimePose>();
+
+const isLoopingState = (state: AnimationStateMachine['current']) =>
+  state === 'idle' || state === 'run' || state === 'jumpAir';
 
 const translationFromMat4 = (out: ReturnType<typeof v3>, m: Mat4) => {
   out[0] = m[12]!;
@@ -84,6 +95,15 @@ const setColor = (material: Material, selected: boolean) => {
   material.baseColorFactor[3] = c[3];
 };
 
+const ensureBindPose = (scene: RuntimeScene): RuntimePose => {
+  let bind = bindPoseByScene.get(scene);
+  if (bind) return bind;
+
+  bind = snapshotPose(scene.nodes);
+  bindPoseByScene.set(scene, bind);
+  return bind;
+};
+
 export const installSkeletonOverlaySystem = (registry: Registry) =>
   registry.addAction(
     'update',
@@ -107,6 +127,24 @@ export const installSkeletonOverlaySystem = (registry: Registry) =>
         actorSel && actorSel.kind === 'bone' ? actorSel.boneName : null;
 
       const nodes = skeletal.bodyScene.nodes;
+      const bindPose = ensureBindPose(skeletal.bodyScene);
+      applyPose(nodes, bindPose);
+
+      const fsm = characterEnt.components[COMPONENT_KEYS.animationStateMachine] as
+        | AnimationStateMachine
+        | undefined;
+      const clipMap = characterEnt.components[COMPONENT_KEYS.animationClipMap] as
+        | AnimationClipMap
+        | undefined;
+      const activeClip = fsm && clipMap ? clipMap.clips[fsm.current]?.clip : undefined;
+
+      if (fsm && activeClip && activeClip.channels.length > 0) {
+        const oneShot = fsm.current === 'jumpStart' || fsm.current === 'jumpLand';
+        const time = oneShot ? fsm.stateTime : fsm.animTime;
+        const speed = fsm.current === 'run' ? fsm.runPlaybackSpeed : 1;
+        sampleClipToNodes(activeClip, nodes, time * speed, 1, isLoopingState(fsm.current));
+      }
+
       updateWorldFromLocals(nodes, skeletal.bodyScene.nodeTopoOrder);
       const nameToModelWorld = new Map<string, Mat4>();
 

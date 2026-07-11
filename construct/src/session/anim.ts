@@ -47,7 +47,10 @@ const applyEmptyBindPoseClips = (entity: Entity) => {
   }
 
   const model = entity.components[COMPONENT_KEYS.skeletalModel] as SkeletalModel | undefined;
-  if (model) model.poseDirty = true;
+  if (model) {
+    model.poseDirty = true;
+    model.clipsDirty = true;
+  }
 };
 
 export const loadAnimationPack = async (
@@ -110,6 +113,12 @@ export const applyClip = (
   if (cc) {
     cc.velocity[0] = 0;
     cc.velocity[2] = 0;
+  }
+
+  const model = entity.components[COMPONENT_KEYS.skeletalModel] as SkeletalModel | undefined;
+  if (model) {
+    model.poseDirty = true;
+    model.clipsDirty = true;
   }
 
   const anim = getConstructAnim(deps.registry);
