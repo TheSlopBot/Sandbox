@@ -3,7 +3,8 @@ import {
   type TextureCache,
   type GltfCache,
 } from 'viberanium';
-import { COMBAT_MECH_DEFS, type CombatMechVariant } from '../../../catalog/characters/combatMech.ts';
+import { COMBAT_MECH_ACTORS, type CombatMechVariant } from '../../../catalog/actors/kaykitActors.ts';
+import { actorDefinitionToSkeletalDef } from '../../../catalog/actors/actorDefinitionToSkeletalDef.ts';
 import { GAME_COMPONENT_KEYS } from '../../../catalog/keys/components.ts';
 import { spawnActor } from '../../actor/spawnActor.ts';
 import { createCombatMech as createCombatMechComponent } from '../components/combatMech.ts';
@@ -25,11 +26,18 @@ export const createCombatMech = async (
 ) => {
   const variant = opts.variant ?? 'primary';
 
-  return spawnActor(registry, gl, textures, gltfCache, COMBAT_MECH_DEFS[variant], {
-    ...opts,
-    extraComponents: {
-      [GAME_COMPONENT_KEYS.testAi]: createTestAi(opts),
-      [GAME_COMPONENT_KEYS.combatMech]: createCombatMechComponent(variant),
+  return spawnActor(
+    registry,
+    gl,
+    textures,
+    gltfCache,
+    actorDefinitionToSkeletalDef(COMBAT_MECH_ACTORS[variant]),
+    {
+      ...opts,
+      extraComponents: {
+        [GAME_COMPONENT_KEYS.testAi]: createTestAi(opts),
+        [GAME_COMPONENT_KEYS.combatMech]: createCombatMechComponent(variant),
+      },
     },
-  });
+  );
 };

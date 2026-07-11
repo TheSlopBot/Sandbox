@@ -9,12 +9,13 @@ export type PropAssetPart = PropPartLocal & {
   kind: 'asset';
   url: string;
   materialPrefix: string;
+  tags: string[];
 };
 
 export type PropColliderPart = PropPartLocal & {
   id: string;
   kind: 'collider';
-  shape: 'box' | 'cylinder' | 'sphere';
+  shape: 'box' | 'cylinder' | 'sphere' | 'capsule';
   halfExtents?: [number, number, number];
   radius?: number;
   halfHeight?: number;

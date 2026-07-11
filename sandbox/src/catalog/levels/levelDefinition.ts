@@ -1,4 +1,4 @@
-import { type CombatMechVariant } from '../characters/combatMech.ts';
+import { type CombatMechVariant } from '../actors/kaykitActors.ts';
 
 export type LevelPropPlacement = {
   propId: string;

@@ -8,7 +8,8 @@ import {
   type GltfCache,
   COMPONENT_KEYS,
 } from 'viberanium';
-import { SPACE_RANGER_DEF } from '../../catalog/characters/spaceRanger.ts';
+import { SPACE_RANGER_ACTOR } from '../../catalog/actors/kaykitActors.ts';
+import { actorDefinitionToSkeletalDef } from '../../catalog/actors/actorDefinitionToSkeletalDef.ts';
 import { GAME_COMPONENT_KEYS } from '../../catalog/keys/components.ts';
 import { PLAYER_ATTACHMENT_TAGS } from '../../catalog/keys/attachments.ts';
 import { loadSkeletalCharacter } from '../actor/loadSkeletalCharacter.ts';
@@ -32,7 +33,10 @@ export const createPlayer = async (
   entity.components[COMPONENT_KEYS.cameraFollow] = createCameraFollow();
   entity.components[GAME_COMPONENT_KEYS.playerController] = createPlayerController();
 
-  const loaded = await loadSkeletalCharacter({ gl, textures, gltfCache }, SPACE_RANGER_DEF);
+  const loaded = await loadSkeletalCharacter(
+    { gl, textures, gltfCache },
+    actorDefinitionToSkeletalDef(SPACE_RANGER_ACTOR),
+  );
 
   spawnSkeletalCharacter(registry, entity, loaded, {
     gl,

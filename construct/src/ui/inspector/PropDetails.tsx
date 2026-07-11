@@ -5,11 +5,15 @@ import {
 } from '../../catalog/props/propDocument.ts';
 import type { KaykitTextureVariant } from '../../catalog/manifest/kaykitManifest.ts';
 import { createEulerQuat, quatToEulerDegrees } from './euler.ts';
+import { TagList } from './TagList.tsx';
 
 export type PropDetailsProps = {
   part: PropDocumentPart | null;
+  propDisplayName: string;
+  documentTags: readonly string[];
   textureVariants: KaykitTextureVariant[];
   textureVariantUrl: string | null;
+  onRenameProp: () => void;
   onRename: (partId: string, name: string) => void;
   onCommitLocal: (
     partId: string,
@@ -20,6 +24,7 @@ export type PropDetailsProps = {
     },
   ) => void;
   onTextureVariantChange: (partId: string, url: string | null) => void;
+  onTagsChange: (partId: string, tags: string[]) => void;
   onDelete: (partId: string) => void;
 };
 
@@ -92,13 +97,48 @@ const AxisRow = ({
   );
 };
 
+const PropNameHeader = ({
+  propDisplayName,
+  onRenameProp,
+}: {
+  propDisplayName: string;
+  onRenameProp: () => void;
+}) => (
+  <div className="construct-inspectorHeader">
+    <span>Details</span>
+    <span className="construct-propNameRow">
+      <span className="construct-subtle construct-propNameText" title={propDisplayName}>
+        {propDisplayName}
+      </span>
+      <button
+        type="button"
+        className="construct-iconBtn"
+        title="Rename prop"
+        aria-label="Rename prop"
+        onClick={onRenameProp}
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M11.7 1.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4l-8.5 8.5-3.2.8a.5.5 0 0 1-.6-.6l.8-3.2 8.5-8.5ZM3.4 11.1l-.4 1.5 1.5-.4 7.4-7.4-1.1-1.1-7.4 7.4Z"
+          />
+        </svg>
+      </button>
+    </span>
+  </div>
+);
+
 export const PropDetails = ({
   part,
+  propDisplayName,
+  documentTags,
   textureVariants,
   textureVariantUrl,
+  onRenameProp,
   onRename,
   onCommitLocal,
   onTextureVariantChange,
+  onTagsChange,
   onDelete,
 }: PropDetailsProps) => {
   const [nameDraft, setNameDraft] = useState(part?.name ?? '');
@@ -110,9 +150,7 @@ export const PropDetails = ({
   if (!part) {
     return (
       <div className="construct-inspector">
-        <div className="construct-inspectorHeader">
-          <span>Details</span>
-        </div>
+        <PropNameHeader propDisplayName={propDisplayName} onRenameProp={onRenameProp} />
         <div className="construct-inspectorBody">
           <div className="mutedNote">Select an element to edit details.</div>
         </div>
@@ -136,10 +174,10 @@ export const PropDetails = ({
 
   return (
     <div className="construct-inspector">
-      <div className="construct-inspectorHeader">
-        <span>Details</span>
-        <span className="construct-subtle">{part.kind}</span>
-      </div>
+      <PropNameHeader
+        propDisplayName={propDisplayName}
+        onRenameProp={onRenameProp}
+      />
       <div className="construct-inspectorBody construct-detailsBody">
         <label className="construct-detailsField">
           <span>Name</span>
@@ -178,25 +216,32 @@ export const PropDetails = ({
           }}
         />
         {part.kind === 'asset' ? (
-          <div className="construct-detailsSection">
-            <div className="construct-detailsSectionTitle">Variant</div>
-            <select
-              className="construct-detailsSelect"
-              disabled={!canSwitchTexture}
-              value={activeVariantUrl ?? ''}
-              onChange={(e) => onTextureVariantChange(part.id, e.target.value || null)}
-            >
-              <option value="">Default</option>
-              {textureVariants.map((v) => (
-                <option key={v.url} value={v.url}>
-                  {v.label}
-                </option>
-              ))}
-            </select>
-            {!canSwitchTexture ? (
-              <div className="mutedNote">Texture variants unavailable for this asset.</div>
-            ) : null}
-          </div>
+          <>
+            <div className="construct-detailsSection">
+              <div className="construct-detailsSectionTitle">Variant</div>
+              <select
+                className="construct-detailsSelect"
+                disabled={!canSwitchTexture}
+                value={activeVariantUrl ?? ''}
+                onChange={(e) => onTextureVariantChange(part.id, e.target.value || null)}
+              >
+                <option value="">Default</option>
+                {textureVariants.map((v) => (
+                  <option key={v.url} value={v.url}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+              {!canSwitchTexture ? (
+                <div className="mutedNote">Texture variants unavailable for this asset.</div>
+              ) : null}
+            </div>
+            <TagList
+              tags={part.tags}
+              documentTags={documentTags}
+              onChange={(tags) => onTagsChange(part.id, tags)}
+            />
+          </>
         ) : null}
         <div className="construct-detailsFooter">
           <button

@@ -548,16 +548,28 @@ const main = async () => {
   log(`- Kinds: StaticProp=${kindCounts.StaticProp}, CharacterModel=${kindCounts.CharacterModel}, AnimationSet=${kindCounts.AnimationSet}, Unknown=${kindCounts.Unknown}`);
   log(`- Rigs (AnimationSet only): Large=${rigCounts.Large}, Medium=${rigCounts.Medium}, Unknown=${rigCounts.null}`);
 
+  const assetPaths = entries
+    .filter((e) => e.kind === 'StaticProp' || e.kind === 'Unknown')
+    .map((e) => e.path);
+  const characterPaths = entries
+    .filter((e) => e.kind === 'CharacterModel')
+    .map((e) => e.path);
+
   const manifest = {
-    version: 1,
+    version: 2,
     sourceRoot: toPosix(sourceRoot),
     generatedAt: new Date().toISOString(),
     rootUrlPrefix: 'assets/kaykit/',
     tree: buildTree(uniquePreviewables),
+    assetTree: buildTree(assetPaths),
+    characterTree: buildTree(characterPaths),
     entries,
     stats: {
       copiedCount: copied.length,
       previewableCount: uniquePreviewables.length,
+      staticPropCount: kindCounts.StaticProp,
+      characterModelCount: kindCounts.CharacterModel,
+      animationSetCount: kindCounts.AnimationSet,
     },
   };
 

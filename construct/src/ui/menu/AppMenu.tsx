@@ -1,4 +1,4 @@
-export type ConstructMode = 'preview' | 'prop' | 'character' | 'level';
+export type ConstructMode = 'preview' | 'prop' | 'actor' | 'level';
 
 export type AppMenuProps = {
   mode: ConstructMode;
@@ -8,12 +8,14 @@ export type AppMenuProps = {
   onNew: () => void;
   onSave: () => void;
   onLoad: () => void;
+  onImport: () => void;
+  onExport: () => void;
 };
 
 const MODES: { id: ConstructMode; label: string; enabled: boolean }[] = [
   { id: 'preview', label: 'Preview', enabled: true },
   { id: 'prop', label: 'Prop', enabled: true },
-  { id: 'character', label: 'Character', enabled: false },
+  { id: 'actor', label: 'Actor', enabled: true },
   { id: 'level', label: 'Level', enabled: false },
 ];
 
@@ -25,7 +27,12 @@ export const AppMenu = ({
   onNew,
   onSave,
   onLoad,
-}: AppMenuProps) => (
+  onImport,
+  onExport,
+}: AppMenuProps) => {
+  const propFileActionsEnabled = mode === 'prop' || mode === 'actor';
+
+  return (
   <div className="construct-menuBar">
     <div className="construct-menuFile">
       <button
@@ -51,7 +58,10 @@ export const AppMenu = ({
           <button
             type="button"
             className="construct-menuDropdownItem"
+            disabled={!propFileActionsEnabled}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
             onClick={() => {
+              if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
               onSave();
             }}
@@ -61,12 +71,41 @@ export const AppMenu = ({
           <button
             type="button"
             className="construct-menuDropdownItem"
+            disabled={!propFileActionsEnabled}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
             onClick={() => {
+              if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
               onLoad();
             }}
           >
             Load
+          </button>
+          <button
+            type="button"
+            className="construct-menuDropdownItem"
+            disabled={!propFileActionsEnabled}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
+            onClick={() => {
+              if (!propFileActionsEnabled) return;
+              onFileOpenChange(false);
+              onImport();
+            }}
+          >
+            Import
+          </button>
+          <button
+            type="button"
+            className="construct-menuDropdownItem"
+            disabled={!propFileActionsEnabled}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
+            onClick={() => {
+              if (!propFileActionsEnabled) return;
+              onFileOpenChange(false);
+              onExport();
+            }}
+          >
+            Export
           </button>
         </div>
       ) : null}
@@ -93,4 +132,5 @@ export const AppMenu = ({
       ))}
     </div>
   </div>
-);
+  );
+};

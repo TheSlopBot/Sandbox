@@ -35,5 +35,7 @@ export type KaykitManifest = {
   generatedAt: string;
   rootUrlPrefix: string;
   tree: KaykitTreeNode;
+  assetTree?: KaykitTreeNode;
+  characterTree?: KaykitTreeNode;
   entries: KaykitManifestEntry[];
 };

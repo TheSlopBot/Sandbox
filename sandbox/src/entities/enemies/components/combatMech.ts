@@ -1,4 +1,4 @@
-import { type CombatMechVariant } from '../../../catalog/characters/combatMech.ts';
+import { type CombatMechVariant } from '../../../catalog/actors/kaykitActors.ts';
 
 export type CombatMech = {
   variant: CombatMechVariant;

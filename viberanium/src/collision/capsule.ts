@@ -132,7 +132,7 @@ const footprintOverlaps = (
     return Math.abs(rel.x) <= hx && Math.abs(rel.z) <= hz;
   }
 
-  if (shape.kind === 'cylinder') {
+  if (shape.kind === 'cylinder' || shape.kind === 'capsule') {
     q4Conjugate(_tmpQ, shape.rotation);
     _toPoint[0] = x - shape.center[0];
     _toPoint[1] = 0;
@@ -202,7 +202,7 @@ export const resolveCapsuleVsColliderHorizontal = (
     );
   }
 
-  if (shape.kind === 'cylinder') {
+  if (shape.kind === 'cylinder' || shape.kind === 'capsule') {
     return resolveCircleVsCircleXZ(
       capsule.x,
       capsule.z,

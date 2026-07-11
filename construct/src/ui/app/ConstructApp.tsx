@@ -7,39 +7,80 @@ import {
   type KaykitTextureVariant,
   type KaykitTreeNode,
 } from '../../catalog/manifest/kaykitManifest.ts';
+import {
+  buildAssetTree,
+  buildCharacterTree,
+} from '../../catalog/manifest/filterManifestTrees.ts';
 import { bootstrap, type ConstructSession } from '../../globals/bootstrap.ts';
 import { AppMenu, type ConstructMode } from '../menu/AppMenu.tsx';
-import { AssetExplorer } from '../explorer/AssetExplorer.tsx';
+import { AssetExplorer, scopeExplorerDirPath } from '../explorer/AssetExplorer.tsx';
 import { PropInspector } from '../inspector/PropInspector.tsx';
 import { PropDetails } from '../inspector/PropDetails.tsx';
-import { PreviewDetails } from '../inspector/PreviewDetails.tsx';
+import { ActorInspector } from '../inspector/ActorInspector.tsx';
+import { ActorDetails } from '../inspector/ActorDetails.tsx';
 import { OrientationCube } from '../orientation/OrientationCube.tsx';
+import { ViewerAnimHud } from '../viewer/ViewerAnimHud.tsx';
+import { ConfirmModal } from '../modals/ConfirmModal.tsx';
+import { LoadPropModal } from '../modals/LoadPropModal.tsx';
+import { LoadActorModal } from '../modals/LoadActorModal.tsx';
+import { RenamePropModal } from '../modals/RenamePropModal.tsx';
+import {
+  getLocalPropEntry,
+  listLocalPropEntries,
+  removeLocalProp,
+  saveLocalProp,
+  type PropLocalStoreEntry,
+} from '../../storage/propLocalStore.ts';
+import {
+  getLocalActorEntry,
+  listLocalActorEntries,
+  removeLocalActor,
+  saveLocalActor,
+  type ActorLocalStoreEntry,
+} from '../../storage/actorLocalStore.ts';
 import {
   type PropDocument,
   type PropEditorTransformMode,
+  collectPropDocumentTags,
   createEmptyPropDocument,
   parsePropDocument,
+  propNeedsName,
   serializePropDocument,
 } from '../../catalog/props/propDocument.ts';
+import {
+  type ActorDocument,
+  type ActorEditorSelection,
+  actorNeedsName,
+  createEmptyActorDocument,
+  parseActorDocument,
+  serializeActorDocument,
+} from '../../catalog/actors/actorDocument.ts';
 import '../theme/style.css';
 
 export type ConstructAppProps = {
   active: boolean;
 };
 
-const expandVariantPaths = (expanded: Set<string>, filePath: string) => {
+type RenameIntent = 'edit' | 'save' | 'export';
+
+const expandVariantPaths = (
+  expanded: Set<string>,
+  filePath: string,
+  scope: 'assets' | 'characters',
+) => {
   const next = new Set(expanded);
-  next.add('');
+  next.add(scopeExplorerDirPath(scope, ''));
   const parts = filePath.split('/');
   let cur = '';
   for (let i = 0; i < parts.length - 1; i++) {
     cur = cur ? `${cur}/${parts[i]}` : parts[i];
-    next.add(cur);
+    next.add(scopeExplorerDirPath(scope, cur));
   }
   return next;
 };
 
-const getSearchWords = (raw: string) => raw.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 0);
+const getSearchWords = (raw: string) =>
+  raw.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 0);
 
 const matchesWords = (haystack: string, words: readonly string[]) => {
   if (words.length === 0) return true;
@@ -113,28 +154,39 @@ const isEditableKeyboardTarget = (target: EventTarget | null) => {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 };
 
-const pruneTree = (
-  root: KaykitTreeNode,
-  opts: {
-    isAnimationPath: (path: string) => boolean;
-    isFileMatch: (path: string, name: string) => boolean;
-  },
-) => {
-  const pruneNode = (node: KaykitTreeNode): KaykitTreeNode | null => {
-    if (node.type === 'file') {
-      if (opts.isAnimationPath(node.path)) return null;
-      if (!opts.isFileMatch(node.path, node.name)) return null;
-      return node;
-    }
-
-    const nextChildren = node.children.map(pruneNode).filter((c): c is KaykitTreeNode => !!c);
-    if (node.path !== '' && nextChildren.length === 0) return null;
-
-    return { ...node, children: nextChildren };
-  };
-
-  return pruneNode(root) ?? { type: 'dir', name: root.name, path: root.path, children: [] };
+const downloadPropDocument = (doc: PropDocument) => {
+  const blob = new Blob([serializePropDocument(doc)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${doc.id || 'untitled'}.prop`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return a.download;
 };
+
+const downloadActorDocument = (doc: ActorDocument) => {
+  const blob = new Blob([serializeActorDocument(doc)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${doc.id || 'untitled'}.actor`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return a.download;
+};
+
+const cloneActorDoc = (doc: ActorDocument): ActorDocument => ({
+  ...doc,
+  tags: [...doc.tags],
+  character: doc.character ? { ...doc.character } : null,
+  attachments: doc.attachments.map((a) => ({ ...a, tags: [...a.tags] })),
+  colliders: doc.colliders.map((c) => ({
+    ...c,
+    parent: { ...c.parent },
+    halfExtents: c.halfExtents ? [...c.halfExtents] as [number, number, number] : undefined,
+  })),
+});
 
 export const ConstructApp = ({ active }: ConstructAppProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -146,7 +198,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   const [mode, setMode] = useState<ConstructMode>('preview');
   const [fileOpen, setFileOpen] = useState(false);
   const [manifest, setManifest] = useState<KaykitManifest | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['']));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<KaykitManifestEntry | null>(null);
   const [status, setStatus] = useState<string>('Loading manifest…');
@@ -158,10 +210,20 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   const [explorerQueryInput, setExplorerQueryInput] = useState<string>('');
   const [explorerQuery, setExplorerQuery] = useState<string>('');
   const [propDoc, setPropDoc] = useState<PropDocument>(() => createEmptyPropDocument());
+  const [actorDoc, setActorDoc] = useState<ActorDocument>(() => createEmptyActorDocument());
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  const [actorSelection, setActorSelection] = useState<ActorEditorSelection>(null);
+  const [actorBoneNames, setActorBoneNames] = useState<string[]>([]);
   const [transformMode, setTransformMode] = useState<PropEditorTransformMode>('move');
   const [colliderExpanded, setColliderExpanded] = useState(true);
   const [assetsExpanded, setAssetsExpanded] = useState(true);
+  const [charactersExpanded, setCharactersExpanded] = useState(true);
+  const [confirmNewOpen, setConfirmNewOpen] = useState(false);
+  const [loadPropModalOpen, setLoadPropModalOpen] = useState(false);
+  const [loadActorModalOpen, setLoadActorModalOpen] = useState(false);
+  const [localPropEntries, setLocalPropEntries] = useState<PropLocalStoreEntry[]>([]);
+  const [localActorEntries, setLocalActorEntries] = useState<ActorLocalStoreEntry[]>([]);
+  const [renameIntent, setRenameIntent] = useState<RenameIntent | null>(null);
 
   useEffect(() => {
     if (!active) return;
@@ -202,8 +264,15 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     session.setPropDocumentListener((doc) => {
       setPropDoc({ ...doc, parts: [...doc.parts] });
     });
+    session.setActorDocumentListener((doc) => {
+      setActorDoc(cloneActorDoc(doc));
+      setActorBoneNames(session.getActorBoneNames());
+    });
 
-    return () => session.setPropDocumentListener(null);
+    return () => {
+      session.setPropDocumentListener(null);
+      session.setActorDocumentListener(null);
+    };
   }, [active]);
 
   useEffect(() => {
@@ -216,7 +285,32 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
         const doc = await session.enterPropMode();
         setPropDoc({ ...doc, parts: [...doc.parts] });
         setSelectedPartId(null);
-        setStatus(doc.parts.length > 0 ? 'Prop editor ready.' : 'Prop editor ready. Add assets or colliders.');
+        setActorSelection(null);
+        setStatus(
+          doc.parts.length > 0
+            ? 'Prop editor ready.'
+            : 'Prop editor ready. Add assets or colliders.',
+        );
+      })();
+      return;
+    }
+
+    if (mode === 'actor') {
+      void (async () => {
+        const doc = await session.enterActorMode();
+        setActorDoc(cloneActorDoc(doc));
+        setActorBoneNames(session.getActorBoneNames());
+        setActorSelection(doc.character ? { kind: 'actor' } : null);
+        setSelectedPartId(null);
+        setAnimPackUrl(null);
+        setAvailableClipNames([]);
+        setClipName(null);
+        session.clearAnimationPreview();
+        setStatus(
+          doc.character
+            ? 'Actor editor ready.'
+            : 'Actor editor ready. Add a character from the explorer.',
+        );
       })();
       return;
     }
@@ -250,7 +344,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   }, [fileOpen]);
 
   useEffect(() => {
-    if (!active || mode !== 'prop') return;
+    if (!active || (mode !== 'prop' && mode !== 'actor')) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
@@ -276,8 +370,16 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   }, [manifest]);
 
   const compatibleAnimPacks = useMemo(() => {
-    if (!manifest || !selectedEntry) return [];
-    if (selectedEntry.kind !== 'CharacterModel' || selectedEntry.boneCount <= 0) return [];
+    if (!manifest) return [];
+
+    const characterEntry =
+      mode === 'actor' && actorDoc.character
+        ? resolveManifestEntryForAssetUrl(actorDoc.character.url, entriesByPath)
+        : selectedEntry;
+
+    if (!characterEntry || characterEntry.kind !== 'CharacterModel' || characterEntry.boneCount <= 0) {
+      return [];
+    }
 
     const seen = new Set<string>();
 
@@ -289,17 +391,39 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
         seen.add(name);
         return true;
       });
-  }, [manifest, selectedEntry]);
+  }, [manifest, selectedEntry, mode, actorDoc.character, entriesByPath]);
 
-  const filteredTree = useMemo(() => {
-    if (!manifest) return null;
+  const canAnimatePreview = useMemo(
+    () => !!selectedEntry && selectedEntry.kind === 'CharacterModel' && selectedEntry.boneCount > 0,
+    [selectedEntry],
+  );
 
+  const canAnimateActor = useMemo(() => {
+    if (!actorDoc.character) return false;
+    const entry = resolveManifestEntryForAssetUrl(actorDoc.character.url, entriesByPath);
+    return !!entry && entry.kind === 'CharacterModel' && entry.boneCount > 0;
+  }, [actorDoc.character, entriesByPath]);
+
+  const actorCharacterPath = useMemo(() => {
+    if (!actorDoc.character) return null;
+    const entry = resolveManifestEntryForAssetUrl(actorDoc.character.url, entriesByPath);
+    return entry?.path ?? null;
+  }, [actorDoc.character, entriesByPath]);
+
+  const isFileMatch = useMemo(() => {
     const words = getSearchWords(explorerQuery);
-    return pruneTree(manifest.tree, {
-      isAnimationPath: (path) => (entriesByPath.get(path)?.kind ?? null) === 'AnimationSet',
-      isFileMatch: (path, name) => matchesWords(`${name} ${path}`, words),
-    });
-  }, [manifest, explorerQuery, entriesByPath]);
+    return (path: string, name: string) => matchesWords(`${name} ${path}`, words);
+  }, [explorerQuery]);
+
+  const assetTree = useMemo(() => {
+    if (!manifest) return null;
+    return buildAssetTree(manifest, entriesByPath, isFileMatch);
+  }, [manifest, entriesByPath, isFileMatch]);
+
+  const characterTree = useMemo(() => {
+    if (!manifest) return null;
+    return buildCharacterTree(manifest, entriesByPath, isFileMatch);
+  }, [manifest, entriesByPath, isFileMatch]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => setExplorerQuery(explorerQueryInput), 160);
@@ -307,7 +431,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   }, [explorerQueryInput]);
 
   useEffect(() => {
-    if (!filteredTree) return;
+    if (!assetTree && !characterTree) return;
 
     const prevQuery = prevExplorerQueryRef.current;
     prevExplorerQueryRef.current = explorerQuery;
@@ -316,27 +440,31 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
 
     setExpanded((prev) => {
       const next = new Set(prev);
-
-      for (const p of collectDirPaths(filteredTree)) next.add(p);
-
+      if (assetTree) {
+        for (const p of collectDirPaths(assetTree)) {
+          next.add(scopeExplorerDirPath('assets', p));
+        }
+      }
+      if (characterTree) {
+        for (const p of collectDirPaths(characterTree)) {
+          next.add(scopeExplorerDirPath('characters', p));
+        }
+      }
       return next;
     });
-  }, [filteredTree, explorerQuery]);
+  }, [assetTree, characterTree, explorerQuery]);
 
-  const canAnimate = useMemo(
-    () => !!selectedEntry && selectedEntry.kind === 'CharacterModel' && selectedEntry.boneCount > 0,
-    [selectedEntry],
-  );
-
-  const canSwitchTexture = useMemo(
-    () => textureVariants.length > 0,
-    [textureVariants],
-  );
+  const canSwitchTexture = useMemo(() => textureVariants.length > 0, [textureVariants]);
 
   const viewerTitle = useMemo(() => {
+    if (mode === 'actor') {
+      if (!actorDoc.character) return 'Actor';
+      return actorDoc.character.url.split('/').slice(-1)[0] ?? 'Actor';
+    }
+
     if (!selectedEntry) return 'Viewer';
     return selectedEntry.path.split('/').slice(-1)[0] ?? selectedEntry.path;
-  }, [selectedEntry]);
+  }, [selectedEntry, mode, actorDoc.character]);
 
   const loadEntry = async (entry: KaykitManifestEntry) => {
     const session = sessionRef.current;
@@ -377,50 +505,204 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     defaultLoadedRef.current = true;
     setSelectedPath(entry.path);
     setSelectedEntry(entry);
-    setExpanded((prev) => expandVariantPaths(prev, entry.path));
+    setExpanded((prev) => expandVariantPaths(prev, entry.path, 'assets'));
     void loadEntry(entry);
   }, [active, manifest, entriesByPath, mode]);
 
-  const onNew = () => {
-    if (mode !== 'prop') {
-      setStatus('New is available in Prop mode.');
-      return;
+  const currentPropDoc = () => sessionRef.current?.getPropDocument() ?? propDoc;
+  const currentActorDoc = () => sessionRef.current?.getActorDocument() ?? actorDoc;
+
+  const applyRenamedProp = (name: string) => {
+    const session = sessionRef.current;
+    if (!session) return null;
+
+    const previousId = session.getPropDocument().id;
+    const doc = session.renameProp(name);
+    setPropDoc({ ...doc, parts: [...doc.parts] });
+
+    if (previousId !== doc.id && getLocalPropEntry(previousId)) {
+      removeLocalProp(previousId);
+      saveLocalProp(doc);
     }
 
+    return doc;
+  };
+
+  const applyRenamedActor = (name: string) => {
+    const session = sessionRef.current;
+    if (!session) return null;
+
+    const previousId = session.getActorDocument().id;
+    const doc = session.renameActor(name);
+    setActorDoc(cloneActorDoc(doc));
+
+    if (previousId !== doc.id && getLocalActorEntry(previousId)) {
+      removeLocalActor(previousId);
+      saveLocalActor(doc);
+    }
+
+    return doc;
+  };
+
+  const persistLocalProp = (doc: PropDocument) => {
+    const entry = saveLocalProp(doc);
+    setStatus(`Saved ${entry.displayName} to local storage`);
+  };
+
+  const persistLocalActor = (doc: ActorDocument) => {
+    const entry = saveLocalActor(doc);
+    setStatus(`Saved ${entry.displayName} to local storage`);
+  };
+
+  const exportPropFile = (doc: PropDocument) => {
+    const filename = downloadPropDocument(doc);
+    setStatus(`Exported ${filename}`);
+  };
+
+  const exportActorFile = (doc: ActorDocument) => {
+    const filename = downloadActorDocument(doc);
+    setStatus(`Exported ${filename}`);
+  };
+
+  const performNew = () => {
     const session = sessionRef.current;
     if (!session) return;
 
-    const doc = session.newProp();
-    setPropDoc(doc);
-    setSelectedPartId(null);
-    setStatus('New prop document.');
+    if (mode === 'prop') {
+      const doc = session.newProp();
+      setPropDoc(doc);
+      setSelectedPartId(null);
+      setStatus('New prop document.');
+      return;
+    }
+
+    if (mode === 'actor') {
+      const doc = session.newActor();
+      setActorDoc(cloneActorDoc(doc));
+      setActorBoneNames([]);
+      setActorSelection(null);
+      setStatus('New actor document.');
+    }
+  };
+
+  const onNew = () => {
+    if (mode !== 'prop' && mode !== 'actor') {
+      setStatus('New is available in Prop or Actor mode.');
+      return;
+    }
+    setConfirmNewOpen(true);
   };
 
   const onSave = () => {
-    if (mode !== 'prop') {
-      setStatus('Save is available in Prop mode.');
+    if (mode === 'prop') {
+      const doc = currentPropDoc();
+      if (propNeedsName(doc)) {
+        setRenameIntent('save');
+        return;
+      }
+      persistLocalProp(doc);
       return;
     }
 
-    const session = sessionRef.current;
-    const doc = session?.getPropDocument() ?? propDoc;
-    const blob = new Blob([serializePropDocument(doc)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${doc.id || 'untitled'}.prop`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setStatus(`Saved ${a.download}`);
+    if (mode === 'actor') {
+      const doc = currentActorDoc();
+      if (actorNeedsName(doc)) {
+        setRenameIntent('save');
+        return;
+      }
+      persistLocalActor(doc);
+      return;
+    }
+
+    setStatus('Save is available in Prop or Actor mode.');
   };
 
   const onLoad = () => {
-    if (mode !== 'prop') {
-      setStatus('Load is available in Prop mode.');
+    if (mode === 'prop') {
+      setLocalPropEntries(listLocalPropEntries());
+      setLoadPropModalOpen(true);
       return;
     }
 
+    if (mode === 'actor') {
+      setLocalActorEntries(listLocalActorEntries());
+      setLoadActorModalOpen(true);
+      return;
+    }
+
+    setStatus('Load is available in Prop or Actor mode.');
+  };
+
+  const onImport = () => {
+    if (mode !== 'prop' && mode !== 'actor') {
+      setStatus('Import is available in Prop or Actor mode.');
+      return;
+    }
     fileInputRef.current?.click();
+  };
+
+  const onExport = () => {
+    if (mode === 'prop') {
+      const doc = currentPropDoc();
+      if (propNeedsName(doc)) {
+        setRenameIntent('export');
+        return;
+      }
+      exportPropFile(doc);
+      return;
+    }
+
+    if (mode === 'actor') {
+      const doc = currentActorDoc();
+      if (actorNeedsName(doc)) {
+        setRenameIntent('export');
+        return;
+      }
+      exportActorFile(doc);
+      return;
+    }
+
+    setStatus('Export is available in Prop or Actor mode.');
+  };
+
+  const onRenameDocument = () => {
+    if (mode !== 'prop' && mode !== 'actor') return;
+    setRenameIntent('edit');
+  };
+
+  const onRenameConfirm = (name: string) => {
+    const intent = renameIntent;
+    setRenameIntent(null);
+    if (!intent) return;
+
+    if (mode === 'prop') {
+      const doc = applyRenamedProp(name);
+      if (!doc) return;
+      if (intent === 'save') {
+        persistLocalProp(doc);
+        return;
+      }
+      if (intent === 'export') {
+        exportPropFile(doc);
+        return;
+      }
+      setStatus(`Renamed prop to ${doc.displayName}`);
+      return;
+    }
+
+    if (mode === 'actor') {
+      const doc = applyRenamedActor(name);
+      if (!doc) return;
+      if (intent === 'save') {
+        persistLocalActor(doc);
+        return;
+      }
+      if (intent === 'export') {
+        exportActorFile(doc);
+        return;
+      }
+      setStatus(`Renamed actor to ${doc.displayName}`);
+    }
   };
 
   const onAddAsset = (filePath: string) => {
@@ -429,23 +711,92 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     if (!session || !entry) return;
 
     const url = `${import.meta.env.BASE_URL}${entry.url}`;
+
+    if (mode === 'prop') {
+      void (async () => {
+        try {
+          const doc = await session.addAssetPart(url, 'prop');
+          setPropDoc({ ...doc, parts: [...doc.parts] });
+          const last = doc.parts[doc.parts.length - 1];
+          setSelectedPartId(last?.id ?? null);
+          if (last) session.selectPart(last.id);
+          setStatus(`Added asset ${entry.path.split('/').slice(-1)[0] ?? entry.path}`);
+        } catch (err) {
+          setStatus(`Add asset error: ${String(err)}`);
+        }
+      })();
+      return;
+    }
+
+    if (mode === 'actor' && actorSelection?.kind === 'bone') {
+      const boneName = actorSelection.boneName;
+      void (async () => {
+        try {
+          const doc = await session.addActorAttachment(url, boneName, 'attachment');
+          setActorDoc(cloneActorDoc(doc));
+          const last = doc.attachments[doc.attachments.length - 1];
+          if (last) {
+            setActorSelection({ kind: 'attachment', attachmentId: last.id });
+          }
+          setStatus(`Added attachment to ${boneName}`);
+        } catch (err) {
+          setStatus(`Add attachment error: ${String(err)}`);
+        }
+      })();
+    }
+  };
+
+  const onAddCharacter = (filePath: string) => {
+    const session = sessionRef.current;
+    const entry = entriesByPath.get(filePath);
+    if (!session || !entry || mode !== 'actor') return;
+
+    const url = `${import.meta.env.BASE_URL}${entry.url}`;
     void (async () => {
       try {
-        const doc = await session.addAssetPart(url, 'prop');
-        setPropDoc({ ...doc, parts: [...doc.parts] });
-        const last = doc.parts[doc.parts.length - 1];
-        setSelectedPartId(last?.id ?? null);
-        if (last) session.selectPart(last.id);
-        setStatus(`Added asset ${entry.path.split('/').slice(-1)[0] ?? entry.path}`);
+        const doc = await session.setActorCharacter(url, 'character');
+        setActorDoc(cloneActorDoc(doc));
+        setActorBoneNames(session.getActorBoneNames());
+        setActorSelection({ kind: 'actor' });
+        session.selectActor({ kind: 'actor' });
+        setAnimPackUrl(null);
+        setAvailableClipNames([]);
+        setClipName(null);
+        session.clearAnimationPreview();
+        setStatus(`Set character ${entry.path.split('/').slice(-1)[0] ?? entry.path}`);
       } catch (err) {
-        setStatus(`Add asset error: ${String(err)}`);
+        setStatus(`Set character error: ${String(err)}`);
       }
     })();
   };
 
-  const onAddCollider = (shape: 'box' | 'cylinder' | 'sphere') => {
+  const onAddCollider = (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => {
     const session = sessionRef.current;
     if (!session) return;
+
+    if (mode === 'actor') {
+      const parent =
+        actorSelection?.kind === 'attachment'
+          ? { kind: 'attachment' as const, attachmentId: actorSelection.attachmentId }
+          : actorSelection?.kind === 'bone'
+            ? { kind: 'bone' as const, boneName: actorSelection.boneName }
+            : null;
+
+      if (!parent) {
+        setStatus('Select a bone or attachment before adding a collider');
+        return;
+      }
+
+      const doc = session.addActorCollider(shape, parent);
+      setActorDoc(cloneActorDoc(doc));
+      const last = doc.colliders[doc.colliders.length - 1];
+      if (last) {
+        setActorSelection({ kind: 'collider', colliderId: last.id });
+        session.selectActor({ kind: 'collider', colliderId: last.id });
+      }
+      setStatus(`Added ${shape} collider`);
+      return;
+    }
 
     const doc = session.addColliderPart(shape);
     setPropDoc({ ...doc, parts: [...doc.parts] });
@@ -475,6 +826,22 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   const selectedPartVariantUrl =
     selectedPart?.kind === 'asset' ? (selectedPart.textureVariantUrl ?? null) : null;
 
+  const actorDetailVariants = useMemo(() => {
+    if (actorSelection?.kind === 'attachment') {
+      const att = actorDoc.attachments.find((a) => a.id === actorSelection.attachmentId);
+      if (!att) return [];
+      return mapTextureVariants(resolveManifestEntryForAssetUrl(att.url, entriesByPath));
+    }
+
+    if (actorSelection?.kind === 'actor' && actorDoc.character) {
+      return mapTextureVariants(
+        resolveManifestEntryForAssetUrl(actorDoc.character.url, entriesByPath),
+      );
+    }
+
+    return [];
+  }, [actorSelection, actorDoc, entriesByPath]);
+
   const handleTextureVariantChange = (url: string | null) => {
     setTextureVariantUrl(url);
 
@@ -490,6 +857,110 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     })();
   };
 
+  const handleAnimPackChange = (url: string | null) => {
+    setAnimPackUrl(url);
+
+    const session = sessionRef.current;
+    if (!session) return;
+
+    if (!url) {
+      session.clearAnimationPreview();
+      setAvailableClipNames([]);
+      setClipName(null);
+      return;
+    }
+
+    setStatus('Loading animation pack…');
+    void (async () => {
+      try {
+        const loaded = await session.loadAnimationPack(`${import.meta.env.BASE_URL}${url}`);
+        setAvailableClipNames(loaded.clipNames);
+        const nextClip = loaded.clipNames[0] ?? null;
+        setClipName(nextClip);
+        if (nextClip) session.applyClip(nextClip);
+        setStatus('Ready.');
+      } catch (err) {
+        setStatus(`Animation load error: ${String(err)}`);
+      }
+    })();
+  };
+
+  const handleClipChange = (next: string | null) => {
+    setClipName(next);
+
+    const session = sessionRef.current;
+    if (!session) return;
+
+    if (!next) {
+      session.resetToBindPose();
+      return;
+    }
+
+    session.applyClip(next);
+  };
+
+  const handleAnimReset = () => {
+    const session = sessionRef.current;
+    if (!session) return;
+
+    session.clearAnimationPreview();
+    setAnimPackUrl(null);
+    setAvailableClipNames([]);
+    setClipName(null);
+  };
+
+  const bodyClass =
+    mode === 'prop'
+      ? 'construct-body construct-bodyProp'
+      : mode === 'actor'
+        ? 'construct-body construct-bodyActor'
+        : 'construct-body';
+
+  const explorer = (
+    <AssetExplorer
+      query={explorerQueryInput}
+      onQueryChange={setExplorerQueryInput}
+      onQueryClear={() => setExplorerQuery('')}
+      assetTree={assetTree}
+      characterTree={characterTree}
+      expanded={expanded}
+      selectedPath={selectedPath}
+      onToggleDir={onToggleDir}
+      onSelectFile={(filePath) => {
+        setSelectedPath(filePath);
+        const entry = entriesByPath.get(filePath) ?? null;
+        setSelectedEntry(entry);
+        if (mode === 'preview' && entry) void loadEntry(entry);
+        if (mode === 'actor' && entry?.kind === 'CharacterModel') {
+          onAddCharacter(filePath);
+        }
+      }}
+      onAddAssetFile={mode === 'prop' || mode === 'actor' ? onAddAsset : undefined}
+      characterFileAction={mode === 'actor' ? 'radio' : 'add'}
+      characterRadioPath={mode === 'actor' ? actorCharacterPath : null}
+      showAssets={mode === 'preview' || mode === 'prop' || mode === 'actor'}
+      showCharacters={mode === 'preview' || mode === 'actor'}
+      showColliders={mode === 'prop' || mode === 'actor'}
+      assetsExpanded={assetsExpanded}
+      onAssetsExpandedChange={setAssetsExpanded}
+      charactersExpanded={charactersExpanded}
+      onCharactersExpandedChange={setCharactersExpanded}
+      colliderExpanded={colliderExpanded}
+      onColliderExpandedChange={setColliderExpanded}
+      onAddCollider={onAddCollider}
+      assetAddEnabled={
+        mode === 'prop' || (mode === 'actor' && actorSelection?.kind === 'bone')
+      }
+      characterAddEnabled={false}
+      colliderAddEnabled={
+        mode === 'prop' ||
+        (mode === 'actor' &&
+          (actorSelection?.kind === 'bone' || actorSelection?.kind === 'attachment'))
+      }
+      loading={!manifest}
+    />
+  );
+
   return (
     <div className="construct-root">
       <AppMenu
@@ -500,11 +971,13 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
         onNew={onNew}
         onSave={onSave}
         onLoad={onLoad}
+        onImport={onImport}
+        onExport={onExport}
       />
       <input
         ref={fileInputRef}
         type="file"
-        accept=".prop,application/json"
+        accept={mode === 'actor' ? '.actor,application/json' : '.prop,application/json'}
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -517,107 +990,159 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
           void (async () => {
             try {
               const text = await file.text();
+              if (mode === 'actor') {
+                const doc = parseActorDocument(text);
+                const loaded = await session.loadActorDocument(doc);
+                setActorDoc(cloneActorDoc(loaded));
+                setActorBoneNames(session.getActorBoneNames());
+                setActorSelection(loaded.character ? { kind: 'actor' } : null);
+                setStatus(`Imported ${file.name}`);
+                return;
+              }
+
               const doc = parsePropDocument(text);
               const loaded = await session.loadPropDocument(doc);
               setPropDoc({ ...loaded, parts: [...loaded.parts] });
               setSelectedPartId(null);
-              setStatus(`Loaded ${file.name}`);
+              setStatus(`Imported ${file.name}`);
             } catch (err) {
-              setStatus(`Load error: ${String(err)}`);
+              setStatus(`Import error: ${String(err)}`);
             }
           })();
         }}
       />
 
-      <div className="construct-body">
+      {confirmNewOpen ? (
+        <ConfirmModal
+          title={mode === 'actor' ? 'New actor' : 'New prop'}
+          message={
+            mode === 'actor'
+              ? 'Create a new actor? Unsaved changes will be lost.'
+              : 'Create a new prop? Unsaved changes will be lost.'
+          }
+          confirmLabel="Create"
+          onCancel={() => setConfirmNewOpen(false)}
+          onConfirm={() => {
+            setConfirmNewOpen(false);
+            performNew();
+          }}
+        />
+      ) : null}
+
+      {loadPropModalOpen ? (
+        <LoadPropModal
+          entries={localPropEntries}
+          onCancel={() => setLoadPropModalOpen(false)}
+          onSelect={(entry) => {
+            setLoadPropModalOpen(false);
+            const session = sessionRef.current;
+            if (!session) return;
+            void (async () => {
+              try {
+                const loaded = await session.loadPropDocument(entry.document);
+                setPropDoc({ ...loaded, parts: [...loaded.parts] });
+                setSelectedPartId(null);
+                setStatus(`Loaded ${entry.displayName}`);
+              } catch (err) {
+                setStatus(`Load error: ${String(err)}`);
+              }
+            })();
+          }}
+          onDelete={(entry) => {
+            removeLocalProp(entry.id);
+            setLocalPropEntries(listLocalPropEntries());
+            setStatus(`Deleted ${entry.displayName} from local storage`);
+          }}
+        />
+      ) : null}
+
+      {loadActorModalOpen ? (
+        <LoadActorModal
+          entries={localActorEntries}
+          onCancel={() => setLoadActorModalOpen(false)}
+          onSelect={(entry) => {
+            setLoadActorModalOpen(false);
+            const session = sessionRef.current;
+            if (!session) return;
+            void (async () => {
+              try {
+                const loaded = await session.loadActorDocument(entry.document);
+                setActorDoc(cloneActorDoc(loaded));
+                setActorBoneNames(session.getActorBoneNames());
+                setActorSelection(loaded.character ? { kind: 'actor' } : null);
+                setStatus(`Loaded ${entry.displayName}`);
+              } catch (err) {
+                setStatus(`Load error: ${String(err)}`);
+              }
+            })();
+          }}
+          onDelete={(entry) => {
+            removeLocalActor(entry.id);
+            setLocalActorEntries(listLocalActorEntries());
+            setStatus(`Deleted ${entry.displayName} from local storage`);
+          }}
+        />
+      ) : null}
+
+      {renameIntent ? (
+        <RenamePropModal
+          initialName={mode === 'actor' ? actorDoc.displayName : propDoc.displayName}
+          title={
+            renameIntent === 'edit'
+              ? mode === 'actor'
+                ? 'Rename actor'
+                : 'Rename prop'
+              : mode === 'actor'
+                ? 'Name actor'
+                : 'Name prop'
+          }
+          confirmLabel={
+            renameIntent === 'save' ? 'Save' : renameIntent === 'export' ? 'Export' : 'Rename'
+          }
+          onCancel={() => setRenameIntent(null)}
+          onConfirm={onRenameConfirm}
+        />
+      ) : null}
+
+      <div className={bodyClass}>
+        <div className="construct-panelLeft">{explorer}</div>
+
         <div className="construct-viewer">
           <canvas ref={canvasRef} className="construct-canvas" />
           {mode === 'preview' ? (
-            <div className="construct-viewerHud">
-              <div className="construct-titleRow">
-                <div className="construct-title">{viewerTitle}</div>
-                <div className="construct-subtle">{status}</div>
-              </div>
-              <div className="selectRow">
-                <label>Texture variant</label>
-                <select
-                  disabled={!canSwitchTexture}
-                  value={textureVariantUrl ?? ''}
-                  onChange={(e) => handleTextureVariantChange(e.target.value || null)}
-                >
-                  <option value="">Default</option>
-                  {textureVariants.map((v) => (
-                    <option key={v.url} value={v.url}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="selectRow">
-                <label>Animation pack</label>
-                <select
-                  disabled={!canAnimate}
-                  value={animPackUrl ?? ''}
-                  onChange={(e) => {
-                    const url = e.target.value || null;
-                    setAnimPackUrl(url);
-
-                    const session = sessionRef.current;
-                    if (!session || !url) return;
-
-                    setStatus('Loading animation pack…');
-                    void (async () => {
-                      try {
-                        const loaded = await session.loadAnimationPack(`${import.meta.env.BASE_URL}${url}`);
-                        setAvailableClipNames(loaded.clipNames);
-                        const nextClip = loaded.clipNames[0] ?? null;
-                        setClipName(nextClip);
-                        if (nextClip) session.applyClip(nextClip);
-                        setStatus('Ready.');
-                      } catch (err) {
-                        setStatus(`Animation load error: ${String(err)}`);
-                      }
-                    })();
-                  }}
-                >
-                  <option value="">(none)</option>
-                  {compatibleAnimPacks.map((p) => (
-                    <option key={p.path} value={p.url}>
-                      {p.path.split('/').slice(-1)[0] ?? p.path}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="selectRow">
-                <label>Clip</label>
-                <select
-                  disabled={!canAnimate || availableClipNames.length === 0}
-                  value={clipName ?? ''}
-                  onChange={(e) => {
-                    const next = e.target.value || null;
-                    setClipName(next);
-
-                    const session = sessionRef.current;
-                    if (!session || !next) return;
-                    session.applyClip(next);
-                  }}
-                >
-                  <option value="">(none)</option>
-                  {availableClipNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {!canSwitchTexture ? (
-                <div className="mutedNote">Texture variants unavailable for this asset.</div>
-              ) : null}
-              {!canAnimate ? (
-                <div className="mutedNote">Animation selector disabled (no bones/skin).</div>
-              ) : null}
-            </div>
-          ) : (
+            <ViewerAnimHud
+              title={viewerTitle}
+              status={status}
+              showTextureVariant
+              canSwitchTexture={canSwitchTexture}
+              textureVariants={textureVariants}
+              textureVariantUrl={textureVariantUrl}
+              onTextureVariantChange={handleTextureVariantChange}
+              canAnimate={canAnimatePreview}
+              animPackUrl={animPackUrl}
+              compatibleAnimPacks={compatibleAnimPacks}
+              onAnimPackChange={handleAnimPackChange}
+              clipName={clipName}
+              availableClipNames={availableClipNames}
+              onClipChange={handleClipChange}
+              onReset={handleAnimReset}
+            />
+          ) : null}
+          {mode === 'actor' ? (
+            <ViewerAnimHud
+              title={viewerTitle}
+              status={status}
+              canAnimate={canAnimateActor}
+              animPackUrl={animPackUrl}
+              compatibleAnimPacks={compatibleAnimPacks}
+              onAnimPackChange={handleAnimPackChange}
+              clipName={clipName}
+              availableClipNames={availableClipNames}
+              onClipChange={handleClipChange}
+              onReset={handleAnimReset}
+            />
+          ) : null}
+          {mode === 'prop' || mode === 'actor' ? (
             <div className="construct-toolRail">
               {TRANSFORM_MODES.map((tool) => (
                 <button
@@ -637,7 +1162,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
                 </button>
               ))}
             </div>
-          )}
+          ) : null}
           <OrientationCube
             getAngles={() =>
               sessionRef.current?.getOrbitAngles() ?? { yawRad: 0, pitchRad: 0 }
@@ -645,56 +1170,8 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
           />
         </div>
 
-        {mode === 'preview' ? (
-          <div className="construct-panelRight">
-            <AssetExplorer
-              query={explorerQueryInput}
-              onQueryChange={setExplorerQueryInput}
-              onQueryClear={() => setExplorerQuery('')}
-              tree={filteredTree}
-              expanded={expanded}
-              selectedPath={selectedPath}
-              onToggleDir={onToggleDir}
-              onSelectFile={(filePath) => {
-                setSelectedPath(filePath);
-                const entry = entriesByPath.get(filePath) ?? null;
-                setSelectedEntry(entry);
-                if (!entry) return;
-                void loadEntry(entry);
-              }}
-              loading={!manifest}
-            />
-
-            <PreviewDetails
-              entry={selectedEntry}
-              textureVariants={textureVariants}
-              textureVariantUrl={textureVariantUrl}
-              onTextureVariantChange={handleTextureVariantChange}
-            />
-          </div>
-        ) : (
+        {mode === 'prop' ? (
           <div className="construct-panelRightProp">
-            <AssetExplorer
-              query={explorerQueryInput}
-              onQueryChange={setExplorerQueryInput}
-              onQueryClear={() => setExplorerQuery('')}
-              tree={filteredTree}
-              expanded={expanded}
-              selectedPath={selectedPath}
-              onToggleDir={onToggleDir}
-              onSelectFile={(filePath) => {
-                setSelectedPath(filePath);
-                setSelectedEntry(entriesByPath.get(filePath) ?? null);
-              }}
-              onAddFile={onAddAsset}
-              showColliders
-              assetsExpanded={assetsExpanded}
-              onAssetsExpandedChange={setAssetsExpanded}
-              colliderExpanded={colliderExpanded}
-              onColliderExpandedChange={setColliderExpanded}
-              onAddCollider={onAddCollider}
-              loading={!manifest}
-            />
             <PropInspector
               parts={propDoc.parts}
               selectedPartId={selectedPartId}
@@ -706,8 +1183,11 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
             />
             <PropDetails
               part={selectedPart}
+              propDisplayName={propDoc.displayName}
+              documentTags={collectPropDocumentTags(propDoc)}
               textureVariants={selectedPartVariants}
               textureVariantUrl={selectedPartVariantUrl}
+              onRenameProp={onRenameDocument}
               onRename={(partId, name) => {
                 const doc = sessionRef.current?.updatePartName(partId, name);
                 if (doc) setPropDoc({ ...doc, parts: [...doc.parts] });
@@ -729,6 +1209,10 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
                   }
                 })();
               }}
+              onTagsChange={(partId, tags) => {
+                const doc = sessionRef.current?.updatePartTags(partId, tags);
+                if (doc) setPropDoc({ ...doc, parts: [...doc.parts] });
+              }}
               onDelete={(partId) => {
                 const doc = sessionRef.current?.removePart(partId);
                 if (!doc) return;
@@ -737,7 +1221,108 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               }}
             />
           </div>
-        )}
+        ) : null}
+
+        {mode === 'actor' ? (
+          <div className="construct-panelRightProp">
+            <ActorInspector
+              doc={actorDoc}
+              boneNames={actorBoneNames}
+              selection={actorSelection}
+              documentLabel={`${actorDoc.id}.actor`}
+              onSelect={(sel) => {
+                setActorSelection(sel);
+                sessionRef.current?.selectActor(sel);
+              }}
+            />
+            <ActorDetails
+              doc={actorDoc}
+              selection={actorSelection}
+              textureVariants={actorDetailVariants}
+              onRenameActor={onRenameDocument}
+              onActorTagsChange={(tags) => {
+                const doc = sessionRef.current?.updateActorTags(tags);
+                if (doc) setActorDoc(cloneActorDoc(doc));
+              }}
+              onAiPackageChange={(aiPackage) => {
+                const doc = sessionRef.current?.setAiPackage(aiPackage);
+                if (doc) setActorDoc(cloneActorDoc(doc));
+              }}
+              onCharacterVariantChange={(url) => {
+                const session = sessionRef.current;
+                if (!session) return;
+                void (async () => {
+                  try {
+                    const doc = await session.updateCharacterTextureVariant(url);
+                    setActorDoc(cloneActorDoc(doc));
+                  } catch (err) {
+                    setStatus(`Texture variant error: ${String(err)}`);
+                  }
+                })();
+              }}
+              onAttachmentRename={(id, name) => {
+                const doc = sessionRef.current?.updateAttachmentName(id, name);
+                if (doc) setActorDoc(cloneActorDoc(doc));
+              }}
+              onAttachmentLocal={(id, patch) => {
+                const doc = sessionRef.current?.updateAttachmentLocal(id, patch);
+                if (doc) setActorDoc(cloneActorDoc(doc));
+              }}
+              onAttachmentTagsChange={(id, tags) => {
+                const doc = sessionRef.current?.updateAttachmentTags(id, tags);
+                if (doc) setActorDoc(cloneActorDoc(doc));
+              }}
+              onAttachmentPlaceholderChange={(id, placeholder) => {
+                const session = sessionRef.current;
+                if (!session) return;
+                void (async () => {
+                  try {
+                    const doc = await session.updateAttachmentPlaceholder(id, placeholder);
+                    setActorDoc(cloneActorDoc(doc));
+                  } catch (err) {
+                    setStatus(`Placeholder error: ${String(err)}`);
+                  }
+                })();
+              }}
+              onAttachmentVariantChange={(id, url) => {
+                const session = sessionRef.current;
+                if (!session) return;
+                void (async () => {
+                  try {
+                    const doc = await session.updateAttachmentTextureVariant(id, url);
+                    setActorDoc(cloneActorDoc(doc));
+                  } catch (err) {
+                    setStatus(`Texture variant error: ${String(err)}`);
+                  }
+                })();
+              }}
+              onAttachmentDelete={(id) => {
+                const doc = sessionRef.current?.removeAttachment(id);
+                if (!doc) return;
+                setActorDoc(cloneActorDoc(doc));
+                setActorSelection(actorDoc.character ? { kind: 'actor' } : null);
+              }}
+              onColliderRename={(id, name) => {
+                const doc = sessionRef.current?.updateColliderName(id, name);
+                if (doc) setActorDoc(cloneActorDoc(doc));
+              }}
+              onColliderLocal={(id, patch) => {
+                const doc = sessionRef.current?.updateColliderLocal(id, patch);
+                if (doc) setActorDoc(cloneActorDoc(doc));
+              }}
+              onColliderFlagsChange={(id, flags) => {
+                const doc = sessionRef.current?.updateColliderFlags(id, flags);
+                if (doc) setActorDoc(cloneActorDoc(doc));
+              }}
+              onColliderDelete={(id) => {
+                const doc = sessionRef.current?.removeCollider(id);
+                if (!doc) return;
+                setActorDoc(cloneActorDoc(doc));
+                setActorSelection(actorDoc.character ? { kind: 'actor' } : null);
+              }}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );

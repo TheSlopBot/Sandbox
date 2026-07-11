@@ -5,7 +5,12 @@ import { type SkeletalModel } from '../components/skeletalModel.ts';
 import { type AnimationStateMachine, type AnimStateId } from '../components/animationStateMachine.ts';
 import { type AnimationClipMap } from '../components/animationClipMap.ts';
 import { type AnimClip, getClipAnimatedNodes, sampleClipToNodes } from '../components/animation.ts';
-import { type RuntimePose, snapshotPose, updateWorldFromLocalsDirty } from '../assets/gltf/runtime.ts';
+import {
+  type RuntimePose,
+  snapshotPose,
+  updateWorldFromLocals,
+  updateWorldFromLocalsDirty,
+} from '../assets/gltf/runtime.ts';
 import {
   DEFAULT_ENGINE_OPTIMIZATION,
   type EngineOptimizationOptions,
@@ -118,7 +123,13 @@ export const installSkeletalPoseSystem = (registry: Registry, options: SkeletalP
       const speed = fsm.current === 'run' ? fsm.runPlaybackSpeed : 1;
 
       sampleClipToNodes(clip, nodes, time * speed, 1, isLoopingState(fsm.current));
-      updateWorldFromLocalsDirty(nodes, cache.dirty);
+
+      if (animated.length === 0) {
+        updateWorldFromLocals(nodes);
+      } else {
+        updateWorldFromLocalsDirty(nodes, cache.dirty);
+      }
+
       model.poseDirty = true;
     }
   }, 18);

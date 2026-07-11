@@ -1,21 +1,18 @@
-import { collectUrlsFromDef } from '../characters/characterDef.ts';
+import { collectUrlsFromActor } from '../actors/actorDefinition.ts';
+import { ACTOR_CATALOG } from '../actors/registry.ts';
 import { type LevelDefinition } from './levelDefinition.ts';
-import { COMBAT_MECH_DEFS } from '../characters/combatMech.ts';
-import { DUMMY_DEF } from '../characters/dummy.ts';
-import { ROBOT_ONE_DEF } from '../characters/robot.ts';
-import { SPACE_RANGER_DEF } from '../characters/spaceRanger.ts';
 import { getPropDefinition } from '../props/registry.ts';
 
 export const collectLevelAssetUrls = (definition: LevelDefinition): string[] => {
-  const urls = new Set<string>([
-    ...collectUrlsFromDef(SPACE_RANGER_DEF),
-    ...collectUrlsFromDef(ROBOT_ONE_DEF),
-    ...collectUrlsFromDef(COMBAT_MECH_DEFS.primary),
-    ...collectUrlsFromDef(DUMMY_DEF),
-  ]);
+  const urls = new Set<string>();
+
+  for (const actor of Object.values(ACTOR_CATALOG)) {
+    for (const url of collectUrlsFromActor(actor)) urls.add(url);
+  }
 
   for (const placement of definition.props) {
     const def = getPropDefinition(placement.propId);
+
     for (const part of def.parts) {
       if (part.kind === 'asset') urls.add(part.url);
     }

@@ -1,10 +1,5 @@
-import { DUMMY_GLB } from '../assets/kaykit.ts';
-import { KAYKIT_MEDIUM_ANIM_PACK, KAYKIT_MEDIUM_CLIPS } from '../animations/kaykitMedium.ts';
+import { DUMMY_ACTOR } from '../actors/kaykitActors.ts';
+import { actorDefinitionToSkeletalDef } from '../actors/actorDefinitionToSkeletalDef.ts';
 import { type SkeletalCharacterDef } from './characterDef.ts';
 
-export const DUMMY_DEF: SkeletalCharacterDef = {
-  bodyGlb: DUMMY_GLB,
-  materialPrefix: 'dummy',
-  animPack: KAYKIT_MEDIUM_ANIM_PACK,
-  clips: KAYKIT_MEDIUM_CLIPS,
-};
+export const DUMMY_DEF: SkeletalCharacterDef = actorDefinitionToSkeletalDef(DUMMY_ACTOR);

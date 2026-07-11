@@ -19,6 +19,7 @@ import {
   createRenderGroup,
   createBoxCollider,
   createCylinderCollider,
+  createCapsuleCollider,
   createSphereCollider,
   bakeColliderWorldFromLocal,
   updateWorldMatrix,
@@ -118,6 +119,14 @@ const createColliderFromPart = (part: PropColliderPart): Collider => {
   if (part.shape === 'cylinder') {
     return createCylinderCollider({
       radius: part.radius ?? 0.35,
+      halfHeight: part.halfHeight ?? 0.5,
+      isStatic: true,
+    });
+  }
+
+  if (part.shape === 'capsule') {
+    return createCapsuleCollider({
+      radius: part.radius ?? 0.3,
       halfHeight: part.halfHeight ?? 0.5,
       isStatic: true,
     });

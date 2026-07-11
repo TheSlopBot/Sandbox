@@ -11,9 +11,14 @@
 
 .construct-body {
   display: grid;
-  grid-template-columns: 1fr minmax(280px, 420px);
+  grid-template-columns: minmax(280px, 420px) 1fr;
   min-height: 0;
   min-width: 0;
+}
+
+.construct-bodyProp,
+.construct-bodyActor {
+  grid-template-columns: minmax(280px, 420px) 1fr minmax(280px, 420px);
 }
 
 .construct-menuBar {
@@ -98,9 +103,27 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.construct-menuDropdownItem:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.construct-menuDropdownItem:disabled:hover {
+  background: transparent;
+}
+
+.construct-panelLeft {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .construct-panelRightProp {
   display: grid;
-  grid-template-rows: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
   min-width: 0;
   height: 100%;
   min-height: 0;
@@ -281,6 +304,23 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+.treeRowAdd:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.treeRowAdd:disabled:hover {
+  background: transparent;
+}
+
+.treeRowRadio {
+  width: 14px;
+  height: 14px;
+  margin: 0 4px 0 0;
+  accent-color: #4a9ec0;
+  cursor: default;
+}
+
 .treeRowWithAdd {
   display: grid;
   grid-template-columns: 1fr 22px;
@@ -291,7 +331,6 @@
 .construct-viewer {
   position: relative;
   min-width: 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .construct-canvas {
@@ -326,11 +365,51 @@
   pointer-events: auto;
 }
 
+.construct-hudFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+  pointer-events: auto;
+}
+
+.construct-hudFooter .mutedNote {
+  min-width: 0;
+  flex: 1;
+}
+
+.construct-hudResetBtn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d9e2ea;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.construct-hudResetBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .construct-titleRow {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  min-width: 0;
 }
+
+.construct-titleRow .construct-subtle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 
 .construct-title {
   font-weight: 650;
@@ -653,5 +732,316 @@
 .mutedNote {
   font-size: 12px;
   opacity: 0.75;
+}
+
+.construct-propNameRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 70%;
+}
+
+.construct-propNameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.construct-iconBtn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(217, 226, 234, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.construct-iconBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d9e2ea;
+}
+
+.construct-iconBtn:focus-visible {
+  outline: 2px solid rgba(74, 158, 192, 0.55);
+  outline-offset: 1px;
+}
+
+.construct-detailsSectionTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.construct-tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.construct-tagBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(74, 158, 192, 0.35);
+  background: rgba(74, 158, 192, 0.16);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.construct-tagBadgeRemove {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.75;
+  cursor: default;
+}
+
+.construct-tagBadgeRemove:hover {
+  opacity: 1;
+}
+
+.construct-elementsTree {
+  display: grid;
+  gap: 2px;
+}
+
+.construct-elementsRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: default;
+  font-size: 12px;
+}
+
+.construct-elementsRow[data-selected='true'] {
+  background: rgba(74, 158, 192, 0.22);
+}
+
+.construct-elementsRow:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.construct-elementsRow[data-selected='true']:hover {
+  background: rgba(74, 158, 192, 0.28);
+}
+
+.construct-modalBtnPrimary {
+  background: rgba(74, 158, 192, 0.28);
+  border-color: rgba(74, 158, 192, 0.45);
+}
+
+.construct-detailsSwitchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 0;
+  font-size: 12px;
+}
+
+.construct-detailsSwitchStack {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.construct-detailsSwitchStack > .construct-detailsSwitchRow {
+  margin-top: 0;
+  padding: 2px 0;
+}
+
+.construct-modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(4, 8, 12, 0.62);
+}
+
+.construct-modal {
+  width: min(360px, calc(100% - 32px));
+  max-height: min(70vh, 480px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: #0f1620;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.construct-modalTitle {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.construct-modalMessage {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(217, 226, 234, 0.85);
+}
+
+.construct-modalField {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(217, 226, 234, 0.7);
+}
+
+.construct-modalList {
+  display: grid;
+  gap: 4px;
+  overflow: auto;
+  min-height: 0;
+  max-height: 280px;
+  padding: 2px;
+}
+
+.construct-modalListRow {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.construct-modalListRow:has(.construct-modalListItem:hover) {
+  border-color: rgba(74, 158, 192, 0.35);
+}
+
+.construct-modalListItem {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #d9e2ea;
+  font: inherit;
+  text-align: left;
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: default;
+  min-width: 0;
+}
+
+.construct-modalListRow > .construct-modalListItem {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  flex: 1;
+}
+
+.construct-modalListItem:hover {
+  background: rgba(74, 158, 192, 0.16);
+  border-color: rgba(74, 158, 192, 0.35);
+}
+
+.construct-modalListRow > .construct-modalListItem:hover {
+  border-color: transparent;
+}
+
+.construct-modalListName {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.construct-modalListDelete {
+  appearance: none;
+  border: 0;
+  border-left: 1px solid rgba(220, 90, 90, 0.45);
+  background: rgba(220, 90, 90, 0.16);
+  color: #f0c0c0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 10px;
+  border-radius: 0;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.construct-modalListDelete:hover {
+  background: rgba(220, 90, 90, 0.28);
+  border-left-color: rgba(220, 90, 90, 0.65);
+}
+
+.construct-modalListDelete:focus-visible {
+  outline: 2px solid rgba(220, 90, 90, 0.55);
+  outline-offset: 1px;
+}
+
+.construct-modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.construct-modalBtn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #d9e2ea;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.construct-modalBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.construct-modalBtn:focus-visible {
+  outline: 2px solid rgba(74, 158, 192, 0.55);
+  outline-offset: 1px;
+}
+
+.construct-modalBtnPrimary {
+  background: rgba(74, 158, 192, 0.28);
+  border-color: rgba(74, 158, 192, 0.45);
+  color: #e8f4fa;
+  font-weight: 600;
+}
+
+.construct-modalBtnPrimary:hover {
+  background: rgba(74, 158, 192, 0.4);
+}
+
+.construct-modalBtnPrimary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 

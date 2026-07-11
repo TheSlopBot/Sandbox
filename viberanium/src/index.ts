@@ -52,6 +52,7 @@ export {
   aabb,
   createBoxCollider,
   createCylinderCollider,
+  createCapsuleCollider,
   createSphereCollider,
   createEllipsoidCollider,
   updateColliderAabbFromShape,

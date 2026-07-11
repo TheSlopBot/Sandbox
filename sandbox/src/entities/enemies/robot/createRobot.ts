@@ -3,8 +3,9 @@ import {
   type TextureCache,
   type GltfCache,
 } from 'viberanium';
+import { actorDefinitionToSkeletalDef } from '../../../catalog/actors/actorDefinitionToSkeletalDef.ts';
+import { buildSimpleActor } from '../../../catalog/actors/buildSimpleActor.ts';
 import { GAME_COMPONENT_KEYS } from '../../../catalog/keys/components.ts';
-import { buildKaykitMediumDef } from '../../actor/buildKaykitMediumDef.ts';
 import { spawnActor } from '../../actor/spawnActor.ts';
 import { createRobot as createRobotComponent } from '../components/robot.ts';
 import { createTestAi, type TestAiOpts } from '../components/testAi.ts';
@@ -22,10 +23,22 @@ export const createRobot = async (
   gltfCache: GltfCache,
   opts: RobotSpawnOpts,
 ) =>
-  spawnActor(registry, gl, textures, gltfCache, buildKaykitMediumDef(opts.bodyGlb, opts.materialPrefix), {
-    ...opts,
-    extraComponents: {
-      [GAME_COMPONENT_KEYS.testAi]: createTestAi(opts),
-      [GAME_COMPONENT_KEYS.robot]: createRobotComponent(),
+  spawnActor(
+    registry,
+    gl,
+    textures,
+    gltfCache,
+    actorDefinitionToSkeletalDef(
+      buildSimpleActor('robot', 'Robot', opts.bodyGlb, opts.materialPrefix, {
+        tags: ['robot'],
+        aiPackage: 'testAi',
+      }),
+    ),
+    {
+      ...opts,
+      extraComponents: {
+        [GAME_COMPONENT_KEYS.testAi]: createTestAi(opts),
+        [GAME_COMPONENT_KEYS.robot]: createRobotComponent(),
+      },
     },
-  });
+  );

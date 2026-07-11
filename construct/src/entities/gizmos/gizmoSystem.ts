@@ -8,12 +8,16 @@
   type Vec3,
   type Quat,
   type Entity,
+  type BoneAttachment,
+  type SkeletalModel,
   destroyMesh,
   m4,
   m4Invert,
   m4FromTRS,
   m4FromTRSQuat,
   m4Copy,
+  m4Mul,
+  updateWorldMatrix,
   q4,
   v3,
   COMPONENT_KEYS,
@@ -23,8 +27,10 @@ import { type ConstructPropSelection } from '../propEditor/propSelection.ts';
 import { type ConstructGizmoMode } from './gizmoMode.ts';
 import { type ConstructGizmoHandle } from './gizmoHandle.ts';
 import { type ConstructPropPart } from '../propEditor/propPart.ts';
+import { type ConstructActorAttachment } from '../actorEditor/actorAttachment.ts';
 import { type PropDocument, type PropEditorTransformMode } from '../../catalog/props/propDocument.ts';
 import { syncPartLocalToWorld } from '../propEditor/syncPartLocal.ts';
+import { syncAttachmentOffsetFromLocal } from '../actorEditor/spawnActorEditor.ts';
 import {
   localPivotFromTransform,
   partModelSpaceCenter,
@@ -35,7 +41,6 @@ import {
   type Axis,
   AXIS_COLORS,
   AXIS_COLORS_HOVER,
-  AXIS_DIR,
   CUBE_HALF,
   CONE_HEIGHT,
   RING_RADIUS,
@@ -79,10 +84,18 @@ const snapToIncrement = (value: number, increment: number) =>
 
 const findSelectedPart = (registry: Registry, partId: string | null) => {
   if (!partId) return null;
+
   for (const e of registry.view(CONSTRUCT_KEYS.propPart)) {
     const part = e.components[CONSTRUCT_KEYS.propPart] as ConstructPropPart | undefined;
     if (part?.partId === partId) return e;
   }
+
+  for (const e of registry.view(CONSTRUCT_KEYS.actorAttachment)) {
+    const att = e.components[CONSTRUCT_KEYS.actorAttachment] as ConstructActorAttachment | undefined;
+    const part = e.components[CONSTRUCT_KEYS.propPart] as ConstructPropPart | undefined;
+    if (att?.attachmentId === partId || part?.partId === partId) return e;
+  }
+
   return null;
 };
 
@@ -111,7 +124,37 @@ const quatMulLocal = (local: LocalTransform, axis: Axis, angle: number) => {
   local.rotation[3] = qw * w - qx * x - qy * y - qz * z;
 };
 
-const syncPartWorld = syncPartLocalToWorld;
+const syncPartWorld = (registry: Registry, selected: Entity) => {
+  const boneAtt = selected.components[COMPONENT_KEYS.boneAttachment] as BoneAttachment | undefined;
+  if (boneAtt) {
+    syncAttachmentOffsetFromLocal(selected);
+
+    const childOf = selected.components[COMPONENT_KEYS.childOf] as { parentId: number } | undefined;
+    const t = selected.components[COMPONENT_KEYS.transform] as Transform | undefined;
+    if (!childOf || !t) return;
+
+    const parent = registry.get(childOf.parentId);
+    const parentT = parent?.components[COMPONENT_KEYS.transform] as Transform | undefined;
+    const parentModel = parent?.components[COMPONENT_KEYS.skeletalModel] as SkeletalModel | undefined;
+    if (!parentT || !parentModel) return;
+
+    const boneNode = parentModel.bodyScene.nodes[boneAtt.boneNodeIndex];
+    if (!boneNode) return;
+
+    updateWorldMatrix(parentT);
+
+    const renderRoot = m4();
+    const boneWorld = m4();
+    m4Copy(renderRoot, parentT.world);
+    renderRoot[13]! += parentModel.visualYOffset;
+    m4Mul(boneWorld, renderRoot, boneNode.worldM);
+    m4Mul(t.world, boneWorld, boneAtt.localOffset);
+    t.dirty = false;
+    return;
+  }
+
+  syncPartLocalToWorld(registry, selected);
+};
 
 const writePartToDocument = (
   doc: PropDocument,
@@ -129,6 +172,21 @@ const writePartToDocument = (
     };
   }),
 });
+
+const commitPartLocal = (
+  partId: string,
+  local: LocalTransform,
+  getDocument: () => PropDocument,
+  setDocument: (doc: PropDocument) => void,
+  onPartLocalCommit?: (partId: string, local: LocalTransform) => void,
+) => {
+  if (onPartLocalCommit) {
+    onPartLocalCommit(partId, local);
+    return;
+  }
+
+  setDocument(writePartToDocument(getDocument(), partId, local));
+};
 
 const projectWorldToScreen = (
   out: { x: number; y: number; behind: boolean },
@@ -212,17 +270,134 @@ const rayPlaneHit = (
   return true;
 };
 
+type GizmoFrame = {
+  x: Vec3;
+  y: Vec3;
+  z: Vec3;
+  rot: Mat4;
+};
+
+const createWorldGizmoFrame = (): GizmoFrame => ({
+  x: v3(1, 0, 0),
+  y: v3(0, 1, 0),
+  z: v3(0, 0, 1),
+  rot: m4(),
+});
+
+const normalizeAxis = (out: Vec3, x: number, y: number, z: number) => {
+  const len = Math.hypot(x, y, z);
+  if (len < 1e-8) {
+    out[0] = 0;
+    out[1] = 0;
+    out[2] = 0;
+    return out;
+  }
+  const inv = 1 / len;
+  out[0] = x * inv;
+  out[1] = y * inv;
+  out[2] = z * inv;
+  return out;
+};
+
+const setRotationMatFromAxes = (out: Mat4, x: Vec3, y: Vec3, z: Vec3) => {
+  out[0] = x[0];
+  out[1] = x[1];
+  out[2] = x[2];
+  out[3] = 0;
+  out[4] = y[0];
+  out[5] = y[1];
+  out[6] = y[2];
+  out[7] = 0;
+  out[8] = z[0];
+  out[9] = z[1];
+  out[10] = z[2];
+  out[11] = 0;
+  out[12] = 0;
+  out[13] = 0;
+  out[14] = 0;
+  out[15] = 1;
+  return out;
+};
+
+const boneWorldForAttachment = (
+  out: Mat4,
+  registry: Registry,
+  selected: Entity,
+  boneAtt: BoneAttachment,
+) => {
+  const childOf = selected.components[COMPONENT_KEYS.childOf] as { parentId: number } | undefined;
+  if (!childOf) return null;
+
+  const parent = registry.get(childOf.parentId);
+  const parentT = parent?.components[COMPONENT_KEYS.transform] as Transform | undefined;
+  const parentModel = parent?.components[COMPONENT_KEYS.skeletalModel] as SkeletalModel | undefined;
+  if (!parentT || !parentModel) return null;
+
+  const boneNode = parentModel.bodyScene.nodes[boneAtt.boneNodeIndex];
+  if (!boneNode) return null;
+
+  updateWorldMatrix(parentT);
+  const renderRoot = m4();
+  m4Copy(renderRoot, parentT.world);
+  renderRoot[13]! += parentModel.visualYOffset;
+  m4Mul(out, renderRoot, boneNode.worldM);
+  return out;
+};
+
+const extractFrameAxes = (frame: GizmoFrame, world: Mat4) => {
+  normalizeAxis(frame.x, world[0]!, world[1]!, world[2]!);
+  normalizeAxis(frame.y, world[4]!, world[5]!, world[6]!);
+  normalizeAxis(frame.z, world[8]!, world[9]!, world[10]!);
+
+  if (
+    Math.hypot(frame.x[0], frame.x[1], frame.x[2]) < 0.5 ||
+    Math.hypot(frame.y[0], frame.y[1], frame.y[2]) < 0.5 ||
+    Math.hypot(frame.z[0], frame.z[1], frame.z[2]) < 0.5
+  ) {
+    return false;
+  }
+
+  setRotationMatFromAxes(frame.rot, frame.x, frame.y, frame.z);
+  return true;
+};
+
+const resolveGizmoFrame = (registry: Registry, selected: Entity | null): GizmoFrame => {
+  const frame = createWorldGizmoFrame();
+  if (!selected) return frame;
+
+  const boneAtt = selected.components[COMPONENT_KEYS.boneAttachment] as BoneAttachment | undefined;
+  if (!boneAtt) return frame;
+
+  const t = selected.components[COMPONENT_KEYS.transform] as Transform | undefined;
+  if (t) {
+    const invOffset = m4();
+    const boneWorld = m4();
+    m4Invert(invOffset, boneAtt.localOffset);
+    m4Mul(boneWorld, t.world, invOffset);
+    if (extractFrameAxes(frame, boneWorld)) return frame;
+  }
+
+  const boneWorld = m4();
+  if (!boneWorldForAttachment(boneWorld, registry, selected, boneAtt)) return createWorldGizmoFrame();
+  if (!extractFrameAxes(frame, boneWorld)) return createWorldGizmoFrame();
+  return frame;
+};
+
+const frameAxis = (frame: GizmoFrame, axis: Axis) =>
+  axis === 'x' ? frame.x : axis === 'y' ? frame.y : frame.z;
+
 const ringAngleAt = (
   hit: Vec3,
   center: Vec3,
   axis: Axis,
+  frame: GizmoFrame,
 ): number => {
   const dx = hit[0] - center[0];
   const dy = hit[1] - center[1];
   const dz = hit[2] - center[2];
-  if (axis === 'x') return Math.atan2(dz, dy);
-  if (axis === 'y') return Math.atan2(dx, dz);
-  return Math.atan2(dy, dx);
+  const t = axis === 'x' ? frame.y : axis === 'y' ? frame.z : frame.x;
+  const b = axis === 'x' ? frame.z : axis === 'y' ? frame.x : frame.y;
+  return Math.atan2(dx * b[0] + dy * b[1] + dz * b[2], dx * t[0] + dy * t[1] + dz * t[2]);
 };
 
 type DragState = {
@@ -239,10 +414,12 @@ type DragState = {
   startAxisT: number;
   startAngle: number;
   pointerId: number;
+  frameX: [number, number, number];
+  frameY: [number, number, number];
+  frameZ: [number, number, number];
 };
 
-const axisPlaneNormal = (out: Vec3, axis: Axis, origin: Vec3, cam: Vec3) => {
-  const dir = AXIS_DIR[axis];
+const axisPlaneNormal = (out: Vec3, dir: Vec3, origin: Vec3, cam: Vec3) => {
   const toCamX = cam[0] - origin[0];
   const toCamY = cam[1] - origin[1];
   const toCamZ = cam[2] - origin[2];
@@ -269,14 +446,13 @@ const projectRayOntoAxis = (
   rayO: Vec3,
   rayD: Vec3,
   origin: Vec3,
-  axis: Axis,
+  dir: Vec3,
   cam: Vec3,
   planeN: Vec3,
   hit: Vec3,
 ): number | null => {
-  axisPlaneNormal(planeN, axis, origin, cam);
+  axisPlaneNormal(planeN, dir, origin, cam);
   if (!rayPlaneHit(hit, rayO, rayD, origin, planeN)) return null;
-  const dir = AXIS_DIR[axis];
   return (hit[0] - origin[0]) * dir[0] + (hit[1] - origin[1]) * dir[1] + (hit[2] - origin[2]) * dir[2];
 };
 
@@ -300,6 +476,7 @@ export const installConstructGizmoSystem = (
   getDocument: () => PropDocument,
   setDocument: (doc: PropDocument) => void,
   isActive: () => boolean,
+  onPartLocalCommit?: (partId: string, local: LocalTransform) => void,
 ): ConstructGizmoController => {
   const moveMeshes = createMoveGizmoMeshes(gl);
   const rotateMeshes = createRotateGizmoMeshes(gl);
@@ -392,8 +569,8 @@ export const installConstructGizmoSystem = (
     material.baseColorFactor[3] = color[3];
   };
 
-  const axisSignTowardCamera = (origin: Vec3, axis: Axis): 1 | -1 => {
-    const dir = AXIS_DIR[axis];
+  const axisSignTowardCamera = (origin: Vec3, axis: Axis, frame: GizmoFrame): 1 | -1 => {
+    const dir = frameAxis(frame, axis);
     const cam = pipeline.camera.position;
     const toCamX = cam[0] - origin[0];
     const toCamY = cam[1] - origin[1];
@@ -410,6 +587,10 @@ export const installConstructGizmoSystem = (
     return shaftEnd;
   };
 
+  const _handleLocal = m4();
+  const _frameAtOrigin = m4();
+  const _localPos = v3();
+
   const orientHandle = (
     t: Transform,
     model: Mat4,
@@ -419,14 +600,20 @@ export const installConstructGizmoSystem = (
     gizmoScale: number,
     mode: PropEditorTransformMode,
     sign: 1 | -1,
+    frame: GizmoFrame,
   ) => {
-    const dir = AXIS_DIR[axis];
+    m4Copy(_frameAtOrigin, frame.rot);
+    _frameAtOrigin[12] = origin[0];
+    _frameAtOrigin[13] = origin[1];
+    _frameAtOrigin[14] = origin[2];
+
     if (role === 'ring') {
       t.position[0] = origin[0];
       t.position[1] = origin[1];
       t.position[2] = origin[2];
       const s = gizmoScale;
-      m4FromTRSQuat(model, t.position, RING_ROT[axis], v3(s, s, s));
+      m4FromTRSQuat(_handleLocal, v3(0, 0, 0), RING_ROT[axis], v3(s, s, s));
+      m4Mul(model, _frameAtOrigin, _handleLocal);
       m4Copy(t.world, model);
       t.dirty = false;
       return;
@@ -438,25 +625,33 @@ export const installConstructGizmoSystem = (
     if (role === 'shaft') {
       const length = Math.max(0.05, shaftEnd + SHAFT_TIP_OVERLAP * gizmoScale);
       const along = (length * 0.5) * sign;
-      t.position[0] = origin[0] + dir[0] * along;
-      t.position[1] = origin[1] + dir[1] * along;
-      t.position[2] = origin[2] + dir[2] * along;
-      m4FromTRSQuat(model, t.position, rot, v3(gizmoScale, length, gizmoScale));
+      _localPos[0] = axis === 'x' ? along : 0;
+      _localPos[1] = axis === 'y' ? along : 0;
+      _localPos[2] = axis === 'z' ? along : 0;
+      m4FromTRSQuat(_handleLocal, _localPos, rot, v3(gizmoScale, length, gizmoScale));
+      m4Mul(model, _frameAtOrigin, _handleLocal);
+      t.position[0] = model[12]!;
+      t.position[1] = model[13]!;
+      t.position[2] = model[14]!;
       m4Copy(t.world, model);
       t.dirty = false;
       return;
     }
 
     const along = tipAnchor(mode, gizmoScale) * sign;
-    t.position[0] = origin[0] + dir[0] * along;
-    t.position[1] = origin[1] + dir[1] * along;
-    t.position[2] = origin[2] + dir[2] * along;
+    _localPos[0] = axis === 'x' ? along : 0;
+    _localPos[1] = axis === 'y' ? along : 0;
+    _localPos[2] = axis === 'z' ? along : 0;
     const s = gizmoScale;
     if (mode === 'scale') {
-      m4FromTRS(model, t.position, 0, v3(s, s, s));
+      m4FromTRS(_handleLocal, _localPos, 0, v3(s, s, s));
     } else {
-      m4FromTRSQuat(model, t.position, rot, v3(s, s, s));
+      m4FromTRSQuat(_handleLocal, _localPos, rot, v3(s, s, s));
     }
+    m4Mul(model, _frameAtOrigin, _handleLocal);
+    t.position[0] = model[12]!;
+    t.position[1] = model[13]!;
+    t.position[2] = model[14]!;
     m4Copy(t.world, model);
     t.dirty = false;
   };
@@ -470,8 +665,9 @@ export const installConstructGizmoSystem = (
     scale: number,
     mode: PropEditorTransformMode,
     sign: 1 | -1,
+    frame: GizmoFrame,
   ) => {
-    const dir = AXIS_DIR[axis];
+    const dir = frameAxis(frame, axis);
     const shaftEnd = shaftEndDistance(scale);
     const along =
       mode === 'scale'
@@ -488,32 +684,30 @@ export const installConstructGizmoSystem = (
     axis: Axis,
     scale: number,
     sign: 1 | -1,
+    frame: GizmoFrame,
   ) => {
-    const dir = AXIS_DIR[axis];
+    const dir = frameAxis(frame, axis);
     const along = Math.max(0.05, shaftEndDistance(scale) + SHAFT_TIP_OVERLAP * scale) * sign;
     out[0] = origin[0] + dir[0] * along;
     out[1] = origin[1] + dir[1] * along;
     out[2] = origin[2] + dir[2] * along;
   };
 
-  const ringPoint = (out: Vec3, origin: Vec3, axis: Axis, angle: number, radius: number) => {
+  const ringPoint = (
+    out: Vec3,
+    origin: Vec3,
+    axis: Axis,
+    angle: number,
+    radius: number,
+    frame: GizmoFrame,
+  ) => {
     const c = Math.cos(angle);
     const s = Math.sin(angle);
-    if (axis === 'x') {
-      out[0] = origin[0];
-      out[1] = origin[1] + c * radius;
-      out[2] = origin[2] + s * radius;
-      return;
-    }
-    if (axis === 'y') {
-      out[0] = origin[0] + c * radius;
-      out[1] = origin[1];
-      out[2] = origin[2] + s * radius;
-      return;
-    }
-    out[0] = origin[0] + c * radius;
-    out[1] = origin[1] + s * radius;
-    out[2] = origin[2];
+    const t = axis === 'x' ? frame.y : axis === 'y' ? frame.z : frame.x;
+    const b = axis === 'x' ? frame.z : axis === 'y' ? frame.x : frame.y;
+    out[0] = origin[0] + t[0] * c * radius + b[0] * s * radius;
+    out[1] = origin[1] + t[1] * c * radius + b[1] * s * radius;
+    out[2] = origin[2] + t[2] * c * radius + b[2] * s * radius;
   };
 
   const distToScreenSegment = (
@@ -588,6 +782,7 @@ export const installConstructGizmoSystem = (
     mode: PropEditorTransformMode,
     scale: number,
     signs: Record<Axis, 1 | -1>,
+    frame: GizmoFrame,
   ): Axis | null => {
     let bestAxis: Axis | null = null;
     let bestScore = Infinity;
@@ -603,8 +798,8 @@ export const installConstructGizmoSystem = (
         for (let i = 0; i < RING_SEGMENTS; i++) {
           const a0 = (i / RING_SEGMENTS) * Math.PI * 2;
           const a1 = ((i + 1) / RING_SEGMENTS) * Math.PI * 2;
-          ringPoint(_ringA, origin, axis, a0, ringR);
-          ringPoint(_ringB, origin, axis, a1, ringR);
+          ringPoint(_ringA, origin, axis, a0, ringR, frame);
+          ringPoint(_ringB, origin, axis, a1, ringR, frame);
           projectWorldToScreen(_screen, _ringA, pipeline.camera.viewProj, canvas);
           projectWorldToScreen(_screenB, _ringB, pipeline.camera.viewProj, canvas);
           if (_screen.behind || _screenB.behind) continue;
@@ -650,7 +845,7 @@ export const installConstructGizmoSystem = (
 
     for (const axis of ['x', 'y', 'z'] as const) {
       const sign = signs[axis];
-      tipColliderCenter(_tipWorld, origin, axis, scale, mode, sign);
+      tipColliderCenter(_tipWorld, origin, axis, scale, mode, sign, frame);
 
       const tipDist = tipCubeScreenHit(clientX, clientY, _tipWorld, tipHalf);
       if (tipDist !== null && tipDist < bestScore) {
@@ -658,7 +853,7 @@ export const installConstructGizmoSystem = (
         bestAxis = axis;
       }
 
-      shaftEndWorldPos(_hit, origin, axis, scale, sign);
+      shaftEndWorldPos(_hit, origin, axis, scale, sign, frame);
       projectWorldToScreen(_screen, _hit, pipeline.camera.viewProj, canvas);
       if (!originScreen.behind && !_screen.behind) {
         const shaftDist = distToScreenSegment(
@@ -686,13 +881,14 @@ export const installConstructGizmoSystem = (
     partId: string,
     origin: Vec3,
     axisSign: 1 | -1,
+    frame: GizmoFrame,
   ) => {
     const selected = findSelectedPart(registry, partId);
     const local = selected?.components[COMPONENT_KEYS.localTransform] as LocalTransform | undefined;
     if (!selected || !local) return;
 
     unprojectScreenRay(_rayO, _rayD, e.clientX, e.clientY, canvas, pipeline.camera.viewProj, pipeline.camera.position);
-    const dir = AXIS_DIR[axis];
+    const dir = frameAxis(frame, axis);
     _axisD[0] = dir[0];
     _axisD[1] = dir[1];
     _axisD[2] = dir[2];
@@ -701,14 +897,14 @@ export const installConstructGizmoSystem = (
     let startAngle = 0;
     if (mode === 'rotate') {
       if (rayPlaneHit(_hit, _rayO, _rayD, origin, _axisD)) {
-        startAngle = ringAngleAt(_hit, origin, axis);
+        startAngle = ringAngleAt(_hit, origin, axis, frame);
       }
     } else {
       const t = projectRayOntoAxis(
         _rayO,
         _rayD,
         origin,
-        axis,
+        _axisD,
         pipeline.camera.position,
         _planeN,
         _hit,
@@ -733,6 +929,9 @@ export const installConstructGizmoSystem = (
       startAxisT,
       startAngle,
       pointerId: e.pointerId,
+      frameX: [frame.x[0], frame.x[1], frame.x[2]],
+      frameY: [frame.y[0], frame.y[1], frame.y[2]],
+      frameZ: [frame.z[0], frame.z[1], frame.z[2]],
     };
 
     try {
@@ -756,7 +955,14 @@ export const installConstructGizmoSystem = (
     );
 
     unprojectScreenRay(_rayO, _rayD, e.clientX, e.clientY, canvas, pipeline.camera.viewProj, pipeline.camera.position);
-    const dir = AXIS_DIR[drag.axis];
+    const dragFrame: GizmoFrame = {
+      x: v3(drag.frameX[0], drag.frameX[1], drag.frameX[2]),
+      y: v3(drag.frameY[0], drag.frameY[1], drag.frameY[2]),
+      z: v3(drag.frameZ[0], drag.frameZ[1], drag.frameZ[2]),
+      rot: m4(),
+    };
+    setRotationMatFromAxes(dragFrame.rot, dragFrame.x, dragFrame.y, dragFrame.z);
+    const dir = frameAxis(dragFrame, drag.axis);
     _axisD[0] = dir[0];
     _axisD[1] = dir[1];
     _axisD[2] = dir[2];
@@ -776,7 +982,7 @@ export const installConstructGizmoSystem = (
 
     if (drag.mode === 'rotate') {
       if (rayPlaneHit(_hit, _rayO, _rayD, origin, _axisD)) {
-        const angle = ringAngleAt(_hit, origin, drag.axis);
+        const angle = ringAngleAt(_hit, origin, drag.axis, dragFrame);
         let delta = angle - drag.startAngle;
         if (delta > Math.PI) delta -= Math.PI * 2;
         if (delta < -Math.PI) delta += Math.PI * 2;
@@ -789,7 +995,7 @@ export const installConstructGizmoSystem = (
         _rayO,
         _rayD,
         origin,
-        drag.axis,
+        _axisD,
         pipeline.camera.position,
         _planeN,
         _hit,
@@ -809,21 +1015,21 @@ export const installConstructGizmoSystem = (
     }
 
     syncPartWorld(registry, selected);
-    setDocument(writePartToDocument(getDocument(), drag.partId, local));
+    commitPartLocal(drag.partId, local, getDocument, setDocument, onPartLocalCommit);
   };
 
   const endDrag = (e: PointerEvent) => {
     if (!drag || drag.pointerId !== e.pointerId) return;
     const selected = findSelectedPart(registry, drag.partId);
     const local = selected?.components[COMPONENT_KEYS.localTransform] as LocalTransform | undefined;
-    if (local) setDocument(writePartToDocument(getDocument(), drag.partId, local));
+    if (local) commitPartLocal(drag.partId, local, getDocument, setDocument, onPartLocalCommit);
     drag = null;
   };
 
-  const currentSigns = (origin: Vec3): Record<Axis, 1 | -1> => ({
-    x: axisSignTowardCamera(origin, 'x'),
-    y: axisSignTowardCamera(origin, 'y'),
-    z: axisSignTowardCamera(origin, 'z'),
+  const currentSigns = (origin: Vec3, frame: GizmoFrame): Record<Axis, 1 | -1> => ({
+    x: axisSignTowardCamera(origin, 'x', frame),
+    y: axisSignTowardCamera(origin, 'y', frame),
+    z: axisSignTowardCamera(origin, 'z', frame),
   });
 
   const onPointerDown = (e: PointerEvent) => {
@@ -841,13 +1047,14 @@ export const installConstructGizmoSystem = (
     const origin = gizmoOriginForPart(v3(), selected, selectedT);
     const mode = gizmo?.mode ?? 'move';
     const scale = gizmoWorldScale();
-    const signs = currentSigns(origin);
-    const axis = pickHandle(e.clientX, e.clientY, origin, mode, scale, signs);
+    const frame = resolveGizmoFrame(registry, selected);
+    const signs = currentSigns(origin, frame);
+    const axis = pickHandle(e.clientX, e.clientY, origin, mode, scale, signs, frame);
     if (!axis) return;
 
     e.preventDefault();
     e.stopPropagation();
-    beginDrag(e, axis, mode, sel.partId, origin, signs[axis]);
+    beginDrag(e, axis, mode, sel.partId, origin, signs[axis], frame);
   };
 
   const onPointerMove = (e: PointerEvent) => {
@@ -871,7 +1078,8 @@ export const installConstructGizmoSystem = (
     const origin = gizmoOriginForPart(v3(), selected, selectedT);
     const mode = gizmo?.mode ?? 'move';
     const scale = gizmoWorldScale();
-    hoverAxis = pickHandle(e.clientX, e.clientY, origin, mode, scale, currentSigns(origin));
+    const frame = resolveGizmoFrame(registry, selected);
+    hoverAxis = pickHandle(e.clientX, e.clientY, origin, mode, scale, currentSigns(origin, frame), frame);
   };
 
   const onWindowPointerMove = (e: PointerEvent) => {
@@ -912,8 +1120,9 @@ export const installConstructGizmoSystem = (
       ? gizmoOriginForPart(v3(), selected!, selectedT!)
       : v3();
     const scale = gizmoWorldScale();
+    const frame = resolveGizmoFrame(registry, selected);
     const signs = show
-      ? currentSigns(origin)
+      ? currentSigns(origin, frame)
       : { x: 1 as const, y: 1 as const, z: 1 as const };
 
     if (!show || !pointerOverCanvas) {
@@ -947,7 +1156,7 @@ export const installConstructGizmoSystem = (
       }
 
       setHandleHighlight(renderable.material, h.axis, activeAxis === h.axis);
-      orientHandle(t, renderable.model, origin, h.axis, h.role, scale, mode, signs[h.axis]);
+      orientHandle(t, renderable.model, origin, h.axis, h.role, scale, mode, signs[h.axis], frame);
     }
   }, 25);
 

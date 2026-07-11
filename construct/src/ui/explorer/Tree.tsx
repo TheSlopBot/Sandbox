@@ -13,7 +13,9 @@ const flattenTree = (
   depth = 0,
 ): TreeRow[] => {
   const rows: TreeRow[] = [];
-  const stack: Array<{ node: KaykitTreeNode; depth: number; idx: number }> = [{ node: root, depth, idx: 0 }];
+  const stack: Array<{ node: KaykitTreeNode; depth: number; idx: number }> = [
+    { node: root, depth, idx: 0 },
+  ];
 
   while (stack.length) {
     const top = stack[stack.length - 1];
@@ -52,9 +54,22 @@ export type TreeProps = {
   onToggleDir: (dirPath: string) => void;
   onSelectFile: (filePath: string) => void;
   onAddFile?: (filePath: string) => void;
+  addEnabled?: boolean;
+  fileAction?: 'add' | 'radio';
+  radioSelectedPath?: string | null;
 };
 
-export const Tree = memo(({ root, expanded, selectedPath, onToggleDir, onSelectFile, onAddFile }: TreeProps) => {
+export const Tree = memo(({
+  root,
+  expanded,
+  selectedPath,
+  onToggleDir,
+  onSelectFile,
+  onAddFile,
+  addEnabled = true,
+  fileAction = 'add',
+  radioSelectedPath = null,
+}: TreeProps) => {
   const rows = useMemo(() => flattenTree(root, expanded), [root, expanded]);
 
   return (
@@ -64,12 +79,14 @@ export const Tree = memo(({ root, expanded, selectedPath, onToggleDir, onSelectF
         const isDir = n.type === 'dir';
         const isSelected = n.type === 'file' && selectedPath === n.path;
         const icon = isDir ? (expanded.has(n.path) || n.path === '' ? '▾' : '▸') : '•';
-        const showAdd = !isDir && !!onAddFile;
+        const showAdd = !isDir && fileAction === 'add' && !!onAddFile;
+        const showRadio = !isDir && fileAction === 'radio';
+        const radioChecked = showRadio && radioSelectedPath === n.path;
 
         return (
           <div
             key={row.key || '(root)'}
-            className={showAdd ? 'treeRowWithAdd' : undefined}
+            className={showAdd || showRadio ? 'treeRowWithAdd' : undefined}
             style={{ paddingLeft: 4 + row.depth * 8 }}
           >
             <div
@@ -88,13 +105,27 @@ export const Tree = memo(({ root, expanded, selectedPath, onToggleDir, onSelectF
                 type="button"
                 className="treeRowAdd"
                 aria-label={`Add ${n.name}`}
+                disabled={!addEnabled}
+                title={addEnabled ? undefined : 'Select a bone to attach an asset'}
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (!addEnabled) return;
                   onAddFile?.(n.path);
                 }}
               >
                 <span>+</span>
               </button>
+            ) : null}
+            {showRadio ? (
+              <input
+                type="radio"
+                className="treeRowRadio"
+                name="construct-character-select"
+                checked={radioChecked}
+                aria-label={`Select ${n.name}`}
+                onChange={() => onSelectFile(n.path)}
+                onClick={(e) => e.stopPropagation()}
+              />
             ) : null}
           </div>
         );

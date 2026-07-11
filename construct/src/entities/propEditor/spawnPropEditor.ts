@@ -14,6 +14,7 @@
   removeChildId,
   createBoxCollider,
   createCylinderCollider,
+  createCapsuleCollider,
   createSphereCollider,
   bakeColliderWorldFromLocal,
   updateWorldMatrix,
@@ -37,12 +38,14 @@ import {
   identityPartLocal,
 } from '../../catalog/props/propDocument.ts';
 import { createConstructPropRoot } from './propRoot.ts';
+import { createConstructPropOriginMarker } from './propOriginMarker.ts';
 import { createConstructPropPart, type ConstructPropPart } from './propPart.ts';
 import { createConstructColliderWireframe } from './colliderWireframe.ts';
 import { syncPartLocalToWorld } from './syncPartLocal.ts';
 import {
   createConstructPropAssetMaterials,
 } from './propAssetMaterials.ts';
+import { createBoxMesh } from '../gizmos/meshes.ts';
 
 const applyTextureToMaterials = (
   materials: Material[],
@@ -55,16 +58,49 @@ const applyTextureToMaterials = (
   }
 };
 
-const COLLIDER_COLORS: Record<'box' | 'cylinder' | 'sphere', [number, number, number, number]> = {
-  box: [0.22, 0.55, 1.0, 0.35],
-  cylinder: [0.72, 0.32, 0.95, 0.35],
-  sphere: [1.0, 0.55, 0.12, 0.35],
+const ACTOR_COLLIDER_ROLE_COLORS = {
+  collision: [0.22, 0.55, 1.0, 0.4] as [number, number, number, number],
+  hitbox: [1.0, 0.32, 0.28, 0.42] as [number, number, number, number],
+  both: [0.85, 0.35, 0.95, 0.42] as [number, number, number, number],
 };
 
-const wireMaterial = (shape: 'box' | 'cylinder' | 'sphere'): Material => ({
+export const actorColliderRoleColor = (
+  collision: boolean,
+  hitbox: boolean,
+): [number, number, number, number] => {
+  if (collision && hitbox) return [...ACTOR_COLLIDER_ROLE_COLORS.both];
+  if (hitbox) return [...ACTOR_COLLIDER_ROLE_COLORS.hitbox];
+  return [...ACTOR_COLLIDER_ROLE_COLORS.collision];
+};
+
+export const applyActorColliderWireColor = (
+  material: Material,
+  collision: boolean,
+  hitbox: boolean,
+) => {
+  const color = actorColliderRoleColor(collision, hitbox);
+  material.baseColorFactor[0] = color[0];
+  material.baseColorFactor[1] = color[1];
+  material.baseColorFactor[2] = color[2];
+  material.baseColorFactor[3] = color[3];
+};
+
+const wireMaterial = (shape: 'box' | 'cylinder' | 'sphere' | 'capsule'): Material => ({
   name: `construct-collider-wire-${shape}`,
   baseColorTex: null,
-  baseColorFactor: COLLIDER_COLORS[shape],
+  baseColorFactor: [...ACTOR_COLLIDER_ROLE_COLORS.collision],
+  alphaMode: 'BLEND',
+  doubleSided: true,
+});
+
+export const createActorColliderWireMaterial = (
+  shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
+  collision: boolean,
+  hitbox: boolean,
+): Material => ({
+  name: `construct-actor-collider-wire-${shape}`,
+  baseColorTex: null,
+  baseColorFactor: actorColliderRoleColor(collision, hitbox),
   alphaMode: 'BLEND',
   doubleSided: true,
 });
@@ -184,6 +220,63 @@ const createCylinderProxyMesh = (
   return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
 };
 
+const createCapsuleProxyMesh = (
+  gl: WebGL2RenderingContext,
+  radius: number,
+  halfHeight: number,
+  seg = 14,
+  hemiSeg = 6,
+) => {
+  const v: number[] = [];
+  const idx: number[] = [];
+  const rings: number[][] = [];
+
+  const pushRing = (y: number, ringR: number, ny: number, xzScale: number) => {
+    const ring: number[] = [];
+    for (let i = 0; i <= seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      ring.push(v.length / 8);
+      pushVert(v, c * ringR, y, s * ringR, c * xzScale, ny, s * xzScale);
+    }
+    rings.push(ring);
+  };
+
+  pushRing(-(halfHeight + radius), 0, -1, 0);
+  for (let i = 1; i < hemiSeg; i++) {
+    const t = i / hemiSeg;
+    const angle = -Math.PI * 0.5 + t * (Math.PI * 0.5);
+    const y = -halfHeight + Math.sin(angle) * radius;
+    const ringR = Math.cos(angle) * radius;
+    const ny = Math.sin(angle);
+    const xz = Math.cos(angle);
+    pushRing(y, ringR, ny, xz);
+  }
+  pushRing(-halfHeight, radius, 0, 1);
+  pushRing(halfHeight, radius, 0, 1);
+  for (let i = 1; i < hemiSeg; i++) {
+    const t = i / hemiSeg;
+    const angle = t * (Math.PI * 0.5);
+    const y = halfHeight + Math.sin(angle) * radius;
+    const ringR = Math.cos(angle) * radius;
+    const ny = Math.sin(angle);
+    const xz = Math.cos(angle);
+    pushRing(y, ringR, ny, xz);
+  }
+  pushRing(halfHeight + radius, 0, 1, 0);
+
+  for (let r = 0; r < rings.length - 1; r++) {
+    const a = rings[r]!;
+    const b = rings[r + 1]!;
+    for (let i = 0; i < seg; i++) {
+      idx.push(a[i]!, b[i]!, a[i + 1]!, a[i + 1]!, b[i]!, b[i + 1]!);
+    }
+  }
+
+  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
+};
+
 const applyPartLocal = (
   local: ReturnType<typeof createLocalTransform>,
   part: PropDocumentPart,
@@ -219,6 +312,7 @@ export const clearPropEditorEntities = (registry: Registry) => {
     const renderGroup = e.components[COMPONENT_KEYS.renderGroup] as { entityIds: number[] } | undefined;
     if (renderGroup) for (const id of renderGroup.entityIds) ids.add(id);
   }
+  for (const e of registry.view(CONSTRUCT_KEYS.propOriginMarker)) ids.add(e.id);
   for (const e of registry.view(CONSTRUCT_KEYS.propRoot)) ids.add(e.id);
   for (const id of ids) registry.deregister(id);
 };
@@ -271,37 +365,16 @@ export const spawnColliderPartEntity = (
   child.components[CONSTRUCT_KEYS.propPart] = createConstructPropPart(part.id, 'collider', part.shape);
   child.components[CONSTRUCT_KEYS.colliderWireframe] = createConstructColliderWireframe(part.shape);
 
-  let mesh;
-  if (part.shape === 'box') {
-    const hx = part.halfExtents?.[0] ?? 0.5;
-    const hy = part.halfExtents?.[1] ?? 0.5;
-    const hz = part.halfExtents?.[2] ?? 0.5;
-    child.components[COMPONENT_KEYS.collider] = createBoxCollider({
-      halfExtents: v3(hx, hy, hz),
-      isStatic: true,
-    });
-    mesh = createBoxProxyMesh(gl, hx, hy, hz);
-  } else if (part.shape === 'cylinder') {
-    const radius = part.radius ?? 0.35;
-    const halfHeight = part.halfHeight ?? 0.5;
-    child.components[COMPONENT_KEYS.collider] = createCylinderCollider({
-      radius,
-      halfHeight,
-      isStatic: true,
-    });
-    mesh = createCylinderProxyMesh(gl, radius, halfHeight);
-  } else {
-    const radius = part.radius ?? 0.5;
-    child.components[COMPONENT_KEYS.collider] = createSphereCollider({
-      radius,
-      isStatic: true,
-    });
-    mesh = createSphereProxyMesh(gl, radius);
-  }
-
+  const resources = createColliderShapeResources(gl, part.shape, {
+    halfExtents: part.halfExtents,
+    radius: part.radius,
+    halfHeight: part.halfHeight,
+  });
+  const mesh = resources.mesh;
+  child.components[COMPONENT_KEYS.collider] = resources.collider;
   child.components[COMPONENT_KEYS.renderable] = {
     mesh,
-    material: wireMaterial(part.shape),
+    material: resources.material,
     castShadow: false,
     overlay: true,
   };
@@ -311,8 +384,7 @@ export const spawnColliderPartEntity = (
   addChildId(children, child.id);
 
   bakeChildWorld(rootT, t, local);
-  const collider = child.components[COMPONENT_KEYS.collider];
-  if (collider) bakeColliderWorldFromLocal(collider as never, t.world);
+  bakeColliderWorldFromLocal(resources.collider, t.world);
 
   return child.id;
 };
@@ -411,8 +483,48 @@ export const ensurePropRoot = (registry: Registry, doc: PropDocument) => {
   return root.id;
 };
 
+export const ensurePropOriginMarker = (
+  gl: WebGL2RenderingContext,
+  registry: Registry,
+  rootId: number,
+) => {
+  if (registry.view(CONSTRUCT_KEYS.propOriginMarker)[0]) return;
+
+  const root = registry.get(rootId);
+  if (!root) return;
+
+  const rootT = root.components[COMPONENT_KEYS.transform] as ReturnType<typeof createTransform>;
+  const children = root.components[COMPONENT_KEYS.children] as ReturnType<typeof createChildren>;
+  const marker = createConstructPropOriginMarker();
+  const mesh = createBoxMesh(gl, marker.halfExtent, marker.halfExtent, marker.halfExtent);
+  const material: Material = {
+    name: 'prop-origin-marker',
+    baseColorTex: null,
+    baseColorFactor: [0.25, 0.45, 0.95, 0.75],
+    alphaMode: 'BLEND',
+  };
+
+  const child = registry.createBare();
+  const t = createTransform();
+  const local = createLocalTransform();
+  child.components[COMPONENT_KEYS.transform] = t;
+  child.components[COMPONENT_KEYS.childOf] = createChildOf(rootId);
+  child.components[COMPONENT_KEYS.localTransform] = local;
+  child.components[CONSTRUCT_KEYS.propOriginMarker] = marker;
+  child.components[COMPONENT_KEYS.renderable] = {
+    mesh,
+    material,
+    castShadow: false,
+    overlay: true,
+  };
+  child.onDeregister.push(() => destroyMesh(gl, mesh));
+  registry.register(child);
+  addChildId(children, child.id);
+  bakeChildWorld(rootT, t, local);
+};
+
 export const defaultColliderPart = (
-  shape: 'box' | 'cylinder' | 'sphere',
+  shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
   id: string,
 ): PropDocumentColliderPart => {
   const local = identityPartLocal();
@@ -437,6 +549,17 @@ export const defaultColliderPart = (
       ...local,
     };
   }
+  if (shape === 'capsule') {
+    return {
+      id,
+      name: id,
+      kind: 'collider',
+      shape: 'capsule',
+      radius: 0.3,
+      halfHeight: 0.5,
+      ...local,
+    };
+  }
   return {
     id,
     name: id,
@@ -444,6 +567,67 @@ export const defaultColliderPart = (
     shape: 'sphere',
     radius: 0.5,
     ...local,
+  };
+};
+
+export type ColliderShapeResources = {
+  collider: ReturnType<typeof createBoxCollider>;
+  mesh: ReturnType<typeof createBoxProxyMesh>;
+  material: Material;
+};
+
+export const createColliderShapeResources = (
+  gl: WebGL2RenderingContext,
+  shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
+  opts: {
+    halfExtents?: [number, number, number];
+    radius?: number;
+    halfHeight?: number;
+    collision?: boolean;
+    hitbox?: boolean;
+  } = {},
+): ColliderShapeResources => {
+  const roleMaterial =
+    opts.collision !== undefined || opts.hitbox !== undefined
+      ? createActorColliderWireMaterial(shape, opts.collision !== false, opts.hitbox === true)
+      : null;
+
+  if (shape === 'box') {
+    const hx = opts.halfExtents?.[0] ?? 0.5;
+    const hy = opts.halfExtents?.[1] ?? 0.5;
+    const hz = opts.halfExtents?.[2] ?? 0.5;
+    return {
+      collider: createBoxCollider({ halfExtents: v3(hx, hy, hz), isStatic: true }),
+      mesh: createBoxProxyMesh(gl, hx, hy, hz),
+      material: roleMaterial ?? wireMaterial('box'),
+    };
+  }
+
+  if (shape === 'cylinder') {
+    const radius = opts.radius ?? 0.35;
+    const halfHeight = opts.halfHeight ?? 0.5;
+    return {
+      collider: createCylinderCollider({ radius, halfHeight, isStatic: true }),
+      mesh: createCylinderProxyMesh(gl, radius, halfHeight),
+      material: roleMaterial ?? wireMaterial('cylinder'),
+    };
+  }
+
+  if (shape === 'capsule') {
+    const radius = opts.radius ?? 0.3;
+    const halfHeight = opts.halfHeight ?? 0.5;
+    return {
+      collider: createCapsuleCollider({ radius, halfHeight, isStatic: true }),
+      mesh: createCapsuleProxyMesh(gl, radius, halfHeight),
+      material: roleMaterial ?? wireMaterial('capsule'),
+    };
+  }
+
+  const radius = opts.radius ?? 0.5;
+  return {
+    collider: createSphereCollider({ radius, isStatic: true }),
+    mesh: createSphereProxyMesh(gl, radius),
+    material: roleMaterial ?? wireMaterial('sphere'),
   };
 };
 

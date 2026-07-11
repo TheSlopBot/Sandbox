@@ -11,13 +11,14 @@ export type PropDocumentAssetPart = PropDocumentPartLocal & {
   url: string;
   materialPrefix: string;
   textureVariantUrl?: string | null;
+  tags: string[];
 };
 
 export type PropDocumentColliderPart = PropDocumentPartLocal & {
   id: string;
   name: string;
   kind: 'collider';
-  shape: 'box' | 'cylinder' | 'sphere';
+  shape: 'box' | 'cylinder' | 'sphere' | 'capsule';
   halfExtents?: [number, number, number];
   radius?: number;
   halfHeight?: number;
@@ -41,6 +42,31 @@ export const createEmptyPropDocument = (): PropDocument => ({
   parts: [],
 });
 
+export const propNeedsName = (doc: PropDocument): boolean =>
+  !doc.displayName.trim() ||
+  doc.id === 'untitled' ||
+  doc.displayName.trim() === 'Untitled Prop';
+
+export const slugifyPropId = (name: string): string => {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return slug || 'untitled';
+};
+
+export const applyPropName = (doc: PropDocument, name: string): PropDocument => {
+  const trimmed = name.trim();
+  if (!trimmed) return doc;
+
+  return {
+    ...doc,
+    id: slugifyPropId(trimmed),
+    displayName: trimmed,
+  };
+};
+
 export const identityPartLocal = (): PropDocumentPartLocal => ({
   position: [0, 0, 0],
   rotation: [0, 0, 0, 1],
@@ -57,6 +83,9 @@ const normalizePart = (raw: unknown): PropDocumentPart => {
 
   if (part.kind === 'asset') {
     if (typeof part.url !== 'string') throw new Error('Invalid asset part url');
+    const tags = Array.isArray(part.tags)
+      ? part.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0).map((t) => t.trim())
+      : [];
     return {
       ...(part as PropDocumentAssetPart),
       id: part.id,
@@ -68,6 +97,7 @@ const normalizePart = (raw: unknown): PropDocumentPart => {
         typeof part.textureVariantUrl === 'string' || part.textureVariantUrl === null
           ? part.textureVariantUrl
           : null,
+      tags,
       position: (part.position as [number, number, number]) ?? [0, 0, 0],
       rotation: (part.rotation as [number, number, number, number]) ?? [0, 0, 0, 1],
       scale: (part.scale as [number, number, number]) ?? [1, 1, 1],
@@ -75,7 +105,12 @@ const normalizePart = (raw: unknown): PropDocumentPart => {
   }
 
   if (part.kind === 'collider') {
-    if (part.shape !== 'box' && part.shape !== 'cylinder' && part.shape !== 'sphere') {
+    if (
+      part.shape !== 'box' &&
+      part.shape !== 'cylinder' &&
+      part.shape !== 'sphere' &&
+      part.shape !== 'capsule'
+    ) {
       throw new Error('Invalid collider shape');
     }
     return {
@@ -120,3 +155,14 @@ export const partTypeLabel = (part: PropDocumentPart): string =>
 
 export const partListLabel = (part: PropDocumentPart): string =>
   `${part.name} - ${partTypeLabel(part)}`;
+
+export const collectPropDocumentTags = (doc: PropDocument): string[] => {
+  const tags = new Set<string>();
+
+  for (const part of doc.parts) {
+    if (part.kind !== 'asset') continue;
+    for (const t of part.tags) tags.add(t);
+  }
+
+  return [...tags].sort((a, b) => a.localeCompare(b));
+};
