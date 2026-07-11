@@ -12,7 +12,6 @@ import {
   useRegistry,
   installMovementSystem,
   installNavGridSystem,
-  installCharacterPhysicsSystem,
   installCollisionSystem,
   installColliderTransformSystem,
   installCharacterStateSystem,
@@ -40,7 +39,7 @@ export type SceneDeps = {
   meshes: SharedMeshCache;
   optimization: EngineOptimizationOptions;
   staticPropBatcher: StaticPropBatcher;
-  setPostUpdateFlush: (fn: (() => Promise<void>) | null) => void;
+  setSimFlush: (fn: (() => Promise<void>) | null) => void;
 };
 
 export type AddProp = (propId: string, placement?: PropPlacement) => Promise<void>;
@@ -60,17 +59,16 @@ export const createPlayableScene = (
   installNavGridSystem(registry);
   installTestAiSystem(registry);
   installMovementSystem(registry);
-  const useGpuResolve = false;
-  installCharacterPhysicsSystem(registry, { skip: useGpuResolve });
-  installCollisionSystem(registry, {
+  const removeGpuCollision = installCollisionSystem(registry, {
     device: deps.device,
-    gpuResolve: useGpuResolve,
+    setSimFlush: deps.setSimFlush,
   });
   installColliderTransformSystem(registry);
   installCharacterStateSystem(registry);
   installCameraFollowSystem(registry, deps.pipeline, deps.input);
   installSkeletalCharacterSystems(registry, {
     device: deps.device,
+    setPreDrawEncode: deps.pipeline.setPreDrawEncode,
     getLodOrigin: () => deps.pipeline.camera.position,
     optimization: deps.optimization,
   });
@@ -102,6 +100,9 @@ export const createPlayableScene = (
 
   const unload = () => {
     if (!loaded) return;
+
+    removeGpuCollision?.();
+    deps.setSimFlush(null);
 
     const ids = [...registry.all()].map((entity) => entity.id);
     for (const id of ids) registry.deregister(id);

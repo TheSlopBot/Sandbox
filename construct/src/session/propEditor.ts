@@ -1,4 +1,4 @@
-import { type LocalTransform, type Registry, v3, installStaticModelSystem, COMPONENT_KEYS } from 'viberanium';
+import { type LocalTransform, type Registry, v3, COMPONENT_KEYS } from 'viberanium';
 import { CONSTRUCT_KEYS } from '../catalog/keys/components.ts';
 import {
   type PropDocument,
@@ -31,6 +31,7 @@ import {
 import { syncPartLocalToWorld } from '../entities/editorCommon/syncPartLocal.ts';
 import { stopActorSystems } from './actorEditor.ts';
 import { ensureSelectionEntity, resetEditorScene } from '../scenes/editorScene.ts';
+import { ensurePropStaticModelSystem } from '../scenes/installEditorSystems.ts';
 import {
   type ConstructSessionDeps,
   type ConstructSessionState,
@@ -86,7 +87,7 @@ export const enterPropMode = async (
   sel.targetId = null;
   state.selectionEnt.components[CONSTRUCT_KEYS.actorSelection] = createConstructActorSelection();
 
-  if (!state.removeStaticModelSystem) state.removeStaticModelSystem = installStaticModelSystem(deps.registry);
+  ensurePropStaticModelSystem(deps.registry, state);
 
   for (const part of state.propDocument.parts) {
     if (part.kind === 'collider') {
@@ -126,7 +127,7 @@ export const loadPropDocument = async (
   ensureSelectionEntity(deps, state);
   state.selectionEnt.components[CONSTRUCT_KEYS.actorSelection] = createConstructActorSelection();
 
-  if (!state.removeStaticModelSystem) state.removeStaticModelSystem = installStaticModelSystem(deps.registry);
+  ensurePropStaticModelSystem(deps.registry, state);
 
   for (const part of state.propDocument.parts) {
     if (part.kind === 'collider') {
@@ -160,7 +161,7 @@ export const addAssetPart = async (
   };
   state.propDocument = { ...state.propDocument, parts: [...state.propDocument.parts, part] };
 
-  if (!state.removeStaticModelSystem) state.removeStaticModelSystem = installStaticModelSystem(deps.registry);
+  ensurePropStaticModelSystem(deps.registry, state);
   await spawnAssetPartEntity(deps.device, deps.registry, deps.textures, deps.gltfCache, rootId, part);
 
   ensureSelectionEntity(deps, state);

@@ -11,6 +11,8 @@ export type CharacterController = {
   halfHeight: number;
   obstructiveColliderKeys: readonly string[];
   wasOnGroundPrevious: boolean;
+  coyoteRemaining: number;
+  jumpBufferRemaining: number;
 };
 
 export const createCharacterController = (): CharacterController => ({
@@ -23,6 +25,8 @@ export const createCharacterController = (): CharacterController => ({
   halfHeight: 0.27,
   obstructiveColliderKeys: [COMPONENT_KEYS.collider],
   wasOnGroundPrevious: false,
+  coyoteRemaining: 0,
+  jumpBufferRemaining: 0,
 });
 
 export const characterFootOffset = (cc: CharacterController): number =>

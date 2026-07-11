@@ -119,6 +119,7 @@ export type ConstructEditorMode = 'preview' | 'prop' | 'actor';
 export type ConstructSessionDeps = {
   device: GpuDevice;
   registry: Registry;
+  pipeline: RenderPipeline;
   textures: TextureCache;
   gltfCache: GltfCache;
   orbit: ConstructOrbit;

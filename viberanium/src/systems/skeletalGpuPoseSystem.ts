@@ -33,6 +33,7 @@ import { type Entity } from '../engine/entity.ts';
 
 export type SkeletalGpuPoseOptions = {
   device: GpuDevice;
+  setPreDrawEncode?: (fn: ((encoder: GPUCommandEncoder) => void) | null) => void;
   getLodOrigin?: () => Vec3;
   optimization?: EngineOptimizationOptions;
 };
@@ -269,11 +270,19 @@ export const installSkeletalGpuPoseSystem = (
       model.poseDirty = false;
     }
 
+    if (options.setPreDrawEncode) {
+      options.setPreDrawEncode((encoder) => {
+        posePass.dispatch(entries, encoder);
+      });
+      return;
+    }
+
     posePass.dispatch(entries);
   }, 0);
 
   return () => {
     remove();
+    options.setPreDrawEncode?.(null);
     posePass.destroy();
   };
 };

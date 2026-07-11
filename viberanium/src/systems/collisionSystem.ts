@@ -10,58 +10,11 @@ import {
   createCollisionPass,
   type CollisionCharacterInput,
 } from '../render/passes/collisionPass.ts';
-import {
-  ensureCollisionBroadphase,
-  isCollisionBroadphaseDirty,
-  markCollisionBroadphaseDirty,
-  queryNearbyStaticColliders,
-} from '../collision/collisionBroadphase.ts';
 import { onCollisionStaticDirty } from './collisionStaticDirty.ts';
 
-const _obstacles: Collider[] = [];
-let broadphaseHooked = false;
-
-const ensureBroadphaseHook = () => {
-  if (broadphaseHooked) return;
-  broadphaseHooked = true;
-  onCollisionStaticDirty(() => markCollisionBroadphaseDirty());
-  markCollisionBroadphaseDirty();
-};
-
-export const getObstacles = (registry: Registry, keys: readonly string[]): Collider[] => {
-  ensureBroadphaseHook();
-
-  _obstacles.length = 0;
-  for (const key of keys) {
-    for (const c of registry.getComponentsByName(key)) {
-      _obstacles.push(c as Collider);
-    }
-  }
-
-  ensureCollisionBroadphase(_obstacles);
-  return _obstacles;
-};
-
-export const getNearbyObstacles = (
-  registry: Registry,
-  keys: readonly string[],
-  x: number,
-  z: number,
-  radius: number,
-): Collider[] => {
-  ensureBroadphaseHook();
-
-  if (isCollisionBroadphaseDirty()) {
-    getObstacles(registry, keys);
-  }
-
-  return queryNearbyStaticColliders(x, z, radius);
-};
-
 export type CollisionSystemOptions = {
-  device?: GpuDevice;
-  setPostUpdateFlush?: (fn: (() => Promise<void>) | null) => void;
-  gpuResolve?: boolean;
+  device: GpuDevice;
+  setSimFlush: (fn: (() => Promise<void>) | null) => void;
 };
 
 const applyReadback = (
@@ -105,57 +58,25 @@ const applyReadback = (
 
 export const installCollisionSystem = (
   registry: Registry,
-  options: CollisionSystemOptions = {},
-): void => {
-  ensureBroadphaseHook();
-
-  registry.addAction(
-    'update',
-    () => {
-      const allColliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
-      ensureCollisionBroadphase(allColliders);
-    },
-    9,
-  );
-
-  if (!options.device || options.gpuResolve !== true) return;
-
+  options: CollisionSystemOptions,
+): (() => void) => {
   const pass = createCollisionPass(options.device);
   onCollisionStaticDirty(() => pass.markStaticDirty());
 
   const inputs: CollisionCharacterInput[] = [];
   const entities: Entity[] = [];
+  let packedEntities: Entity[] = [];
+  let packedCount = 0;
+  let packedDt = 0;
   let readback = new Float32Array(0);
-  const pendingBySlot: [Entity[], Entity[]] = [[], []];
-  const pendingCounts: [number, number] = [0, 0];
-
-  registry.addAction(
-    'update',
-    () => {
-      if (!pass.isReadbackReady()) return;
-
-      const count = Math.max(pendingCounts[0], pendingCounts[1]);
-      if (count <= 0) return;
-      const needed = count * CHARACTER_STATE_FLOATS;
-      if (readback.length < needed) readback = new Float32Array(needed);
-
-      const slot = pass.readCharacters(readback, count);
-      if (slot < 0) return;
-
-      applyReadback(readback, pendingBySlot[slot]!, pendingCounts[slot]!);
-      pendingBySlot[slot] = [];
-      pendingCounts[slot] = 0;
-    },
-    7,
-  );
 
   registry.addAction(
     'update',
     (ctx) => {
-      if (!pass.canDispatch()) return;
-
-      const allColliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
-      pass.rebuildStatic(allColliders);
+      if (pass.needsStaticRebuild()) {
+        const allColliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
+        pass.rebuildStatic(allColliders);
+      }
 
       inputs.length = 0;
       entities.length = 0;
@@ -172,6 +93,7 @@ export const installCollisionSystem = (
         const foot = cc.halfHeight + cc.radius;
         const airborne = t.position[1] - foot > 0.05;
         const active = !(speed2 < 1e-10 && cc.onGround && !airborne);
+        if (!active) continue;
 
         entities.push(e);
         inputs.push({
@@ -181,19 +103,35 @@ export const installCollisionSystem = (
           halfHeight: cc.halfHeight,
           gravity: cc.gravity,
           onGround: cc.onGround && !airborne,
-          active,
+          active: true,
         });
       }
 
-      if (inputs.length === 0) return;
+      packedCount = inputs.length;
+      packedDt = Math.min(ctx.dt, 0.05);
+      packedEntities = entities.slice();
 
-      pass.writeCharacters(inputs);
-      const slot = pass.dispatch(ctx.dt, inputs.length);
-      if (slot < 0) return;
-
-      pendingBySlot[slot] = entities.slice();
-      pendingCounts[slot] = inputs.length;
+      if (packedCount > 0) pass.writeCharacters(inputs);
     },
     10,
   );
+
+  options.setSimFlush(async () => {
+    if (packedCount <= 0) return;
+
+    const needed = packedCount * CHARACTER_STATE_FLOATS;
+    if (readback.length < needed) readback = new Float32Array(needed);
+
+    const count = await pass.dispatchAndRead(packedDt, packedCount, readback);
+    if (count <= 0) return;
+
+    applyReadback(readback, packedEntities, count);
+    packedCount = 0;
+    packedEntities = [];
+  });
+
+  return () => {
+    options.setSimFlush(null);
+    pass.destroy();
+  };
 };

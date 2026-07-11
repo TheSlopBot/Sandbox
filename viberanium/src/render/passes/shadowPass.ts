@@ -9,8 +9,6 @@ import { type PreparedStaticBatch } from '../gl/staticPropBatcher.ts';
 
 const OBJECT_UNIFORM_SIZE = 64;
 const OBJECT_UNIFORM_ALIGN = 256;
-const MAX_JOINTS = 128;
-const JOINT_BUFFER_SIZE = MAX_JOINTS * 16 * 4;
 const IDENTITY_MODEL = new Float32Array([
   1, 0, 0, 0,
   0, 1, 0, 0,
@@ -34,11 +32,6 @@ const SKINNED_LAYOUTS: GPUVertexBufferLayout[] = [
     attributes: [{ shaderLocation: 4, offset: 0, format: 'float32x4' }],
   },
 ];
-
-type PaletteGpu = {
-  buffer: GPUBuffer;
-  bindGroup: GPUBindGroup;
-};
 
 const isSkinnedMesh = (mesh: Mesh): mesh is SkinnedMesh => 'jointBuffer' in mesh;
 
@@ -195,7 +188,6 @@ export const createShadowPass = (device: GpuDevice, shadowMap: ShadowMap): Shado
     ],
   });
 
-  const paletteCache = new Map<Float32Array, PaletteGpu>();
   const instanceBindByIndex = new WeakMap<GPUBuffer, GPUBindGroup>();
   let objectStaging = new Float32Array(objectCapacity * (OBJECT_UNIFORM_ALIGN / 4));
   const frameBytes = new Float32Array(16);
@@ -230,27 +222,6 @@ export const createShadowPass = (device: GpuDevice, shadowMap: ShadowMap): Shado
     objectStaging = new Float32Array(objectCapacity * (OBJECT_UNIFORM_ALIGN / 4));
   };
 
-  const getPalette = (palette: Float32Array): PaletteGpu => {
-    const existing = paletteCache.get(palette);
-    if (existing) return existing;
-    const buffer = gpu.createBuffer({
-      size: JOINT_BUFFER_SIZE,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
-    const bindGroup = gpu.createBindGroup({
-      layout: jointLayout,
-      entries: [{ binding: 0, resource: { buffer } }],
-    });
-    const entry = { buffer, bindGroup };
-    paletteCache.set(palette, entry);
-    return entry;
-  };
-
-  const resolvePaletteBindGroup = (skin: NonNullable<DrawItem['skin']>): GPUBindGroup => {
-    if (skin.paletteGpu) return skin.paletteGpu.bindGroup;
-    return getPalette(skin.palette).bindGroup;
-  };
-
   const encode = (
     encoder: GPUCommandEncoder,
     lightViewProj: Mat4,
@@ -263,22 +234,6 @@ export const createShadowPass = (device: GpuDevice, shadowMap: ShadowMap): Shado
 
     frameBytes.set(lightViewProj);
     gpu.queue.writeBuffer(frameBuffer, 0, frameBytes.buffer as ArrayBuffer, frameBytes.byteOffset, 64);
-
-    const seen = new Set<Float32Array>();
-    for (const item of casters) {
-      const skin = item.skin;
-      if (!skin || skin.paletteGpu) continue;
-      if (seen.has(skin.palette)) continue;
-      seen.add(skin.palette);
-      const jointCount = Math.min(MAX_JOINTS, Math.max(1, skin.jointCount));
-      gpu.queue.writeBuffer(
-        getPalette(skin.palette).buffer,
-        0,
-        skin.palette.buffer as ArrayBuffer,
-        skin.palette.byteOffset,
-        jointCount * 16 * 4,
-      );
-    }
 
     const ordered = casters.slice() as DrawItem[];
     ordered.sort((a, b) => {
@@ -303,8 +258,7 @@ export const createShadowPass = (device: GpuDevice, shadowMap: ShadowMap): Shado
     for (let i = 0; i < ordered.length; i++) {
       const item = ordered[i]!;
       const index = casterIndices[i]!;
-      if (item.skin?.paletteGpu) writeModel(IDENTITY_MODEL, index);
-      else if (item.gpuModel) writeModel(IDENTITY_MODEL, index);
+      if (item.skin || item.gpuModel) writeModel(IDENTITY_MODEL, index);
       else writeModel(item.model, index);
     }
 
@@ -318,7 +272,7 @@ export const createShadowPass = (device: GpuDevice, shadowMap: ShadowMap): Shado
 
     for (let i = 0; i < ordered.length; i++) {
       const item = ordered[i]!;
-      if (!item.gpuModel || item.skin?.paletteGpu) continue;
+      if (!item.gpuModel || item.skin) continue;
       encoder.copyBufferToBuffer(
         item.gpuModel.buffer,
         item.gpuModel.byteOffset,
@@ -339,7 +293,7 @@ export const createShadowPass = (device: GpuDevice, shadowMap: ShadowMap): Shado
     });
 
     pass.setBindGroup(0, frameBindGroup);
-    let lastPaletteKey: GPUBindGroup | Float32Array | null = null;
+    let lastPaletteKey: GPUBindGroup | null = null;
     let lastVertex: GPUBuffer | null = null;
     let lastJoint: GPUBuffer | null = null;
     let lastWeight: GPUBuffer | null = null;
@@ -382,9 +336,9 @@ export const createShadowPass = (device: GpuDevice, shadowMap: ShadowMap): Shado
       const index = casterIndices[i]!;
       const skin = item.skin;
       if (skin && isSkinnedMesh(item.mesh)) {
-        const paletteKey = skin.paletteGpu?.bindGroup ?? skin.palette;
+        const paletteKey = skin.paletteGpu.bindGroup;
         if (paletteKey !== lastPaletteKey) {
-          pass.setBindGroup(2, resolvePaletteBindGroup(skin));
+          pass.setBindGroup(2, paletteKey);
           lastPaletteKey = paletteKey;
         }
         pass.setPipeline(skinnedPipeline);
@@ -425,8 +379,6 @@ export const createShadowPass = (device: GpuDevice, shadowMap: ShadowMap): Shado
   const destroy = () => {
     frameBuffer.destroy();
     objectBuffer.destroy();
-    for (const entry of paletteCache.values()) entry.buffer.destroy();
-    paletteCache.clear();
   };
 
   return { encode, destroy };

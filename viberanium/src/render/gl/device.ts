@@ -20,7 +20,9 @@ export type GpuDevice = {
 export const createDevice = async (canvas: HTMLCanvasElement): Promise<GpuDevice> => {
   if (!navigator.gpu) throw new Error('WebGPU not supported');
 
-  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  const adapter = await navigator.gpu.requestAdapter(
+    /Windows/i.test(navigator.userAgent) ? undefined : { powerPreference: 'high-performance' },
+  );
   if (!adapter) throw new Error('No WebGPU adapter');
 
   const gpu = await adapter.requestDevice();

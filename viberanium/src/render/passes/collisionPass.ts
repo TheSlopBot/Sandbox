@@ -34,21 +34,11 @@ export type CollisionCharacterInput = {
 
 export type CollisionPass = {
   markStaticDirty: () => void;
+  needsStaticRebuild: () => boolean;
   rebuildStatic: (colliders: readonly Collider[]) => void;
-  ensureCharacterCapacity: (count: number) => void;
   writeCharacters: (chars: readonly CollisionCharacterInput[]) => void;
-  dispatch: (dt: number, characterCount: number) => number;
-  isReadbackReady: () => boolean;
-  canDispatch: () => boolean;
-  readCharacters: (out: Float32Array, characterCount: number) => number;
+  dispatchAndRead: (dt: number, characterCount: number, out: Float32Array) => Promise<number>;
   destroy: () => void;
-};
-
-type ReadbackSlot = {
-  buffer: GPUBuffer | null;
-  mapping: boolean;
-  ready: boolean;
-  count: number;
 };
 
 const kindOf = (collider: Collider): number => {
@@ -182,13 +172,41 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
   let characterCapacity = 0;
   let characterBuffer: GPUBuffer | null = null;
   let characterCpu = new Float32Array(0);
-  const slots: [ReadbackSlot, ReadbackSlot] = [
-    { buffer: null, mapping: false, ready: false, count: 0 },
-    { buffer: null, mapping: false, ready: false, count: 0 },
-  ];
-  let writeSlot = 0;
+  let readbackBuffer: GPUBuffer | null = null;
+  let readbackMapped = false;
+  let computeBindGroup: GPUBindGroup | null = null;
+
+  const invalidateComputeBindGroup = () => {
+    computeBindGroup = null;
+  };
+
+  const ensureComputeBindGroup = (): GPUBindGroup | null => {
+    if (computeBindGroup) return computeBindGroup;
+    if (
+      !colliderBuffer ||
+      !characterBuffer ||
+      !cellStartBuffer ||
+      !cellCountBuffer ||
+      !cellIndexBuffer
+    ) {
+      return null;
+    }
+    computeBindGroup = gpu.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        { binding: 0, resource: { buffer: frameBuffer } },
+        { binding: 1, resource: { buffer: colliderBuffer } },
+        { binding: 2, resource: { buffer: characterBuffer } },
+        { binding: 3, resource: { buffer: cellStartBuffer } },
+        { binding: 4, resource: { buffer: cellCountBuffer } },
+        { binding: 5, resource: { buffer: cellIndexBuffer } },
+      ],
+    });
+    return computeBindGroup;
+  };
 
   const destroyColliderBuffers = () => {
+    invalidateComputeBindGroup();
     colliderBuffer?.destroy();
     cellStartBuffer?.destroy();
     cellCountBuffer?.destroy();
@@ -201,17 +219,22 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
   };
 
   const destroyCharacterBuffers = () => {
+    invalidateComputeBindGroup();
     characterBuffer?.destroy();
-    for (const slot of slots) {
-      slot.buffer?.destroy();
-      slot.buffer = null;
-      slot.mapping = false;
-      slot.ready = false;
-      slot.count = 0;
+    if (readbackBuffer) {
+      if (readbackMapped) {
+        try {
+          readbackBuffer.unmap();
+        } catch {
+          void 0;
+        }
+        readbackMapped = false;
+      }
+      readbackBuffer.destroy();
     }
     characterBuffer = null;
+    readbackBuffer = null;
     characterCapacity = 0;
-    writeSlot = 0;
   };
 
   const buildGrid = (count: number) => {
@@ -258,6 +281,7 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
       }
     }
 
+    invalidateComputeBindGroup();
     cellStartBuffer?.destroy();
     cellCountBuffer?.destroy();
     cellIndexBuffer?.destroy();
@@ -312,8 +336,8 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
     staticDirty = false;
   };
 
-  const ensureCharacterCapacity: CollisionPass['ensureCharacterCapacity'] = (count) => {
-    if (count <= characterCapacity && characterBuffer && slots[0].buffer && slots[1].buffer) return;
+  const ensureCharacterCapacity = (count: number) => {
+    if (count <= characterCapacity && characterBuffer && readbackBuffer) return;
 
     destroyCharacterBuffers();
     characterCapacity = Math.max(64, count * 2);
@@ -322,13 +346,11 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
       size: characterCapacity * CHARACTER_STATE_STRIDE,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
-    const readbackSize = characterCapacity * CHARACTER_STATE_STRIDE;
-    for (const slot of slots) {
-      slot.buffer = gpu.createBuffer({
-        size: readbackSize,
-        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-      });
-    }
+    readbackBuffer = gpu.createBuffer({
+      size: characterCapacity * CHARACTER_STATE_STRIDE,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+    readbackMapped = false;
   };
 
   const writeCharacters: CollisionPass['writeCharacters'] = (chars) => {
@@ -356,12 +378,10 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
     }
   };
 
-  const dispatch: CollisionPass['dispatch'] = (dt, characterCount) => {
-    const slotIndex = writeSlot;
-    const slot = slots[slotIndex]!;
-    if (characterCount === 0 || !characterBuffer || !colliderBuffer || !slot.buffer) return -1;
-    if (!cellStartBuffer || !cellCountBuffer || !cellIndexBuffer) return -1;
-    if (slot.mapping) return -1;
+  const dispatchAndRead: CollisionPass['dispatchAndRead'] = async (dt, characterCount, out) => {
+    if (characterCount === 0 || !characterBuffer || !colliderBuffer || !readbackBuffer) return 0;
+    if (!cellStartBuffer || !cellCountBuffer || !cellIndexBuffer) return 0;
+    if (readbackMapped) return 0;
 
     frameF32[0] = dt;
     frameF32[1] = characterCount;
@@ -369,17 +389,8 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
     frameF32[3] = PHYSICS_STEP_SEC;
     gpu.queue.writeBuffer(frameBuffer, 0, frameF32);
 
-    const bindGroup = gpu.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        { binding: 0, resource: { buffer: frameBuffer } },
-        { binding: 1, resource: { buffer: colliderBuffer } },
-        { binding: 2, resource: { buffer: characterBuffer } },
-        { binding: 3, resource: { buffer: cellStartBuffer } },
-        { binding: 4, resource: { buffer: cellCountBuffer } },
-        { binding: 5, resource: { buffer: cellIndexBuffer } },
-      ],
-    });
+    const bindGroup = ensureComputeBindGroup();
+    if (!bindGroup) return 0;
 
     const encoder = gpu.createCommandEncoder();
     {
@@ -392,63 +403,39 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
     encoder.copyBufferToBuffer(
       characterBuffer,
       0,
-      slot.buffer,
+      readbackBuffer,
       0,
       characterCount * CHARACTER_STATE_STRIDE,
     );
     gpu.queue.submit([encoder.finish()]);
 
-    slot.mapping = true;
-    slot.ready = false;
-    slot.count = characterCount;
-    writeSlot = 1 - writeSlot;
-    void slot.buffer.mapAsync(GPUMapMode.READ).then(() => {
-      if (slots[slotIndex] === slot && slot.mapping) slot.ready = true;
-    });
-    return slotIndex;
-  };
+    readbackMapped = true;
+    try {
+      await readbackBuffer.mapAsync(GPUMapMode.READ);
+    } catch {
+      readbackMapped = false;
+      return 0;
+    }
 
-  const readySlotIndex = (): number => {
-    if (slots[0]!.ready) return 0;
-    if (slots[1]!.ready) return 1;
-    return -1;
-  };
-
-  const isReadbackReady: CollisionPass['isReadbackReady'] = () => readySlotIndex() >= 0;
-
-  const canDispatch: CollisionPass['canDispatch'] = () => !slots[writeSlot]!.mapping;
-
-  const readCharacters: CollisionPass['readCharacters'] = (out, characterCount) => {
-    const index = readySlotIndex();
-    if (index < 0 || characterCount === 0) return -1;
-    const slot = slots[index]!;
-    if (!slot.buffer || !slot.ready) return -1;
-    const count = Math.min(characterCount, slot.count);
-    const size = count * CHARACTER_STATE_STRIDE;
-    const mapped = new Float32Array(slot.buffer.getMappedRange(0, size));
-    out.set(mapped.subarray(0, count * CHARACTER_STATE_FLOATS));
-    slot.buffer.unmap();
-    slot.mapping = false;
-    slot.ready = false;
-    slot.count = 0;
-    return index;
+    const size = characterCount * CHARACTER_STATE_STRIDE;
+    const mapped = new Float32Array(readbackBuffer.getMappedRange(0, size));
+    out.set(mapped.subarray(0, characterCount * CHARACTER_STATE_FLOATS));
+    readbackBuffer.unmap();
+    readbackMapped = false;
+    return characterCount;
   };
 
   return {
     markStaticDirty: () => {
       staticDirty = true;
     },
+    needsStaticRebuild: () => staticDirty,
     rebuildStatic: (colliders) => {
-      const staticCount = colliders.reduce((n, c) => n + (c.isStatic ? 1 : 0), 0);
-      if (!staticDirty && staticCount === colliderCount) return;
+      if (!staticDirty) return;
       rebuildStatic(colliders);
     },
-    ensureCharacterCapacity,
     writeCharacters,
-    dispatch,
-    isReadbackReady,
-    canDispatch,
-    readCharacters,
+    dispatchAndRead,
     destroy: () => {
       destroyColliderBuffers();
       destroyCharacterBuffers();

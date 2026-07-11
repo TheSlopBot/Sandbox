@@ -57,6 +57,7 @@ struct Aabb {
 @group(0) @binding(5) var<storage, read> cellIndices: array<u32>;
 
 const SURFACE_EPS: f32 = 0.02;
+const SURFACE_SNAP: f32 = 0.12;
 const GRID_CELL_SIZE: f32 = 4.0;
 const GRID_RES: u32 = 64u;
 const GRID_ORIGIN: f32 = -128.0;
@@ -354,7 +355,7 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
         }
       }
       if (hasSupport) {
-        if (!(footY >= supportY - SURFACE_EPS && footY <= supportY + SURFACE_EPS)) {
+        if (footY > supportY + SURFACE_EPS || footY < supportY - SURFACE_SNAP) {
           hasSupport = false;
         }
       }

@@ -4,16 +4,17 @@ import {
   type TextureCache,
   type GltfCache,
 } from 'viberanium';
+import { ROBOT_ACTORS, type RobotVariant } from '../../../catalog/actors/kaykitActors.ts';
 import { actorDefinitionToSkeletalDef } from '../../../catalog/actors/actorDefinitionToSkeletalDef.ts';
-import { buildSimpleActor } from '../../../catalog/actors/buildSimpleActor.ts';
 import { GAME_COMPONENT_KEYS } from '../../../catalog/keys/components.ts';
 import { spawnActor } from '../../actor/spawnActor.ts';
 import { createRobot as createRobotComponent } from '../components/robot.ts';
 import { createTestAi, type TestAiOpts } from '../components/testAi.ts';
 
+export type { RobotVariant };
+
 export type RobotSpawnOpts = TestAiOpts & {
-  bodyGlb: string;
-  materialPrefix: string;
+  variant?: RobotVariant;
   y?: number;
 };
 
@@ -23,18 +24,15 @@ export const createRobot = async (
   textures: TextureCache,
   gltfCache: GltfCache,
   opts: RobotSpawnOpts,
-) =>
-  spawnActor(
+) => {
+  const variant = opts.variant ?? 'one';
+
+  return spawnActor(
     registry,
     device,
     textures,
     gltfCache,
-    actorDefinitionToSkeletalDef(
-      buildSimpleActor('robot', 'Robot', opts.bodyGlb, opts.materialPrefix, {
-        tags: ['robot'],
-        aiPackage: 'testAi',
-      }),
-    ),
+    actorDefinitionToSkeletalDef(ROBOT_ACTORS[variant]),
     {
       ...opts,
       extraComponents: {
@@ -43,3 +41,4 @@ export const createRobot = async (
       },
     },
   );
+};

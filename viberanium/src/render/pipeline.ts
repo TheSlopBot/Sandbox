@@ -40,6 +40,7 @@ export type RenderPipeline = {
   readonly camera: Camera;
   readonly target: Vec3;
   readonly staticPropBatcher: StaticPropBatcher;
+  setPreDrawEncode: (fn: ((encoder: GPUCommandEncoder) => void) | null) => void;
   addPostProcess: (stage: PostProcessStage) => () => void;
   getPostProcessStages: () => ReadonlyArray<PostProcessStage>;
   getFps: () => number;
@@ -167,6 +168,7 @@ export const installRenderPipeline = async (
   let lastShownFps = -1;
   let currentFps = 0;
   const fpsListeners = new Set<(fps: number) => void>();
+  let preDrawEncode: ((encoder: GPUCommandEncoder) => void) | null = null;
 
   const removeDraw = registry.addAction('draw', () => {
     device.resize();
@@ -256,9 +258,8 @@ export const installRenderPipeline = async (
         if (part.visible === false) continue;
         const model = part.model ?? (e.components[COMPONENT_KEYS.transform] as Transform | undefined)?.world;
         if (!model) continue;
-        const skin = part.skin
+        const skin = part.skin?.paletteGpu
           ? {
-              palette: part.skin.palette,
               jointCount: part.skin.jointCount,
               paletteGpu: part.skin.paletteGpu,
             }
@@ -282,13 +283,7 @@ export const installRenderPipeline = async (
 
       updateWorldMatrix(t);
       const model = r.model ?? t.world;
-      const skinComp = e.components[COMPONENT_KEYS.skin] as
-        | { palette: Float32Array; jointCount: number }
-        | undefined;
-      const skin = skinComp
-        ? { palette: skinComp.palette, jointCount: skinComp.jointCount }
-        : undefined;
-      pushDrawItem(r.mesh, r.material, model, skin, r.castShadow !== false, r.overlay === true);
+      pushDrawItem(r.mesh, r.material, model, undefined, r.castShadow !== false, r.overlay === true);
     }
 
     let ground: { mesh: Mesh; model: Mat4; alpha: number } | null = null;
@@ -311,6 +306,9 @@ export const installRenderPipeline = async (
     _camPosF32[2] = camZ;
 
     const encoder = device.gpu.createCommandEncoder();
+    const poseEncode = preDrawEncode;
+    preDrawEncode = null;
+    poseEncode?.(encoder);
     const staticBatches = staticPropBatcher.cullAndPrepare(
       _frustum,
       _lightFrustum,
@@ -397,6 +395,9 @@ export const installRenderPipeline = async (
     camera,
     target,
     staticPropBatcher,
+    setPreDrawEncode: (fn) => {
+      preDrawEncode = fn;
+    },
     addPostProcess: (stage) => {
       postStages.push(stage);
       return () => {

@@ -14,8 +14,6 @@ import {
   createStaticModel,
   createTransform,
   destroyMesh,
-  installSkeletalCharacterSystems,
-  installStaticModelSystem,
   m4,
   COMPONENT_KEYS,
 } from 'viberanium';
@@ -30,6 +28,10 @@ import {
   isBoundsValid,
 } from '../entities/viewer/modelBounds.ts';
 import { resetEditorScene } from '../scenes/editorScene.ts';
+import {
+  ensurePreviewSkeletalSystems,
+  ensurePropStaticModelSystem,
+} from '../scenes/installEditorSystems.ts';
 import {
   type ConstructLoadedModel,
   type ConstructSessionDeps,
@@ -130,10 +132,7 @@ export const loadModel = async (
     entity.components[COMPONENT_KEYS.animationStateMachine] = createAnimationStateMachine();
     deps.registry.register(entity);
 
-    if (state.removeSkeletalSystem) state.removeSkeletalSystem();
-    state.removeSkeletalSystem = installSkeletalCharacterSystems(deps.registry, {
-      device: deps.device,
-    });
+    ensurePreviewSkeletalSystems(deps.registry, deps.device, deps.pipeline, state);
 
     const boneNames =
       runtimeScene.skins[0]?.joints
@@ -177,8 +176,11 @@ export const loadModel = async (
   propRoot.components[COMPONENT_KEYS.renderGroup] = createRenderGroup(renderEntityIds);
   deps.registry.register(propRoot);
 
-  if (state.removeStaticModelSystem) state.removeStaticModelSystem();
-  state.removeStaticModelSystem = installStaticModelSystem(deps.registry);
+  if (state.removeStaticModelSystem) {
+    state.removeStaticModelSystem();
+    state.removeStaticModelSystem = null;
+  }
+  ensurePropStaticModelSystem(deps.registry, state);
 
   return {
     kind: 'StaticProp',

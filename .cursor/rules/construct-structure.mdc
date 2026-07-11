@@ -27,7 +27,7 @@ construct/src/
 │   ├── orbit/                # orbit camera + origin marker + anim preview entity
 │   ├── viewer/                # standalone preview helpers (model bounds)
 │   └── ground/               # spawnGround — editor ground plane
-├── scenes/                  # editorScene load/unload + scaffold helpers
+├── scenes/                  # editorScene + installEditorSystems (scene + mode installers)
 ├── session/                 # preview, propEditor, actorEditor, anim session slices + types
 ├── globals/                 # bootstrap — thin composition only
 ├── storage/                 # localStore factory + actor/prop local store wrappers
@@ -76,11 +76,11 @@ Shared editor mechanics (used by both prop and actor editors) live in `entities/
 - `session/actorEditor.ts` — actor document mutation slice (character/attachments/colliders)
 - `session/anim.ts` — animation pack load/apply/clear slice
 
-Session slices are pure functions of `(deps, state, ...)` returning updated documents — no React, no JSX.
+Session slices are pure functions of `(deps, state, ...)` returning updated documents — no React, no JSX. System installers live in `scenes/installEditorSystems.ts`; session slices call those helpers instead of importing `install*System` directly.
 
 ## Globals rule
 
-`globals/bootstrap.ts` composes engine primitives (render pipeline, orbit, gizmos, systems) into a `ConstructSession` — composition only, no document mutation logic (that lives in `session/`).
+`globals/bootstrap.ts` composes engine primitives (render pipeline + `installEditorSceneSystems`) into a `ConstructSession` — composition only, no document mutation logic (that lives in `session/`).
 
 ## Storage rule
 

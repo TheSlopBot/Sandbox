@@ -127,16 +127,12 @@ export { findPath, pickRandomObjective } from './navigation/astar.ts';
 
 export { installMovementSystem } from './systems/movementSystem.ts';
 export { installNavGridSystem } from './systems/navGridSystem.ts';
-export { installCharacterPhysicsSystem } from './systems/characterPhysicsSystem.ts';
-export { installCollisionSystem, getObstacles, getNearbyObstacles, type CollisionSystemOptions } from './systems/collisionSystem.ts';
+export { installCollisionSystem, type CollisionSystemOptions } from './systems/collisionSystem.ts';
 export { installColliderTransformSystem } from './systems/colliderTransformSystem.ts';
 export { installCharacterStateSystem } from './systems/characterStateSystem.ts';
 export { installAnimationFsmSystem } from './systems/animationFsmSystem.ts';
 export { installCameraFollowSystem } from './systems/cameraFollowSystem.ts';
 export { installTransformHierarchySystem } from './systems/transformHierarchySystem.ts';
-export { installSkeletalPoseSystem } from './systems/skeletalPoseSystem.ts';
-export { installSkeletalMeshSystem } from './systems/skeletalMeshSystem.ts';
-export { installBoneAttachmentSystem } from './systems/boneAttachmentSystem.ts';
 export {
   installSkeletalCharacterSystems,
   type SkeletalCharacterSystemsOptions,

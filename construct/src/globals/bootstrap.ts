@@ -2,24 +2,20 @@ import {
   createGltfCache,
   createTextureCache,
   createTransform,
-  installCharacterStateSystem,
-  installColliderTransformSystem,
   installRenderPipeline,
-  installTransformHierarchySystem,
   useGame,
   useScene,
 } from 'viberanium';
 import { createConstructOrbit } from '../entities/orbit/orbit.ts';
 import { createConstructOrbitOriginMarker } from '../entities/orbit/orbitOriginMarker.ts';
 import { createConstructAnim } from '../entities/orbit/constructAnim.ts';
-import { installConstructOrbitSystem } from '../entities/orbit/orbitSystem.ts';
-import { installConstructGizmoSystem } from '../entities/gizmos/gizmoSystem.ts';
 import {
   createSelectionEntity,
   ensureEditorGround,
   resetEditorScene,
   spawnEditorSceneScaffold,
 } from '../scenes/editorScene.ts';
+import { installEditorSceneSystems } from '../scenes/installEditorSystems.ts';
 import { applyClip, clearAnimationPreview, loadAnimationPack, resetToBindPose } from '../session/anim.ts';
 import { loadModel, setTextureVariant } from '../session/preview.ts';
 import {
@@ -223,6 +219,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
   const deps: ConstructSessionDeps = {
     device,
     registry: sceneRegistry,
+    pipeline,
     textures,
     gltfCache,
     orbit,
@@ -232,11 +229,6 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
   };
 
   spawnEditorSceneScaffold(deps);
-
-  const removeOrbitSystem = installConstructOrbitSystem(sceneRegistry, pipeline);
-  installCharacterStateSystem(sceneRegistry);
-  installTransformHierarchySystem(sceneRegistry);
-  installColliderTransformSystem(sceneRegistry);
 
   const selectionEnt = createSelectionEntity(sceneRegistry);
   const state = createConstructSessionState(selectionEnt);
@@ -248,7 +240,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
 
   const removeOrbitInput = installOrbitInput(canvas, orbit, () => active && !gizmoDragging());
 
-  const gizmoController = installConstructGizmoSystem(
+  const { removeOrbitSystem, gizmoController } = installEditorSceneSystems(
     device,
     sceneRegistry,
     pipeline,

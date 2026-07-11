@@ -47,11 +47,13 @@ export type SkeletalPosePass = {
   paletteBinding: (slot: number) => JointPaletteGpu;
   meshModelByteOffset: (slot: number, outIndex: number) => number;
   attachmentModelByteOffset: (slot: number, outIndex: number) => number;
-  dispatch: (entries: readonly PoseDispatchEntry[]) => void;
+  dispatch: (entries: readonly PoseDispatchEntry[], encoder?: GPUCommandEncoder) => void;
   destroy: () => void;
 };
 
 const FRAME_U32 = 16;
+const MAX_POSE_GROUPS = 8;
+const align256 = (n: number) => (n + 255) & ~255;
 
 export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
   const gpu = device.gpu;
@@ -91,10 +93,12 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     ],
   });
 
-  const frameBuffer = gpu.createBuffer({
-    size: 256,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
+  const frameBuffers = Array.from({ length: MAX_POSE_GROUPS }, () =>
+    gpu.createBuffer({
+      size: 256,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    }),
+  );
   const frameU32 = new Uint32Array(FRAME_U32);
 
   let slotCapacity = 0;
@@ -114,9 +118,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
   let attachmentJobU32 = new Uint32Array(0);
   let attachmentJobF32 = new Float32Array(0);
   const paletteBindBySlot = new Map<number, JointPaletteGpu>();
-  const computeBindBySkeleton = new Map<GPUBuffer, { generation: number; bindGroup: GPUBindGroup }>();
   const byAsset = new Map<SkeletonGpuAsset, PoseDispatchEntry[]>();
-  let slabGeneration = 0;
 
   const destroySlabs = () => {
     instanceBuffer?.destroy();
@@ -134,9 +136,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     meshJobsBuffer = null;
     attachmentJobsBuffer = null;
     paletteBindBySlot.clear();
-    computeBindBySkeleton.clear();
     byAsset.clear();
-    slabGeneration++;
   };
 
   const ensureSlotCapacity = (count: number) => {
@@ -217,8 +217,13 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     return entry;
   };
 
-  const writeInstance = (index: number, entry: PoseDispatchEntry, meshStart: number, attachStart: number) => {
-    const base = index * POSE_INSTANCE_FLOATS;
+  const writeInstance = (
+    instanceIndex: number,
+    entry: PoseDispatchEntry,
+    meshStart: number,
+    attachStart: number,
+  ) => {
+    const base = instanceIndex * POSE_INSTANCE_FLOATS;
     instanceCpu.set(entry.renderRoot, base);
     instanceCpu[base + 16] = entry.animTime;
     instanceU32[base + 17] = entry.clipIndex;
@@ -238,29 +243,41 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     instanceU32[base + 31] = 0;
   };
 
-  const ensureComputeBindGroup = (skeleton: GPUBuffer): GPUBindGroup => {
-    const cached = computeBindBySkeleton.get(skeleton);
-    if (cached && cached.generation === slabGeneration) return cached.bindGroup;
-
-    const bindGroup = gpu.createBindGroup({
+  const createGroupBindGroup = (
+    skeleton: GPUBuffer,
+    frameBuf: GPUBuffer,
+    instanceOffset: number,
+    instanceSize: number,
+    meshOffset: number,
+    meshSize: number,
+    attachOffset: number,
+    attachSize: number,
+  ): GPUBindGroup =>
+    gpu.createBindGroup({
       layout: bindGroupLayout,
       entries: [
-        { binding: 0, resource: { buffer: frameBuffer } },
-        { binding: 1, resource: { buffer: instanceBuffer! } },
+        { binding: 0, resource: { buffer: frameBuf } },
+        {
+          binding: 1,
+          resource: { buffer: instanceBuffer!, offset: instanceOffset, size: instanceSize },
+        },
         { binding: 2, resource: { buffer: skeleton } },
         { binding: 3, resource: { buffer: scratchBuffer! } },
         { binding: 4, resource: { buffer: paletteBuffer! } },
-        { binding: 5, resource: { buffer: meshJobsBuffer! } },
+        {
+          binding: 5,
+          resource: { buffer: meshJobsBuffer!, offset: meshOffset, size: meshSize },
+        },
         { binding: 6, resource: { buffer: meshModels! } },
-        { binding: 7, resource: { buffer: attachmentJobsBuffer! } },
+        {
+          binding: 7,
+          resource: { buffer: attachmentJobsBuffer!, offset: attachOffset, size: attachSize },
+        },
         { binding: 8, resource: { buffer: attachmentModels! } },
       ],
     });
-    computeBindBySkeleton.set(skeleton, { generation: slabGeneration, bindGroup });
-    return bindGroup;
-  };
 
-  const dispatch: SkeletalPosePass['dispatch'] = (entries) => {
+  const dispatch: SkeletalPosePass['dispatch'] = (entries, externalEncoder) => {
     if (entries.length === 0) return;
 
     let maxSlot = 0;
@@ -279,23 +296,56 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
 
     if (byAsset.size === 0) return;
 
-    for (const [asset, group] of byAsset) {
-      let meshJobCount = 0;
-      let attachJobCount = 0;
-      for (const entry of group) {
-        meshJobCount += entry.meshJobs.length;
-        attachJobCount += entry.attachmentJobs.length;
-      }
+    const groups: {
+      asset: SkeletonGpuAsset;
+      group: PoseDispatchEntry[];
+      instanceByteOffset: number;
+      instanceCount: number;
+      meshByteOffset: number;
+      meshCount: number;
+      attachByteOffset: number;
+      attachCount: number;
+      frameIndex: number;
+    }[] = [];
 
-      if (meshJobCpu.length < Math.max(4, meshJobCount * 4)) {
-        meshJobCpu = new Uint32Array(Math.max(64, meshJobCount * 4));
+    let instanceFloatCursor = 0;
+    let meshU32Cursor = 0;
+    let attachByteCursor = 0;
+    let totalMeshJobs = 0;
+    let totalAttachJobs = 0;
+    for (const group of byAsset.values()) {
+      for (const entry of group) {
+        totalMeshJobs += entry.meshJobs.length;
+        totalAttachJobs += entry.attachmentJobs.length;
       }
-      const attachBytesNeeded = Math.max(144, attachJobCount * 144);
-      if (attachmentJobBytes.byteLength < attachBytesNeeded) {
-        attachmentJobBytes = new ArrayBuffer(attachBytesNeeded);
-        attachmentJobU32 = new Uint32Array(attachmentJobBytes);
-        attachmentJobF32 = new Float32Array(attachmentJobBytes);
-      }
+    }
+
+    const instanceFloatNeeded = entries.length * POSE_INSTANCE_FLOATS;
+    if (instanceCpu.length < instanceFloatNeeded) {
+      instanceCpu = new Float32Array(Math.max(instanceFloatNeeded, slotCapacity * POSE_INSTANCE_FLOATS));
+      instanceU32 = new Uint32Array(instanceCpu.buffer);
+    }
+    if (meshJobCpu.length < Math.max(4, totalMeshJobs * 4)) {
+      meshJobCpu = new Uint32Array(Math.max(64, totalMeshJobs * 4));
+    }
+    const attachBytesNeeded = Math.max(144, totalAttachJobs * 144);
+    if (attachmentJobBytes.byteLength < attachBytesNeeded) {
+      attachmentJobBytes = new ArrayBuffer(attachBytesNeeded);
+      attachmentJobU32 = new Uint32Array(attachmentJobBytes);
+      attachmentJobF32 = new Float32Array(attachmentJobBytes);
+    }
+
+    let frameIndex = 0;
+    for (const [asset, group] of byAsset) {
+      if (frameIndex >= MAX_POSE_GROUPS) break;
+
+      instanceFloatCursor = align256(instanceFloatCursor * 4) >> 2;
+      meshU32Cursor = align256(meshU32Cursor * 4) >> 2;
+      attachByteCursor = align256(attachByteCursor);
+
+      const instanceByteOffset = instanceFloatCursor * 4;
+      const meshByteOffset = meshU32Cursor * 4;
+      const attachByteOffset = attachByteCursor;
 
       let meshCursor = 0;
       let attachCursor = 0;
@@ -304,7 +354,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
         const meshStart = meshCursor;
         for (let j = 0; j < entry.meshJobs.length; j++) {
           const job = entry.meshJobs[j]!;
-          const base = meshCursor * 4;
+          const base = meshU32Cursor + meshCursor * 4;
           meshJobCpu[base] = job.nodeIndex;
           meshJobCpu[base + 1] = job.outIndex;
           meshJobCpu[base + 2] = 0;
@@ -314,7 +364,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
         const attachStart = attachCursor;
         for (let j = 0; j < entry.attachmentJobs.length; j++) {
           const job = entry.attachmentJobs[j]!;
-          const baseU = (attachCursor * 144) >> 2;
+          const baseU = (attachByteCursor + attachCursor * 144) >> 2;
           attachmentJobU32[baseU] = job.boneNodeIndex;
           attachmentJobU32[baseU + 1] = 0;
           attachmentJobU32[baseU + 2] = job.outIndex;
@@ -323,10 +373,58 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
           attachmentJobF32.set(job.attachNodeWorld, baseU + 20);
           attachCursor++;
         }
-        writeInstance(i, entry, meshStart, attachStart);
+        writeInstance(instanceFloatCursor / POSE_INSTANCE_FLOATS + i, entry, meshStart, attachStart);
         const palette = paletteBinding(entry.slotIndex);
         if (entry.skin.paletteGpu !== palette) entry.skin.paletteGpu = palette;
       }
+
+      groups.push({
+        asset,
+        group,
+        instanceByteOffset,
+        instanceCount: group.length,
+        meshByteOffset,
+        meshCount: meshCursor,
+        attachByteOffset,
+        attachCount: attachCursor,
+        frameIndex,
+      });
+
+      instanceFloatCursor += group.length * POSE_INSTANCE_FLOATS;
+      meshU32Cursor += meshCursor * 4;
+      attachByteCursor += attachCursor * 144;
+      frameIndex++;
+    }
+
+    const instanceWriteBytes = instanceFloatCursor * 4;
+    if (instanceWriteBytes > 0) {
+      gpu.queue.writeBuffer(
+        instanceBuffer!,
+        0,
+        instanceCpu.buffer as ArrayBuffer,
+        0,
+        Math.min(instanceWriteBytes, instanceCpu.byteLength),
+      );
+    }
+    if (meshU32Cursor > 0) {
+      gpu.queue.writeBuffer(
+        meshJobsBuffer!,
+        0,
+        meshJobCpu.buffer as ArrayBuffer,
+        0,
+        meshU32Cursor * 4,
+      );
+    }
+    if (attachByteCursor > 0) {
+      gpu.queue.writeBuffer(attachmentJobsBuffer!, 0, attachmentJobBytes, 0, attachByteCursor);
+    }
+
+    const encoder = externalEncoder ?? gpu.createCommandEncoder();
+
+    for (const packed of groups) {
+      const { asset, group, instanceByteOffset, meshByteOffset, attachByteOffset, frameIndex: fi } =
+        packed;
+      const frameBuf = frameBuffers[fi]!;
 
       frameU32[0] = asset.nodeCount;
       frameU32[1] = asset.jointCount;
@@ -344,42 +442,32 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
       frameU32[13] = asset.offsets.animatedMaskOffset;
       frameU32[14] = asset.offsets.maskWords;
       frameU32[15] = SCRATCH_FLOATS_PER_SLOT;
-      gpu.queue.writeBuffer(frameBuffer, 0, frameU32);
-      gpu.queue.writeBuffer(
-        instanceBuffer!,
-        0,
-        instanceCpu.buffer as ArrayBuffer,
-        0,
-        group.length * POSE_INSTANCE_STRIDE,
-      );
+      gpu.queue.writeBuffer(frameBuf, 0, frameU32);
 
-      if (meshCursor > 0) {
-        gpu.queue.writeBuffer(
-          meshJobsBuffer!,
-          0,
-          meshJobCpu.buffer as ArrayBuffer,
-          0,
-          meshCursor * 16,
-        );
-      }
-      if (attachCursor > 0) {
-        gpu.queue.writeBuffer(
-          attachmentJobsBuffer!,
-          0,
-          attachmentJobBytes,
-          0,
-          attachCursor * 144,
-        );
-      }
+      const instanceSize = Math.max(POSE_INSTANCE_STRIDE, group.length * POSE_INSTANCE_STRIDE);
+      const meshSize = Math.max(16, packed.meshCount * 16);
+      const attachSize = Math.max(144, packed.attachCount * 144);
 
-      const encoder = gpu.createCommandEncoder();
       const pass = encoder.beginComputePass();
       pass.setPipeline(pipeline);
-      pass.setBindGroup(0, ensureComputeBindGroup(asset.skeleton));
+      pass.setBindGroup(
+        0,
+        createGroupBindGroup(
+          asset.skeleton,
+          frameBuf,
+          instanceByteOffset,
+          instanceSize,
+          meshByteOffset,
+          meshSize,
+          attachByteOffset,
+          attachSize,
+        ),
+      );
       pass.dispatchWorkgroups(group.length);
       pass.end();
-      gpu.queue.submit([encoder.finish()]);
     }
+
+    if (!externalEncoder) gpu.queue.submit([encoder.finish()]);
   };
 
   return {
@@ -400,7 +488,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     dispatch,
     destroy: () => {
       destroySlabs();
-      frameBuffer.destroy();
+      for (const buf of frameBuffers) buf.destroy();
     },
   };
 };

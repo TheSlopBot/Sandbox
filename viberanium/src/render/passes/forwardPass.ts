@@ -15,9 +15,6 @@ const FRAME_UNIFORM_FLOATS = 44;
 const FRAME_UNIFORM_SIZE = FRAME_UNIFORM_FLOATS * 4;
 const OBJECT_UNIFORM_SIZE = 80;
 const OBJECT_UNIFORM_ALIGN = 256;
-const MAX_JOINTS = 128;
-const JOINT_MATRIX_FLOATS = 16;
-const JOINT_BUFFER_SIZE = MAX_JOINTS * JOINT_MATRIX_FLOATS * 4;
 const MSAA_SAMPLES = 4;
 const IDENTITY_MODEL = new Float32Array([
   1, 0, 0, 0,
@@ -77,11 +74,6 @@ export type ForwardPass = {
 };
 
 type LitPipelineKey = 'opaqueCull' | 'opaqueNone' | 'blendCull' | 'blendNone';
-
-type PaletteGpu = {
-  buffer: GPUBuffer;
-  bindGroup: GPUBindGroup;
-};
 
 const isSkinnedMesh = (mesh: Mesh): mesh is SkinnedMesh => 'jointBuffer' in mesh;
 
@@ -356,7 +348,6 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
   });
 
   const textureBindGroups = new WeakMap<GPUTexture, GPUBindGroup>();
-  const paletteCache = new Map<Float32Array, PaletteGpu>();
   const frameBytes = new Float32Array(FRAME_UNIFORM_FLOATS);
   let objectStaging = new Float32Array(objectCapacity * (OBJECT_UNIFORM_ALIGN / 4));
   const meshOrder = new WeakMap<object, number>();
@@ -411,49 +402,6 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
 
   const instanceBindByIndex = new WeakMap<GPUBuffer, GPUBindGroup>();
 
-  const getOrCreatePaletteGpu = (palette: Float32Array): PaletteGpu => {
-    const existing = paletteCache.get(palette);
-    if (existing) return existing;
-
-    const buffer = gpu.createBuffer({
-      size: JOINT_BUFFER_SIZE,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
-    const bindGroup = gpu.createBindGroup({
-      layout: jointBindGroupLayout,
-      entries: [{ binding: 0, resource: { buffer } }],
-    });
-    const entry = { buffer, bindGroup };
-    paletteCache.set(palette, entry);
-    return entry;
-  };
-
-  const resolvePaletteBindGroup = (skin: NonNullable<DrawItem['skin']>): GPUBindGroup => {
-    if (skin.paletteGpu) return skin.paletteGpu.bindGroup;
-    return getOrCreatePaletteGpu(skin.palette).bindGroup;
-  };
-
-  const uploadPalettes = (items: readonly DrawItem[]) => {
-    const seen = new Set<Float32Array>();
-    for (const item of items) {
-      const skin = item.skin;
-      if (!skin || skin.paletteGpu) continue;
-      if (seen.has(skin.palette)) continue;
-      seen.add(skin.palette);
-
-      const jointCount = Math.min(MAX_JOINTS, Math.max(1, skin.jointCount));
-      const floatCount = jointCount * JOINT_MATRIX_FLOATS;
-      const gpuPalette = getOrCreatePaletteGpu(skin.palette);
-      gpu.queue.writeBuffer(
-        gpuPalette.buffer,
-        0,
-        skin.palette.buffer as ArrayBuffer,
-        skin.palette.byteOffset,
-        floatCount * 4,
-      );
-    }
-  };
-
   const writeObject = (index: number, model: Mat4, color: readonly [number, number, number, number]) => {
     const base = index * (OBJECT_UNIFORM_ALIGN / 4);
     objectStaging.set(model, base);
@@ -490,9 +438,9 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
       if (meshDiff !== 0) return meshDiff;
 
       if (a.skin && b.skin) {
-        const aKey = a.skin.paletteGpu?.bindGroup ?? a.skin.palette;
-        const bKey = b.skin.paletteGpu?.bindGroup ?? b.skin.palette;
-        if (aKey !== bKey) return a.skin.jointCount - b.skin.jointCount;
+        if (a.skin.paletteGpu.bindGroup !== b.skin.paletteGpu.bindGroup) {
+          return a.skin.jointCount - b.skin.jointCount;
+        }
       }
       return backToFront ? b.sortZ - a.sortZ : a.sortZ - b.sortZ;
     });
@@ -533,10 +481,6 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
       opaqueList.length + transparentList.length + overlayList.length + (ground ? 1 : 0);
     ensureObjectCapacity(Math.max(1, totalObjects));
 
-    uploadPalettes(opaqueList);
-    uploadPalettes(transparentList);
-    uploadPalettes(overlayList);
-
     const light = DIRECTIONAL_LIGHT;
     frameBytes.set(camera.viewProj, 0);
     frameBytes.set(lightViewProj, 16);
@@ -573,11 +517,7 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
     for (const _item of overlayList) overlayIndices.push(objectIndex++);
 
     const writeItemObject = (item: DrawItem, index: number) => {
-      if (item.skin?.paletteGpu) {
-        writeObject(index, IDENTITY_MODEL, item.material.baseColorFactor);
-        return;
-      }
-      if (item.gpuModel) {
+      if (item.skin || item.gpuModel) {
         writeObject(index, IDENTITY_MODEL, item.material.baseColorFactor);
         return;
       }
@@ -597,7 +537,7 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
 
     for (let i = 0; i < opaqueList.length; i++) {
       const item = opaqueList[i]!;
-      if (!item.gpuModel || item.skin?.paletteGpu) continue;
+      if (!item.gpuModel || item.skin) continue;
       encoder.copyBufferToBuffer(
         item.gpuModel.buffer,
         item.gpuModel.byteOffset,
@@ -608,7 +548,7 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
     }
     for (let i = 0; i < transparentList.length; i++) {
       const item = transparentList[i]!;
-      if (!item.gpuModel || item.skin?.paletteGpu) continue;
+      if (!item.gpuModel || item.skin) continue;
       encoder.copyBufferToBuffer(
         item.gpuModel.buffer,
         item.gpuModel.byteOffset,
@@ -619,7 +559,7 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
     }
     for (let i = 0; i < overlayList.length; i++) {
       const item = overlayList[i]!;
-      if (!item.gpuModel || item.skin?.paletteGpu) continue;
+      if (!item.gpuModel || item.skin) continue;
       encoder.copyBufferToBuffer(
         item.gpuModel.buffer,
         item.gpuModel.byteOffset,
@@ -649,7 +589,7 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
 
     pass.setBindGroup(0, frameBindGroup);
 
-    let lastPaletteKey: GPUBindGroup | Float32Array | null = null;
+    let lastPaletteKey: GPUBindGroup | null = null;
     let lastVertex: GPUBuffer | null = null;
     let lastJoint: GPUBuffer | null = null;
     let lastWeight: GPUBuffer | null = null;
@@ -696,9 +636,9 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
       const skin = item.skin;
       const tex = item.material.baseColorTex ?? whiteTex;
       if (skin && isSkinnedMesh(item.mesh)) {
-        const paletteKey = skin.paletteGpu?.bindGroup ?? skin.palette;
+        const paletteKey = skin.paletteGpu.bindGroup;
         if (paletteKey !== lastPaletteKey) {
-          encoderPass.setBindGroup(3, resolvePaletteBindGroup(skin));
+          encoderPass.setBindGroup(3, paletteKey);
           lastPaletteKey = paletteKey;
         }
         encoderPass.setPipeline(skinned[key]);
@@ -819,8 +759,6 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
     frameUniformBuffer.destroy();
     objectUniformBuffer.destroy();
     whiteTex.texture.destroy();
-    for (const entry of paletteCache.values()) entry.buffer.destroy();
-    paletteCache.clear();
   };
 
   return {

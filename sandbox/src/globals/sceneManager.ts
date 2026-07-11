@@ -41,7 +41,7 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     meshes: deps.meshes,
     optimization: deps.optimization,
     staticPropBatcher: deps.pipeline.staticPropBatcher,
-    setPostUpdateFlush: deps.game.setPostUpdateFlush,
+    setSimFlush: deps.game.setSimFlush,
   });
 
   const switchTo = async (levelId: string) => {

@@ -16,9 +16,8 @@ export type DrawItemGpuModel = {
 };
 
 export type DrawItemSkin = {
-  palette: Float32Array;
   jointCount: number;
-  paletteGpu?: { buffer: GPUBuffer; bindGroup: GPUBindGroup } | null;
+  paletteGpu: { buffer: GPUBuffer; bindGroup: GPUBindGroup };
 };
 
 export type DrawItem = {

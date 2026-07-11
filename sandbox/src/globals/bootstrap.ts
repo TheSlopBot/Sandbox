@@ -68,7 +68,12 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
 
   await sceneManager.switchTo('testOne');
 
-  const removeCommit = game.registry.addAction('commit', () => { input.commitFrame(); }, 0);
+  game.setAfterUpdate(() => {
+    input.consumeEdges();
+  });
+  const removeCommit = game.registry.addAction('commit', () => {
+    input.commitFrame();
+  }, 0);
 
   game.start();
 
@@ -82,12 +87,16 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
     subscribeAscii: (listener) => {
       asciiListeners.add(listener);
       listener(asciiStage.enabled);
-      return () => { asciiListeners.delete(listener); };
+      return () => {
+        asciiListeners.delete(listener);
+      };
     },
     subscribeFps: (listener) => pipeline.subscribeFps(listener),
     unload: () => {
       game.stop();
       game.setActiveScene(null);
+      game.setAfterUpdate(null);
+      game.setSimFlush(null);
 
       pipeline.destroy();
       meshes.destroy();

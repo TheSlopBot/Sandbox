@@ -13,6 +13,7 @@ import { createConstructActorSelection } from '../entities/actorEditor/actorSele
 import { createConstructGizmoMode } from '../entities/gizmos/gizmoMode.ts';
 import { spawnConstructGround } from '../entities/ground/spawnGround.ts';
 import { type ConstructSessionDeps, type ConstructSessionState } from '../session/types.ts';
+import { stopModeSystems } from './installEditorSystems.ts';
 
 const MARKER_HALF = 0.09;
 
@@ -142,20 +143,7 @@ export const resetEditorScene = (deps: ConstructSessionDeps, state: ConstructSes
   state.activeTextureVariantUrl = null;
   state.defaultBaseColorTex = null;
 
-  if (state.removeSkeletalSystem) {
-    state.removeSkeletalSystem();
-    state.removeSkeletalSystem = null;
-  }
-
-  if (state.removeStaticModelSystem) {
-    state.removeStaticModelSystem();
-    state.removeStaticModelSystem = null;
-  }
-
-  if (state.removeSkeletonOverlaySystem) {
-    state.removeSkeletonOverlaySystem();
-    state.removeSkeletonOverlaySystem = null;
-  }
+  stopModeSystems(state);
 
   destroyAllEntities(deps.registry);
   spawnEditorSceneScaffold(deps);

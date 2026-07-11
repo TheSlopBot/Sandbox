@@ -24,14 +24,11 @@ Lower `order` runs first within a phase. Reserve bands:
 | 6 | update | test AI pathfinding (sandbox `installTestAiSystem`) |
 | 7 | update | transform hierarchy (`installTransformHierarchySystem`) |
 | 8 | update | movement (intent → velocity, jump → FSM) |
-| 10 | update | character physics (gravity, integration, collision resolve) |
+| 10 | update | GPU collision pack (resolve via `setSimFlush` before postUpdate) |
 | 12 | update | animation FSM (`installAnimationFsmSystem`) |
 | 13 | update | character yaw (`installCharacterStateSystem`) |
-| 15 | update | camera follow |
-| 18 | update | skeletal pose (`installSkeletalPoseSystem`) |
-| 19 | update | skeletal mesh matrices + skin palettes (`installSkeletalMeshSystem`) |
-| 20 | update | bone attachments (`installBoneAttachmentSystem`) |
-| 0 | draw | render pipeline |
+| 0 | postUpdate | camera follow; GPU skeletal pose gather (`installSkeletalGpuPoseSystem`) |
+| 0 | draw | render pipeline (pose encode + cull + forward) |
 | 0 | commit | input.commitFrame() |
 | 100 | commit | dt capture |
 
@@ -126,14 +123,12 @@ Sandbox `createPlayableScene` installs `installSkeletalCharacterSystems` (not a 
 
 ## Skeletal character systems
 
-`installSkeletalCharacterSystems(registry, { getLodOrigin? })` bundles hierarchy, FSM, pose, mesh, and bone-attachment systems.
+`installSkeletalCharacterSystems(registry, { device, setPreDrawEncode?, getLodOrigin? })` requires a GPU device and installs hierarchy, FSM, and batched GPU pose only (no CPU pose/mesh/attachment fallback).
 
-| Installer | Order | Writes |
+| Installer | Phase | Writes |
 |-----------|-------|--------|
-| `installTransformHierarchySystem` | 7 | child `transform.world` from `localTransform` |
-| `installAnimationFsmSystem` | 12 | `animationStateMachine` state + timers |
-| `installSkeletalPoseSystem` | 18 | `skeletalModel.bodyScene.nodes` pose from `animationClipMap` |
-| `installSkeletalMeshSystem` | 19 | `meshDraws.parts[].model`, skin palettes |
-| `installBoneAttachmentSystem` | 20 | bone-child world + draw matrices |
+| `installTransformHierarchySystem` | update | child `transform.world` from `localTransform` |
+| `installAnimationFsmSystem` | update | `animationStateMachine` state + timers |
+| `installSkeletalGpuPoseSystem` | postUpdate gather; draw encode | GPU joint palettes + mesh/attachment models |
 
-Install `installCharacterStateSystem` (13) and `installMovementSystem` (8) separately on the scene registry.
+Install `installCharacterStateSystem` and `installMovementSystem` separately on the scene registry. Character collision is GPU-only via `installCollisionSystem({ device, setSimFlush })`.

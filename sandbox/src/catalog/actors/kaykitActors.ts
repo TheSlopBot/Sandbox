@@ -18,6 +18,7 @@ import { buildSimpleActor } from './buildSimpleActor.ts';
 
 export type CombatMechVariant = 'primary' | 'alt';
 export type DummyVariant = 'primary' | 'altA' | 'altB' | 'altC';
+export type RobotVariant = 'one' | 'ome';
 
 export const SPACE_RANGER_ACTOR: GameActorDefinition = buildSimpleActor(
   'space_ranger',
@@ -77,6 +78,11 @@ export const ROBOT_OME_ACTOR: GameActorDefinition = buildSimpleActor(
     aiPackage: 'testAi',
   },
 );
+
+export const ROBOT_ACTORS: Record<RobotVariant, GameActorDefinition> = {
+  one: ROBOT_ONE_ACTOR,
+  ome: ROBOT_OME_ACTOR,
+};
 
 export const COMBAT_MECH_PRIMARY_ACTOR: GameActorDefinition = buildSimpleActor(
   'combat_mech_primary',
