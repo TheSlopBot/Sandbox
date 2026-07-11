@@ -27,21 +27,21 @@ export const useLevelScene = (deps: SceneDeps, definition: LevelDefinition): Sce
   const spawnNpcs = hasNpcs
     ? async (registry: Registry, sceneDeps: SceneDeps) => {
         for (const robot of definition.robots ?? []) {
-          await createRobot(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, {
+          await createRobot(registry, sceneDeps.device, sceneDeps.textures, sceneDeps.gltfCache, {
             ...robot,
             ...roam,
           });
         }
 
         for (const mech of definition.combatMechs ?? []) {
-          await createCombatMech(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, {
+          await createCombatMech(registry, sceneDeps.device, sceneDeps.textures, sceneDeps.gltfCache, {
             ...mech,
             ...roam,
           });
         }
 
         for (const dummy of definition.dummies ?? []) {
-          await createDummyNpc(registry, sceneDeps.gl, sceneDeps.textures, sceneDeps.gltfCache, {
+          await createDummyNpc(registry, sceneDeps.device, sceneDeps.textures, sceneDeps.gltfCache, {
             ...dummy,
             ...roam,
           });

@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   createTransform,
   createChildren,
@@ -50,14 +51,14 @@ export const ensureActorRoot = (registry: Registry, doc: ActorDocument) => {
 };
 
 export const ensureActorOriginMarker = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   rootId: number,
 ) => {
   if (registry.view(CONSTRUCT_KEYS.actorOriginMarker)[0]) return;
 
   spawnOriginMarkerChild(
-    gl,
+    device,
     registry,
     rootId,
     CONSTRUCT_KEYS.actorOriginMarker,

@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type TextureCache,
   type GltfCache,
   type Material,
@@ -9,7 +10,7 @@ import {
   createAnimationClip,
   createAttachmentOffset,
   buildRetargetedClips,
-  buildRuntimeScene,
+  getOrBuildRuntimeScene,
   buildGltfMaterials,
   buildMeshDrawsFromRuntimeScene,
   findBoneNodeIndex,
@@ -21,7 +22,7 @@ import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef
 import { pickClip } from './pickClip.ts';
 
 export type CharacterLoadDeps = {
-  gl: WebGL2RenderingContext;
+  device: GpuDevice;
   textures: TextureCache;
   gltfCache: GltfCache;
 };
@@ -61,7 +62,7 @@ const loadAttachment = async (
   def: NonNullable<SkeletalCharacterDef['attachments']>[number],
 ): Promise<LoadedAttachment> => {
   const loaded = await deps.gltfCache.getOrLoad(def.gltfUrl);
-  const attachScene = buildRuntimeScene(loaded);
+  const attachScene = getOrBuildRuntimeScene(loaded);
   updateWorldFromLocals(attachScene.nodes);
 
   const mats = buildGltfMaterials(loaded, def.materialPrefix, deps.textures);
@@ -108,7 +109,7 @@ export const loadSkeletalCharacter = async (
     deps.gltfCache.getOrLoad(def.animPack.movementGlb),
   ]);
 
-  const bodyScene = buildRuntimeScene(bodyLoaded);
+  const bodyScene = getOrBuildRuntimeScene(bodyLoaded);
   const baseColorOverride = def.baseColorTextureUrl
     ? await deps.textures.getOrLoad(def.baseColorTextureUrl)
     : null;
@@ -124,7 +125,7 @@ export const loadSkeletalCharacter = async (
     jumpLand: createAnimationClip(pickClip(moveClips, def.clips.jumpLand)),
   };
 
-  const meshDraws = buildMeshDrawsFromRuntimeScene(deps.gl, bodyScene, bodyMats);
+  const meshDraws = buildMeshDrawsFromRuntimeScene(deps.device, bodyScene, bodyMats);
   const model = createSkeletalModel(bodyScene, def.visualYOffset ?? -0.55);
 
   const attachments = def.attachments?.length

@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   type TextureCache,
   type GltfCache,
@@ -19,7 +20,7 @@ export type DummySpawnOpts = TestAiOpts & {
 
 export const createDummyNpc = async (
   registry: Registry,
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   textures: TextureCache,
   gltfCache: GltfCache,
   opts: DummySpawnOpts,
@@ -28,7 +29,7 @@ export const createDummyNpc = async (
 
   return spawnActor(
     registry,
-    gl,
+    device,
     textures,
     gltfCache,
     actorDefinitionToSkeletalDef(DUMMY_ACTORS[variant]),

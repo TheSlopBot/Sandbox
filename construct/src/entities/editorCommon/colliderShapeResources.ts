@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Collider,
   type Material,
   createInterleavedMesh,
@@ -64,7 +65,7 @@ const pushVert = (
   out.push(x, y, z, nx, ny, nz, 0, 0);
 };
 
-const createBoxProxyMesh = (gl: WebGL2RenderingContext, hx: number, hy: number, hz: number) => {
+const createBoxProxyMesh = (device: GpuDevice, hx: number, hy: number, hz: number) => {
   const v: number[] = [];
   const idx: number[] = [];
   const faces: Array<{ n: [number, number, number]; corners: [number, number, number][] }> = [
@@ -83,10 +84,10 @@ const createBoxProxyMesh = (gl: WebGL2RenderingContext, hx: number, hy: number, 
     base += 4;
   }
 
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
+  return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
 };
 
-const createSphereProxyMesh = (gl: WebGL2RenderingContext, radius: number, seg = 12) => {
+const createSphereProxyMesh = (device: GpuDevice, radius: number, seg = 12) => {
   const v: number[] = [];
   const idx: number[] = [];
 
@@ -113,11 +114,11 @@ const createSphereProxyMesh = (gl: WebGL2RenderingContext, radius: number, seg =
     }
   }
 
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
+  return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
 };
 
 const createCylinderProxyMesh = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   radius: number,
   halfHeight: number,
   seg = 14,
@@ -164,11 +165,11 @@ const createCylinderProxyMesh = (
     idx.push(botCenter, bi, ai);
   }
 
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
+  return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
 };
 
 const createCapsuleProxyMesh = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   radius: number,
   halfHeight: number,
   seg = 14,
@@ -221,7 +222,7 @@ const createCapsuleProxyMesh = (
     }
   }
 
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
+  return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
 };
 
 export type ColliderShapeResources = {
@@ -231,7 +232,7 @@ export type ColliderShapeResources = {
 };
 
 export const createColliderShapeResources = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
   opts: {
     halfExtents?: [number, number, number];
@@ -252,7 +253,7 @@ export const createColliderShapeResources = (
     const hz = opts.halfExtents?.[2] ?? 0.5;
     return {
       collider: colliderFromShape({ shape: 'box', halfExtents: [hx, hy, hz], isStatic: true }),
-      mesh: createBoxProxyMesh(gl, hx, hy, hz),
+      mesh: createBoxProxyMesh(device, hx, hy, hz),
       material: roleMaterial ?? wireMaterial('box'),
     };
   }
@@ -262,7 +263,7 @@ export const createColliderShapeResources = (
     const halfHeight = opts.halfHeight ?? 0.5;
     return {
       collider: colliderFromShape({ shape: 'cylinder', radius, halfHeight, isStatic: true }),
-      mesh: createCylinderProxyMesh(gl, radius, halfHeight),
+      mesh: createCylinderProxyMesh(device, radius, halfHeight),
       material: roleMaterial ?? wireMaterial('cylinder'),
     };
   }
@@ -272,7 +273,7 @@ export const createColliderShapeResources = (
     const halfHeight = opts.halfHeight ?? 0.5;
     return {
       collider: colliderFromShape({ shape: 'capsule', radius, halfHeight, isStatic: true }),
-      mesh: createCapsuleProxyMesh(gl, radius, halfHeight),
+      mesh: createCapsuleProxyMesh(device, radius, halfHeight),
       material: roleMaterial ?? wireMaterial('capsule'),
     };
   }
@@ -280,7 +281,7 @@ export const createColliderShapeResources = (
   const radius = opts.radius ?? 0.5;
   return {
     collider: colliderFromShape({ shape: 'sphere', radius, isStatic: true }),
-    mesh: createSphereProxyMesh(gl, radius),
+    mesh: createSphereProxyMesh(device, radius),
     material: roleMaterial ?? wireMaterial('sphere'),
   };
 };

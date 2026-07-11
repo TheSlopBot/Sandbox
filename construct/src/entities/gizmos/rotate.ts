@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   createTransform,
   m4,
@@ -18,8 +19,8 @@ export type RotateGizmoMeshes = {
   ring: ReturnType<typeof createTorusMesh>;
 };
 
-export const createRotateGizmoMeshes = (gl: WebGL2RenderingContext): RotateGizmoMeshes => ({
-  ring: createTorusMesh(gl, RING_RADIUS, RING_TUBE),
+export const createRotateGizmoMeshes = (device: GpuDevice): RotateGizmoMeshes => ({
+  ring: createTorusMesh(device, RING_RADIUS, RING_TUBE),
 });
 
 export type RotateGizmoHandleRef = {

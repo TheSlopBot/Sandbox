@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   createTransform,
   m4,
@@ -19,9 +20,9 @@ export type ScaleGizmoMeshes = {
   cube: ReturnType<typeof createBoxMesh>;
 };
 
-export const createScaleGizmoMeshes = (gl: WebGL2RenderingContext): ScaleGizmoMeshes => ({
-  shaft: createShaftMesh(gl),
-  cube: createBoxMesh(gl, TIP_SIZE * 0.45, TIP_SIZE * 0.45, TIP_SIZE * 0.45),
+export const createScaleGizmoMeshes = (device: GpuDevice): ScaleGizmoMeshes => ({
+  shaft: createShaftMesh(device),
+  cube: createBoxMesh(device, TIP_SIZE * 0.45, TIP_SIZE * 0.45, TIP_SIZE * 0.45),
 });
 
 export type ScaleGizmoHandleRef = {

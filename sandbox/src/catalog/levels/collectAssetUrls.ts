@@ -18,7 +18,5 @@ export const collectLevelAssetUrls = (definition: LevelDefinition): string[] => 
     }
   }
 
-  for (const robot of definition.robots ?? []) urls.add(robot.bodyGlb);
-
   return [...urls];
 };

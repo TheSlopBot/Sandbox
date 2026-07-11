@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   type TextureCache,
   type GltfCache,
@@ -19,7 +20,7 @@ export type CombatMechSpawnOpts = TestAiOpts & {
 
 export const createCombatMech = async (
   registry: Registry,
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   textures: TextureCache,
   gltfCache: GltfCache,
   opts: CombatMechSpawnOpts,
@@ -28,7 +29,7 @@ export const createCombatMech = async (
 
   return spawnActor(
     registry,
-    gl,
+    device,
     textures,
     gltfCache,
     actorDefinitionToSkeletalDef(COMBAT_MECH_ACTORS[variant]),

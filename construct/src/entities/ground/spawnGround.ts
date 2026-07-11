@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   createGroundPlane,
   createInterleavedMesh,
@@ -8,7 +9,7 @@ import {
 } from 'viberanium';
 
 export const spawnGround = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   opts?: { size?: number; y?: number },
 ) => {
@@ -24,18 +25,18 @@ export const spawnGround = (
     -size, 0,  size,  0, 1, 0,  0, 1,
   ]);
   const idx = new Uint32Array([0, 2, 1, 0, 3, 2]);
-  const mesh = createInterleavedMesh(gl, v, idx);
+  const mesh = createInterleavedMesh(device, v, idx);
   const model = createTransform().world;
   model[13] = y;
 
   const entity = registry.createBare();
   entity.components[COMPONENT_KEYS.groundPlane] = createGroundPlane(mesh, model);
-  entity.onDeregister.push(() => destroyMesh(gl, mesh));
+  entity.onDeregister.push(() => destroyMesh(device, mesh));
   registry.register(entity);
   return entity.id;
 };
 
 export const spawnConstructGround = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
-) => spawnGround(gl, registry, { size: 60, y: -2 });
+) => spawnGround(device, registry, { size: 60, y: -2 });

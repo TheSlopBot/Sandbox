@@ -1,27 +1,28 @@
-import { createGlyphAtlasTexture } from './ascii/glyphAtlas.ts';
-import { createShaderProgram } from './gl/shader.ts';
-import { createAsciiPostProcessPass } from './passes/asciiPostProcessPass.ts';
+import { type GpuDevice } from './gl/device.ts';
 import { type PostProcessStage } from './pipeline.ts';
-import { fullscreenVS } from './shaders/post.ts';
-import { asciiFS } from './shaders/ascii.ts';
+import { ASCII_DENSITY, createGlyphAtlasHandle } from './ascii/glyphAtlas.ts';
+import { createAsciiPostPass } from './passes/postProcessPass.ts';
 
 export type AsciiStageOptions = {
   enabled?: boolean;
 };
 
 export const createAsciiPostProcessStage = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   options: AsciiStageOptions = {},
 ): PostProcessStage => {
-  const glyphTex = createGlyphAtlasTexture(gl);
-  const asciiPass = createAsciiPostProcessPass(gl, createShaderProgram(gl, fullscreenVS, asciiFS), glyphTex);
+  const glyphAtlas = createGlyphAtlasHandle(device);
+  const pass = createAsciiPostPass(device, glyphAtlas, ASCII_DENSITY.length);
+
   return {
     name: 'ascii',
     enabled: options.enabled ?? false,
-    draw: (inputTex, w, h, outputFbo) => asciiPass.draw(inputTex, w, h, outputFbo),
+    encode: (encoder, inputView, w, h, outputView) => {
+      pass.encode(encoder, inputView, w, h, outputView);
+    },
     destroy: () => {
-      asciiPass.destroy();
-      gl.deleteTexture(glyphTex);
+      pass.destroy();
+      glyphAtlas.texture.destroy();
     },
   };
 };

@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Children,
   type Material,
   type Registry,
@@ -14,7 +15,7 @@ import { createBoxMesh } from '../gizmos/meshes.ts';
 import { bakeChildWorld } from './trs.ts';
 
 export const spawnOriginMarkerChild = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   rootId: number,
   markerKey: string,
@@ -26,7 +27,7 @@ export const spawnOriginMarkerChild = (
 
   const rootT = root.components[COMPONENT_KEYS.transform] as Transform;
   const children = root.components[COMPONENT_KEYS.children] as Children;
-  const mesh = createBoxMesh(gl, marker.halfExtent, marker.halfExtent, marker.halfExtent);
+  const mesh = createBoxMesh(device, marker.halfExtent, marker.halfExtent, marker.halfExtent);
   const material: Material = {
     name: materialName,
     baseColorTex: null,
@@ -47,7 +48,7 @@ export const spawnOriginMarkerChild = (
     castShadow: false,
     overlay: true,
   };
-  child.onDeregister.push(() => destroyMesh(gl, mesh));
+  child.onDeregister.push(() => destroyMesh(device, mesh));
   registry.register(child);
   addChildId(children, child.id);
   bakeChildWorld(rootT, t, local);

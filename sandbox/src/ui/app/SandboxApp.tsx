@@ -47,10 +47,10 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
     setBootError(null);
     setLoading(true);
 
-    const loadingScreen = createLoadingScreen(loadingCanvas, { colors: LOADING_COLORS });
-
     void (async () => {
+      let loadingScreen: Awaited<ReturnType<typeof createLoadingScreen>> | null = null;
       try {
+        loadingScreen = await createLoadingScreen(loadingCanvas, { colors: LOADING_COLORS });
         const session = await bootstrap(gameCanvas);
         sessionRef.current = session;
         setSubscribeFps(() => session.subscribeFps);
@@ -58,7 +58,7 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
       } catch (err) {
         setBootError(String(err));
       } finally {
-        loadingScreen.destroy();
+        loadingScreen?.destroy();
         await fadeOutLoadingScreen(loadingOverlay);
         setLoading(false);
       }

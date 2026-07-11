@@ -1,5 +1,3 @@
-import { ROBOT_ONE_GLB } from '../assets/kaykit.ts';
-import { type DummyVariant } from '../actors/kaykitActors.ts';
 import {
   type LevelCombatMechSpawn,
   type LevelDefinition,
@@ -8,6 +6,7 @@ import {
   type LevelPropPlacement,
   type LevelRobotSpawn,
 } from './levelDefinition.ts';
+import { type DummyVariant } from '../actors/kaykitActors.ts';
 
 export const GROUND_HALF_EXTENT = 60;
 
@@ -93,8 +92,7 @@ export const buildRobotPerfSpawns = (
   for (let i = 0; i < count; i++) {
     robots.push({
       ...randomPointInNavGrid(rng, navGrid, 1.5),
-      bodyGlb: ROBOT_ONE_GLB,
-      materialPrefix: i >= count / 2 ? 'robot_ome' : 'robot_one',
+      variant: i >= count / 2 ? 'ome' : 'one',
     });
   }
 

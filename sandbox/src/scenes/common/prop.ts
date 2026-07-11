@@ -1,10 +1,13 @@
-﻿import {
+import {
+  type GpuDevice,
+  type TextureHandle,
   type Registry,
   type Material,
   type Collider,
   type Mat4,
   type SharedMeshCache,
   type MeshDrawPart,
+  type StaticPropBatcher,
   createTransform,
   createLocalTransform,
   createChildOf,
@@ -45,6 +48,26 @@ export type PropPlacement = {
 export type InstantiatePropOptions = {
   meshes?: SharedMeshCache;
   markNavDirty?: boolean;
+  batcher?: StaticPropBatcher;
+};
+
+const worldSphereFromLocal = (
+  outCenter: Float32Array,
+  model: Mat4,
+  localCenter: readonly [number, number, number],
+  localRadius: number,
+): number => {
+  const lx = localCenter[0]!;
+  const ly = localCenter[1]!;
+  const lz = localCenter[2]!;
+  outCenter[0] = model[0]! * lx + model[4]! * ly + model[8]! * lz + model[12]!;
+  outCenter[1] = model[1]! * lx + model[5]! * ly + model[9]! * lz + model[13]!;
+  outCenter[2] = model[2]! * lx + model[6]! * ly + model[10]! * lz + model[14]!;
+
+  const sx2 = model[0]! * model[0]! + model[1]! * model[1]! + model[2]! * model[2]!;
+  const sy2 = model[4]! * model[4]! + model[5]! * model[5]! + model[6]! * model[6]!;
+  const sz2 = model[8]! * model[8]! + model[9]! * model[9]! + model[10]! * model[10]!;
+  return localRadius * Math.sqrt(Math.max(sx2, sy2, sz2));
 };
 
 const expandBoundsFromInterleaved = (
@@ -128,7 +151,7 @@ const finalizeStaticChild = (registry: Registry, childId: number): void => {
 const resolveVariantTexture = async (
   textures: TextureCache,
   url: string | null | undefined,
-): Promise<WebGLTexture | null> => {
+): Promise<TextureHandle | null> => {
   if (!url) return null;
 
   return textures.getOrLoad(url);
@@ -148,7 +171,7 @@ const bakeMeshDrawModels = (
 };
 
 export const instantiateProp = async (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   textures: TextureCache,
   gltfCache: GltfCache,
@@ -216,7 +239,7 @@ export const instantiateProp = async (
           const meshKey = `${part.url}#${pair.meshIndex}:${primIndex}`;
           const mesh = options.meshes
             ? options.meshes.getInterleaved(meshKey, prim.vertices, prim.indices)
-            : createInterleavedMesh(gl, prim.vertices, prim.indices);
+            : createInterleavedMesh(device, prim.vertices, prim.indices);
           if (!options.meshes) ownedMeshes.push(mesh);
 
           const worldModel = m4();
@@ -282,10 +305,44 @@ export const instantiateProp = async (
   }
 
   if (meshParts.length > 0) {
-    registry.addComponent(root, COMPONENT_KEYS.meshDraws, createMeshDraws(meshParts));
+    const batcher = options.batcher;
+    const drawParts: MeshDrawPart[] = [];
+    const sphereCenter = new Float32Array(3);
+
+    if (batcher) {
+      for (const part of meshParts) {
+        if (part.material.alphaMode === 'BLEND') {
+          drawParts.push(part);
+          continue;
+        }
+
+        const model = part.model!;
+        const radius = worldSphereFromLocal(
+          sphereCenter,
+          model,
+          part.mesh.boundsCenter,
+          part.mesh.boundsRadius,
+        );
+        batcher.add(
+          part.mesh,
+          part.material,
+          model,
+          [sphereCenter[0]!, sphereCenter[1]!, sphereCenter[2]!],
+          radius,
+          part.castShadow !== false,
+        );
+      }
+    } else {
+      drawParts.push(...meshParts);
+    }
+
+    if (drawParts.length > 0) {
+      registry.addComponent(root, COMPONENT_KEYS.meshDraws, createMeshDraws(drawParts));
+    }
+
     if (ownedMeshes.length > 0) {
       root.onDeregister.push(() => {
-        for (const mesh of ownedMeshes) destroyMesh(gl, mesh);
+        for (const mesh of ownedMeshes) destroyMesh(device, mesh);
       });
     }
   }

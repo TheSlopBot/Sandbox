@@ -1,10 +1,12 @@
+import { type TextureHandle } from '../gl/texture.ts';
+
 export const ASCII_DENSITY = ' .,:\'~-!iIl|/\\()[]{}?><+=*czsxtneraohgpmdwqkuvybCQMZW@#&$%';
 
 const GLYPH_WIDTH = 8;
 const GLYPH_HEIGHT = 12;
 const FONT = '10px Consolas, "Courier New", monospace';
 
-export const createGlyphAtlasTexture = (gl: WebGL2RenderingContext): WebGLTexture => {
+const buildGlyphAtlasCanvas = (): HTMLCanvasElement => {
   const atlas = document.createElement('canvas');
   atlas.width = ASCII_DENSITY.length * GLYPH_WIDTH;
   atlas.height = GLYPH_HEIGHT;
@@ -22,16 +24,33 @@ export const createGlyphAtlasTexture = (gl: WebGL2RenderingContext): WebGLTextur
     ctx.fillText(ASCII_DENSITY[i] ?? '.', i * GLYPH_WIDTH + GLYPH_WIDTH / 2, GLYPH_HEIGHT / 2);
   }
 
-  const tex = gl.createTexture();
-  if (!tex) throw new Error('createTexture failed');
+  return atlas;
+};
 
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.bindTexture(gl.TEXTURE_2D, null);
+export const createGlyphAtlasHandle = (device: { gpu: GPUDevice }): TextureHandle => {
+  const atlas = buildGlyphAtlasCanvas();
+  const texture = device.gpu.createTexture({
+    size: { width: atlas.width, height: atlas.height },
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+  });
 
-  return tex;
+  device.gpu.queue.copyExternalImageToTexture(
+    { source: atlas },
+    { texture },
+    { width: atlas.width, height: atlas.height },
+  );
+
+  const sampler = device.gpu.createSampler({
+    magFilter: 'nearest',
+    minFilter: 'nearest',
+    addressModeU: 'clamp-to-edge',
+    addressModeV: 'clamp-to-edge',
+  });
+
+  return {
+    texture,
+    view: texture.createView(),
+    sampler,
+  };
 };

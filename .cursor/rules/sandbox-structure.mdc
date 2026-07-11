@@ -59,7 +59,7 @@ Engine `COMPONENT_KEYS` stays in `viberanium`. Sandbox-specific keys live in `ca
 
 | Folder | Role |
 |--------|------|
-| `entities/actor/` | `loadSkeletalCharacter`, `spawnSkeletalCharacter`, `spawnActor`, `buildKaykitMediumDef` |
+| `entities/actor/` | `loadSkeletalCharacter`, `spawnSkeletalCharacter`, `spawnActor` |
 | `entities/player/` | `createPlayer`, player components + `installPlayerInputSystem` |
 | `entities/enemies/<kind>/` | `createRobot`, `createCombatMech`, … + shared `components/`, `systems/` |
 

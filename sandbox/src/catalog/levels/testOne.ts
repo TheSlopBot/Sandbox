@@ -1,4 +1,3 @@
-import { ROBOT_ONE_GLB } from '../assets/kaykit.ts';
 import { type LevelDefinition } from './levelDefinition.ts';
 import { DEFAULT_NAV_GRID, buildDummySpawns } from './helpers.ts';
 
@@ -19,8 +18,8 @@ const LEVEL_TEST_PROPS = [
 ];
 
 const LEVEL_TEST_ROBOTS = [
-  { x: -11, z: -11, bodyGlb: ROBOT_ONE_GLB, materialPrefix: 'robot_one' },
-  { x: 11, z: -11, bodyGlb: ROBOT_ONE_GLB, materialPrefix: 'robot_ome' },
+  { x: -11, z: -11, variant: 'one' as const },
+  { x: 11, z: -11, variant: 'ome' as const },
 ];
 
 export const TEST_ONE: LevelDefinition = {

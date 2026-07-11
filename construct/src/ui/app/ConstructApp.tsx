@@ -31,7 +31,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   const [fileOpen, setFileOpen] = useState(false);
   const [status, setStatus] = useState<string>('Loading manifest…');
 
-  const { canvasRef, sessionRef, propDoc, setPropDoc, actorDoc, setActorDoc, actorBoneNames, setActorBoneNames } =
+  const { canvasRef, sessionRef, sessionReady, propDoc, setPropDoc, actorDoc, setActorDoc, actorBoneNames, setActorBoneNames } =
     useConstructSession(active);
 
   const {
@@ -95,6 +95,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     active,
     mode,
     sessionRef,
+    sessionReady,
     manifest,
     entriesByPath,
     selectedEntry,

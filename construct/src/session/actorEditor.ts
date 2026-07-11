@@ -8,7 +8,6 @@ import {
   type SkeletalModel,
   type Transform,
   bakeColliderWorldFromLocal,
-  installSkeletalCharacterSystems,
   m4,
   m4FromTRSQuat,
   m4Mul,
@@ -40,14 +39,16 @@ import {
 } from '../entities/actorEditor/spawnActorAttachment.ts';
 import { removeActorColliderEntity, spawnActorCollider } from '../entities/actorEditor/spawnActorCollider.ts';
 import { spawnSkeletonOverlay } from '../entities/actorEditor/spawnSkeletonOverlay.ts';
-import { installActorColliderFollowSystem } from '../entities/actorEditor/installActorColliderFollowSystem.ts';
-import { installSkeletonOverlaySystem } from '../entities/actorEditor/skeletonOverlaySystem.ts';
 import { createConstructActorSelection } from '../entities/actorEditor/actorSelection.ts';
 import { type ConstructActorAttachment } from '../entities/actorEditor/actorAttachment.ts';
 import { type ConstructActorCollider } from '../entities/actorEditor/actorCollider.ts';
 import { clearPropEditorEntities } from '../entities/propEditor/spawnPropEditor.ts';
 import { applyActorColliderWireColor } from '../entities/editorCommon/colliderShapeResources.ts';
 import { createConstructEditorSelection, type ConstructEditorSelection } from '../entities/editorCommon/editorSelection.ts';
+import {
+  ensureActorEditorSystems,
+  stopActorEditorSystems,
+} from '../scenes/installEditorSystems.ts';
 import { ensureSelectionEntity, resetEditorScene } from '../scenes/editorScene.ts';
 import {
   type ConstructSessionDeps,
@@ -74,31 +75,16 @@ const notifyActorDoc = (state: ConstructSessionState) => {
 };
 
 export const stopActorSystems = (state: ConstructSessionState) => {
-  if (state.removeSkeletonOverlaySystem) {
-    state.removeSkeletonOverlaySystem();
-    state.removeSkeletonOverlaySystem = null;
-  }
-  if (state.removeActorColliderFollowSystem) {
-    state.removeActorColliderFollowSystem();
-    state.removeActorColliderFollowSystem = null;
-  }
+  stopActorEditorSystems(state);
 };
 
 const ensureActorSystems = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
-  if (!state.removeSkeletalSystem) {
-    state.removeSkeletalSystem = installSkeletalCharacterSystems(deps.registry);
-  }
-  if (!state.removeSkeletonOverlaySystem) {
-    state.removeSkeletonOverlaySystem = installSkeletonOverlaySystem(deps.registry);
-  }
-  if (!state.removeActorColliderFollowSystem) {
-    state.removeActorColliderFollowSystem = installActorColliderFollowSystem(deps.registry);
-  }
+  ensureActorEditorSystems(deps.registry, deps.device, deps.pipeline, state);
 };
 
 const ensureActorRootWithOrigin = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
   const rootId = ensureActorRoot(deps.registry, state.actorDocument);
-  ensureActorOriginMarker(deps.gl, deps.registry, rootId);
+  ensureActorOriginMarker(deps.device, deps.registry, rootId);
   return rootId;
 };
 
@@ -111,17 +97,17 @@ const respawnActorContent = async (deps: ConstructSessionDeps, state: ConstructS
   ensureActorSystems(deps, state);
 
   const spawned = await spawnActorCharacter(
-    deps.gl,
+    deps.device,
     deps.registry,
     deps.textures,
     deps.gltfCache,
     state.actorDocument.character,
   );
-  spawnSkeletonOverlay(deps.gl, deps.registry, spawned.bodyScene, spawned.boneNames);
+  spawnSkeletonOverlay(deps.device, deps.registry, spawned.bodyScene, spawned.boneNames);
 
   for (const attachment of state.actorDocument.attachments) {
     await spawnActorAttachment(
-      deps.gl,
+      deps.device,
       deps.registry,
       deps.textures,
       deps.gltfCache,
@@ -132,7 +118,7 @@ const respawnActorContent = async (deps: ConstructSessionDeps, state: ConstructS
   }
 
   for (const collider of state.actorDocument.colliders) {
-    spawnActorCollider(deps.gl, deps.registry, spawned.entityId, spawned.bodyScene, collider);
+    spawnActorCollider(deps.device, deps.registry, spawned.entityId, spawned.bodyScene, collider);
   }
 };
 
@@ -287,7 +273,7 @@ export const addActorAttachment = async (
   };
 
   await spawnActorAttachment(
-    deps.gl,
+    deps.device,
     deps.registry,
     deps.textures,
     deps.gltfCache,
@@ -443,7 +429,7 @@ export const updateAttachmentPlaceholder = async (
 
   removeActorAttachmentEntity(deps.registry, attachmentId);
   await spawnActorAttachment(
-    deps.gl,
+    deps.device,
     deps.registry,
     deps.textures,
     deps.gltfCache,
@@ -474,7 +460,7 @@ export const updateAttachmentTextureVariant = async (
 
   removeActorAttachmentEntity(deps.registry, attachmentId);
   await spawnActorAttachment(
-    deps.gl,
+    deps.device,
     deps.registry,
     deps.textures,
     deps.gltfCache,
@@ -558,7 +544,7 @@ export const addActorCollider = (
     colliders: [...state.actorDocument.colliders, collider],
   };
 
-  spawnActorCollider(deps.gl, deps.registry, characterEntity.id, bodyScene, collider);
+  spawnActorCollider(deps.device, deps.registry, characterEntity.id, bodyScene, collider);
 
   selectActor(deps, state, { kind: 'collider', colliderId: collider.id });
   notifyActorDoc(state);

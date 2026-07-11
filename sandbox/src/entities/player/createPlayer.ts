@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   createTransform,
   createCharacterController,
@@ -18,7 +19,7 @@ import { createPlayerController } from './components/playerController.ts';
 
 export const createPlayer = async (
   registry: Registry,
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   textures: TextureCache,
   gltfCache: GltfCache,
 ) => {
@@ -34,12 +35,12 @@ export const createPlayer = async (
   entity.components[GAME_COMPONENT_KEYS.playerController] = createPlayerController();
 
   const loaded = await loadSkeletalCharacter(
-    { gl, textures, gltfCache },
+    { device, textures, gltfCache },
     actorDefinitionToSkeletalDef(SPACE_RANGER_ACTOR),
   );
 
   spawnSkeletalCharacter(registry, entity, loaded, {
-    gl,
+    device,
     attachmentTags: PLAYER_ATTACHMENT_TAGS,
   });
 

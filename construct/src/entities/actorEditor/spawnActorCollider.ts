@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Entity,
   type Registry,
   type RuntimeScene,
@@ -36,7 +37,7 @@ export const findActorColliderEntity = (registry: Registry, colliderId: string):
 };
 
 export const spawnActorCollider = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   characterEntityId: number,
   bodyScene: RuntimeScene,
@@ -68,7 +69,7 @@ export const spawnActorCollider = (
     collider.hitbox,
   );
 
-  const resources = createColliderShapeResources(gl, collider.shape, {
+  const resources = createColliderShapeResources(device, collider.shape, {
     halfExtents: collider.halfExtents,
     radius: collider.radius,
     halfHeight: collider.halfHeight,
@@ -82,7 +83,7 @@ export const spawnActorCollider = (
     castShadow: false,
     overlay: true,
   };
-  entity.onDeregister.push(() => destroyMesh(gl, resources.mesh));
+  entity.onDeregister.push(() => destroyMesh(device, resources.mesh));
 
   if (collider.parent.kind === 'bone') {
     const boneNodeIndex = findBoneNodeIndex(bodyScene.nodes, collider.parent.boneName);

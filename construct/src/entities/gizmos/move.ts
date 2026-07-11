@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   createTransform,
   m4,
@@ -20,9 +21,9 @@ export type MoveGizmoMeshes = {
   cone: ReturnType<typeof createConeMesh>;
 };
 
-export const createMoveGizmoMeshes = (gl: WebGL2RenderingContext): MoveGizmoMeshes => ({
-  shaft: createShaftMesh(gl),
-  cone: createConeMesh(gl, TIP_SIZE * 0.55, CONE_HEIGHT),
+export const createMoveGizmoMeshes = (device: GpuDevice): MoveGizmoMeshes => ({
+  shaft: createShaftMesh(device),
+  cone: createConeMesh(device, TIP_SIZE * 0.55, CONE_HEIGHT),
 });
 
 export type MoveGizmoHandleRef = {

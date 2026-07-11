@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Material,
   type Registry,
   type RuntimeScene,
@@ -69,7 +70,7 @@ const buildUvSphere = (radius: number, rings: number, segments: number) => {
 };
 
 export const spawnSkeletonOverlay = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   bodyScene: RuntimeScene,
   boneNames: string[],
@@ -98,7 +99,7 @@ export const spawnSkeletonOverlay = (
 
   for (const boneName of boneNames) {
     const { v, idx } = buildUvSphere(JOINT_RADIUS, 8, 12);
-    const mesh = createInterleavedMesh(gl, v, idx);
+    const mesh = createInterleavedMesh(device, v, idx);
     const child = registry.createBare();
     const t = createTransform();
     child.components[COMPONENT_KEYS.transform] = t;
@@ -113,7 +114,7 @@ export const spawnSkeletonOverlay = (
       castShadow: false,
       overlay: true,
     };
-    child.onDeregister.push(() => destroyMesh(gl, mesh));
+    child.onDeregister.push(() => destroyMesh(device, mesh));
     registry.register(child);
   }
 
@@ -127,7 +128,7 @@ export const spawnSkeletonOverlay = (
     const parentName = bodyScene.nodes[node.parent]?.name;
     if (!parentName || !jointSet.has(parentName)) continue;
 
-    const mesh = createBoxMesh(gl, BONE_HALF_X, 0.5, BONE_HALF_Z);
+    const mesh = createBoxMesh(device, BONE_HALF_X, 0.5, BONE_HALF_Z);
     const child = registry.createBare();
     const t = createTransform();
     child.components[COMPONENT_KEYS.transform] = t;
@@ -142,7 +143,7 @@ export const spawnSkeletonOverlay = (
       castShadow: false,
       overlay: true,
     };
-    child.onDeregister.push(() => destroyMesh(gl, mesh));
+    child.onDeregister.push(() => destroyMesh(device, mesh));
     registry.register(child);
   }
 };

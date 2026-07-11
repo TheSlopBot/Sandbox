@@ -1,6 +1,6 @@
 import { type LoadedGltf } from './loader.ts';
 import { type Material } from '../../render/types.ts';
-import { type TextureCache } from '../../render/gl/texture.ts';
+import { type TextureCache, type TextureHandle } from '../../render/gl/texture.ts';
 
 type MaterialCacheEntry = {
   textures: TextureCache;
@@ -13,7 +13,7 @@ export const buildGltfMaterials = (
   loaded: LoadedGltf,
   prefix: string,
   textures: TextureCache,
-  baseColorOverride: WebGLTexture | null = null,
+  baseColorOverride: TextureHandle | null = null,
 ): Material[] => {
   const mats: Material[] = [];
   const gltfMats = loaded.gltf.materials ?? [];
@@ -23,7 +23,7 @@ export const buildGltfMaterials = (
     const pbr = gm.pbrMetallicRoughness;
     const baseFactor = pbr?.baseColorFactor ?? [1, 1, 1, 1];
     const texIndex = pbr?.baseColorTexture?.index;
-    let baseTex: WebGLTexture | null = baseColorOverride;
+    let baseTex: TextureHandle | null = baseColorOverride;
 
     if (!baseTex && texIndex !== undefined && texIndex >= 0) {
       const tex = loaded.gltf.textures?.[texIndex];
@@ -57,7 +57,7 @@ export const getOrBuildGltfMaterials = (
   loaded: LoadedGltf,
   prefix: string,
   textures: TextureCache,
-  baseColorOverride: WebGLTexture | null = null,
+  baseColorOverride: TextureHandle | null = null,
 ): Material[] => {
   if (baseColorOverride) return buildGltfMaterials(loaded, prefix, textures, baseColorOverride);
 

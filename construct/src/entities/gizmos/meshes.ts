@@ -1,4 +1,4 @@
-import { createInterleavedMesh } from 'viberanium';
+import { createInterleavedMesh, type GpuDevice, type TextureHandle } from 'viberanium';
 
 export const SHAFT_LEN = 0.85;
 export const TIP_SIZE = 0.14;
@@ -41,7 +41,7 @@ const pushVert = (
   out.push(x, y, z, nx, ny, nz, 0, 0);
 };
 
-export const createBoxMesh = (gl: WebGL2RenderingContext, hx: number, hy: number, hz: number) => {
+export const createBoxMesh = (device: GpuDevice, hx: number, hy: number, hz: number) => {
   const v: number[] = [];
   const idx: number[] = [];
   const faces: Array<{ n: [number, number, number]; corners: [number, number, number][] }> = [
@@ -58,13 +58,13 @@ export const createBoxMesh = (gl: WebGL2RenderingContext, hx: number, hy: number
     idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
     base += 4;
   }
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
+  return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
 };
 
-export const createShaftMesh = (gl: WebGL2RenderingContext) =>
-  createBoxMesh(gl, SHAFT_THICKNESS, 0.5, SHAFT_THICKNESS);
+export const createShaftMesh = (device: GpuDevice) =>
+  createBoxMesh(device, SHAFT_THICKNESS, 0.5, SHAFT_THICKNESS);
 
-export const createConeMesh = (gl: WebGL2RenderingContext, radius: number, height: number, seg = 12) => {
+export const createConeMesh = (device: GpuDevice, radius: number, height: number, seg = 12) => {
   const v: number[] = [];
   const idx: number[] = [];
   const tip = v.length / 8;
@@ -95,11 +95,11 @@ export const createConeMesh = (gl: WebGL2RenderingContext, radius: number, heigh
     idx.push(baseCenter, b, a);
   }
 
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
+  return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
 };
 
 export const createTorusMesh = (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   majorR: number,
   minorR: number,
   majorSeg = 64,
@@ -134,12 +134,12 @@ export const createTorusMesh = (
     }
   }
 
-  return createInterleavedMesh(gl, new Float32Array(v), new Uint32Array(idx));
+  return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
 };
 
 export const axisMaterial = (axis: Axis, name: string) => ({
   name,
-  baseColorTex: null as WebGLTexture | null,
+  baseColorTex: null as TextureHandle | null,
   baseColorFactor: [AXIS_COLORS[axis][0], AXIS_COLORS[axis][1], AXIS_COLORS[axis][2], AXIS_COLORS[axis][3]] as [
     number,
     number,

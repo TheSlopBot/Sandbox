@@ -6,25 +6,32 @@ alwaysApply: false
 
 # Rendering Pipeline
 
+Viberanium renders with **WebGPU only** (`GpuDevice`). There is no WebGL2/GLSL path.
+
 ## Pass Order (per frame)
 
 ```
-Shadow pass   → shadowFbo (2048² depth)
-Forward pass  → MSAA sceneFbo (lit + skinned, opaque sorted, transparent back-to-front)
-MSAA resolve  → sceneFbo.colorTex
-Post-process chain (ping-pong) → screen
+Shadow pass          → depth shadow map
+Forward pass         → MSAA scene targets (lit + skinned + ground + instanced props)
+MSAA resolve         → scene color texture
+Post-process chain   → ping-pong → canvas
 ```
+
+Compute (when enabled) runs before/alongside draw prep:
+- skeletal pose / skin palette / attachments
+- static prop cull → indirect draws
+- collision resolve (optional; compact root readback only)
 
 ## Post-Process Chain
 
 Stages execute in insertion order via `RenderPipeline.addPostProcess(stage)`.
-Each stage receives the previous stage's output texture; the last writes to screen.
+Each stage receives the previous stage's output texture view; the last writes to the canvas.
 
 ```typescript
 const myStage: PostProcessStage = {
   name: 'bloom',
   enabled: true,
-  draw: (inputTex, w, h, outputFbo) => bloomPass.draw(inputTex, w, h, outputFbo),
+  draw: (inputView, w, h, outputView) => bloomPass.draw(inputView, w, h, outputView),
 };
 pipeline.addPostProcess(myStage);
 ```
@@ -33,34 +40,40 @@ Built-in engine stage:
 1. `tone-color` — ACES tone-map + warm grade + cheap bloom (always on)
 
 Optional stages (registered by the game):
-- `ascii` — via `createAsciiPostProcessStage(gl)`; game owns toggle input
+- `ascii` — via `createAsciiPostProcessStage(device)`; game owns toggle input
 
 ## Adding a New Pass
 
-- Create `viberanium/src/render/passes/myPass.ts` — a small class with a `draw(...)` method matching the `PostProcessStage` interface.
-- Create shaders in `viberanium/src/render/shaders/my.ts` and wire via a factory or `pipeline.addPostProcess`.
-- Games register optional stages from `bootstrap.ts`.
+- Create `viberanium/src/render/passes/myPass.ts` — factory returning `draw` / `destroy`
+- Create WGSL in `viberanium/src/render/shaders/myWgsl.ts` and wire via the pass factory or `pipeline.addPostProcess`
+- Games register optional stages from `bootstrap.ts`
 
 ## Shader Conventions
 
-- Every shader file exports only GLSL strings (template literals, no runtime logic)
-- Shared GLSL (e.g. shadow sampling) is imported as a const string and interpolated: `${shadowSamplingGLSL}`
-- `fullscreenVS` in `shaders/post.ts` is the canonical full-screen triangle VS — reuse it for all post passes
+- Shader modules export only WGSL strings (`/* wgsl */` template literals, no runtime logic)
+- Shared WGSL snippets are imported as const strings and interpolated into larger modules
+- `fullscreenPostWGSL` in `shaders/postWgsl.ts` is the canonical full-screen triangle VS — reuse it for post passes
+- Joint palettes and large arrays use **storage buffers**, not uniform arrays
 
 ## Draw collection
 
 The render pipeline collects draw items from:
 
 1. `meshDraws.parts[]` on any entity (skeletal characters, bone-attachment children)
-2. `renderable` on simple entities (static prop sub-entities, legacy paths)
-3. `groundPlane` on the scene ground entity (drawn with the dedicated ground shader)
+2. `renderable` on simple entities (gizmos, overlays, non-batched props)
+3. `groundPlane` on the scene ground entity (dedicated ground shader)
+4. `staticPropBatcher` prepared batches (opaque static props → instanced / indirect draws)
 
-Each `MeshDrawPart` supplies `mesh`, `material`, `model` (world matrix), optional `skin`, and `visible`/`castShadow` flags. Pose and attachment systems write `part.model` each frame before draw order 0 runs.
+Each `MeshDrawPart` supplies `mesh`, `material`, `model` (world matrix), optional `skin`, and `visible`/`castShadow` flags. GPU pose writes joint palettes and attachment models without CPU joint readback.
 
 Runtime visibility: set `part.visible = false` or `renderable.visible = false`. Runtime material swap: replace `part.material` or `material.baseColorTex`.
 
-Draw collection also applies distance cull (`forwardCullDist` / `shadowCullDist`) and CPU sphere-vs-frustum cull using each mesh's precomputed `boundsCenter` / `boundsRadius`. Camera frustum cull only skips the forward pass. Shadow casters are culled against the light frustum (and `shadowCullDist`) so off-screen objects can still cast into view without filling the shadow pass with casters outside the shadow map. Backface culling is on by default; set `material.doubleSided = true` (or glTF `doubleSided`) to disable it per draw. Ground draws always disable cull.
+Draw collection applies distance cull (`forwardCullDist` / `shadowCullDist`) and CPU sphere-vs-frustum cull for non-batched draws. Batched props use compute frustum/distance cull. Camera frustum cull only skips the forward pass. Shadow casters are culled against the light frustum (and `shadowCullDist`). Backface culling is on by default; set `material.doubleSided = true` (or glTF `doubleSided`) to disable it per draw. Ground draws always disable cull.
 
-`ForwardPass` tracks `lastProgram / lastTex / lastVao` to skip redundant GL state changes.
-Opaque items are sorted by `(skinPalette, baseColorTex, vao, distance)` so shared joint palettes upload once per batch.
-Transparent items are sorted back-to-front by camera distance.
+Opaque non-batched items are sorted by material/mesh affinity. Transparent items are sorted back-to-front by camera distance.
+
+## Sync rules
+
+- Skinning / bone attachments: GPU-only between compute pose and draw
+- Character capsules: CPU broadphase + resolve, or optional GPU resolve with compact root SoA readback only
+- Never require per-frame full joint-tree readback for rendering

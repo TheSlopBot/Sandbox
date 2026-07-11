@@ -1,4 +1,4 @@
-import { type CombatMechVariant, type DummyVariant } from '../actors/kaykitActors.ts';
+import { type CombatMechVariant, type DummyVariant, type RobotVariant } from '../actors/kaykitActors.ts';
 
 export type LevelPropPlacement = {
   propId: string;
@@ -12,8 +12,7 @@ export type LevelPropPlacement = {
 export type LevelRobotSpawn = {
   x: number;
   z: number;
-  bodyGlb: string;
-  materialPrefix: string;
+  variant?: RobotVariant;
   y?: number;
 };
 

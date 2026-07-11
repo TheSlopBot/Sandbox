@@ -1,23 +1,14 @@
 import { type Registry } from '../engine/registry.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
-import { createDevice, type GLDevice } from './gl/device.ts';
-import { createColorFramebuffer, type ColorFramebuffer } from './gl/colorFramebuffer.ts';
-import { createSceneFramebuffer } from './gl/framebuffer.ts';
-import { createShadowFramebuffer } from './gl/shadowFramebuffer.ts';
-import { createShaderProgram } from './gl/shader.ts';
+import { createDevice, type GpuDevice } from './gl/device.ts';
 import { createForwardPass } from './passes/forwardPass.ts';
-import { createPostProcessPass } from './passes/postProcessPass.ts';
-import { createShadowPass } from './passes/shadowPass.ts';
-import { shadowDepthVS, shadowDepthSkinnedVS, shadowDepthFS } from './shaders/shadow.ts';
-import { litTexturedVS, litSkinnedVS, litTexturedFS } from './shaders/lit.ts';
-import { groundVS, groundFS } from './shaders/ground.ts';
-import { fullscreenVS, toneColorFS } from './shaders/post.ts';
+import { createTonePostPass } from './passes/postProcessPass.ts';
+import { createPostPingPong } from './gl/postPingPong.ts';
 import { createFrustumPlanes, extractFrustumPlanes, isSphereInFrustumPlanes } from './frustum.ts';
-import { DIRECTIONAL_LIGHT, type Camera, type DrawItem } from './types.ts';
+import { DIRECTIONAL_LIGHT, type Camera, type DrawItem, type Material } from './types.ts';
 import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type Renderable } from '../components/renderable.ts';
 import { type MeshDraws } from '../components/meshDraws.ts';
-import { type SkinInstance } from '../components/skin.ts';
 import { type GroundPlane } from '../components/groundPlane.ts';
 import { type Mat4, m4, m4LookAt, m4Mul, m4Ortho, m4Perspective } from '../math/mat4.ts';
 import { type Vec3, v3, v3Copy, v3Normalize, v3Set } from '../math/vec3.ts';
@@ -25,18 +16,31 @@ import {
   DEFAULT_ENGINE_OPTIMIZATION,
   type EngineOptimizationOptions,
 } from '../engine/optimizationOptions.ts';
+import { type Mesh } from './gl/mesh.ts';
+import {
+  createStaticPropBatcher,
+  type StaticPropBatcher,
+} from './gl/staticPropBatcher.ts';
 
 export type PostProcessStage = {
   readonly name: string;
   enabled: boolean;
-  draw: (inputTex: WebGLTexture, w: number, h: number, outputFbo: WebGLFramebuffer | null) => void;
+  encode: (
+    encoder: GPUCommandEncoder,
+    inputView: GPUTextureView,
+    w: number,
+    h: number,
+    outputView: GPUTextureView,
+  ) => void;
   destroy?: () => void;
 };
 
 export type RenderPipeline = {
-  readonly device: GLDevice;
+  readonly device: GpuDevice;
   readonly camera: Camera;
   readonly target: Vec3;
+  readonly staticPropBatcher: StaticPropBatcher;
+  setPreDrawEncode: (fn: ((encoder: GPUCommandEncoder) => void) | null) => void;
   addPostProcess: (stage: PostProcessStage) => () => void;
   getPostProcessStages: () => ReadonlyArray<PostProcessStage>;
   getFps: () => number;
@@ -81,6 +85,12 @@ const worldSphereFromLocal = (
   return localRadius * Math.sqrt(Math.max(sx2, sy2, sz2));
 };
 
+const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
+  const dx = ax - bx;
+  const dz = az - bz;
+  return dx * dx + dz * dz;
+};
+
 const computeLightViewProj = (center: Vec3): Mat4 => {
   v3Set(_lightDir, DIRECTIONAL_LIGHT.dir[0], DIRECTIONAL_LIGHT.dir[1], DIRECTIONAL_LIGHT.dir[2]);
   v3Normalize(_lightDir, _lightDir);
@@ -95,51 +105,31 @@ const computeLightViewProj = (center: Vec3): Mat4 => {
   return lightViewProj;
 };
 
-const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
-  const dx = ax - bx;
-  const dz = az - bz;
-  return dx * dx + dz * dz;
-};
-
 export type PipelineOptions = {
   getEntityRegistry?: () => Registry;
   optimization?: EngineOptimizationOptions;
 };
 
-export const installRenderPipeline = (
+export const installRenderPipeline = async (
   registry: Registry,
   canvas: HTMLCanvasElement,
   options: PipelineOptions = {},
-): RenderPipeline => {
+): Promise<RenderPipeline> => {
   const getEntityRegistry = options.getEntityRegistry ?? (() => registry);
   const optimization = options.optimization ?? DEFAULT_ENGINE_OPTIMIZATION;
-  const device = createDevice(canvas);
-  const gl = device.gl;
-
-  const forwardPass = createForwardPass(
-    gl,
-    createShaderProgram(gl, litTexturedVS, litTexturedFS),
-    createShaderProgram(gl, litSkinnedVS, litTexturedFS),
-    createShaderProgram(gl, groundVS, groundFS),
-  );
-  const shadowPass = createShadowPass(
-    gl,
-    createShaderProgram(gl, shadowDepthVS, shadowDepthFS),
-    createShaderProgram(gl, shadowDepthSkinnedVS, shadowDepthFS),
-  );
-  const tonePass = createPostProcessPass(gl, createShaderProgram(gl, fullscreenVS, toneColorFS));
-
-  const sceneFbo = createSceneFramebuffer(gl);
-  const shadowFbo = createShadowFramebuffer(gl, 2048);
-  const pingFbos: [ColorFramebuffer, ColorFramebuffer] = [
-    createColorFramebuffer(gl),
-    createColorFramebuffer(gl),
-  ];
+  const device = await createDevice(canvas);
+  const forwardPass = createForwardPass(device);
+  const tonePass = createTonePostPass(device);
+  const postPingPong = createPostPingPong(device);
+  const staticPropBatcher = createStaticPropBatcher(device);
+  const _camPosF32 = new Float32Array(3);
 
   const toneStage: PostProcessStage = {
     name: 'tone-color',
     enabled: true,
-    draw: (inputTex, w, h, outputFbo) => tonePass.draw(inputTex, w, h, outputFbo),
+    encode: (encoder, inputView, w, h, outputView) =>
+      tonePass.encode(encoder, inputView, w, h, outputView),
+    destroy: () => tonePass.destroy(),
   };
   const postStages: PostProcessStage[] = [toneStage];
 
@@ -148,15 +138,9 @@ export const installRenderPipeline = (
   const viewProj: Mat4 = m4();
   const camera: Camera = { viewProj, position: cameraPos };
 
-  const groundMaterial = {
-    name: 'ground',
-    baseColorTex: null as WebGLTexture | null,
-    baseColorFactor: [1, 1, 1, 1] as [number, number, number, number],
-    alphaMode: 'OPAQUE' as const,
-    doubleSided: true,
-  };
-
-  const forwardItems: DrawItem[] = [];
+  const opaqueItems: DrawItem[] = [];
+  const transparentItems: DrawItem[] = [];
+  const overlayItems: DrawItem[] = [];
   const shadowItems: DrawItem[] = [];
   const itemPool: DrawItem[] = [];
   let itemPoolUsed = 0;
@@ -166,19 +150,11 @@ export const installRenderPipeline = (
       return itemPool[itemPoolUsed++];
     }
     const item: DrawItem = {
-      mesh: {
-        vao: null as unknown as WebGLVertexArrayObject,
-        indexCount: 0,
-        boundsMin: [0, 0, 0],
-        boundsMax: [0, 0, 0],
-        boundsCenter: [0, 0, 0],
-        boundsRadius: 0,
-      },
+      mesh: null as unknown as Mesh,
       material: { name: '', baseColorTex: null, baseColorFactor: [1, 1, 1, 1], alphaMode: 'OPAQUE' },
       model: m4(),
       sortZ: 0,
       castShadow: true,
-      skin: { palette: new Float32Array(0), jointCount: 0 },
       overlay: false,
     };
     itemPool.push(item);
@@ -192,12 +168,12 @@ export const installRenderPipeline = (
   let lastShownFps = -1;
   let currentFps = 0;
   const fpsListeners = new Set<(fps: number) => void>();
+  let preDrawEncode: ((encoder: GPUCommandEncoder) => void) | null = null;
 
   const removeDraw = registry.addAction('draw', () => {
     device.resize();
-    const w = device.canvas.width;
-    const h = device.canvas.height;
-    const aspect = Math.max(1e-6, w / h);
+    const size = device.getSize();
+    const aspect = Math.max(1e-6, size.width / size.height);
 
     m4Perspective(_proj, (60 * Math.PI) / 180, aspect, 0.1, 200.0);
     v3Copy(_eye, camera.position);
@@ -210,7 +186,9 @@ export const installRenderPipeline = (
     const lvp = computeLightViewProj(target);
     extractFrustumPlanes(_lightFrustum, lvp);
 
-    forwardItems.length = 0;
+    opaqueItems.length = 0;
+    transparentItems.length = 0;
+    overlayItems.length = 0;
     shadowItems.length = 0;
     itemPoolUsed = 0;
 
@@ -222,18 +200,20 @@ export const installRenderPipeline = (
     const entityRegistry = getEntityRegistry();
 
     const pushDrawItem = (
-      mesh: DrawItem['mesh'],
-      material: DrawItem['material'],
+      mesh: Mesh,
+      material: Material,
       model: Mat4,
-      skin: SkinInstance | undefined,
+      skin: DrawItem['skin'] | undefined,
       castShadow: boolean,
       overlay = false,
+      gpuModel?: DrawItem['gpuModel'],
     ) => {
       const x = model[12];
       const y = model[13];
       const z = model[14];
       const d2 = distSqXZ(x, z, camX, camZ);
-      const withinShadowDist = !overlay && castShadow && d2 <= shadowDist2;
+      const canCastShadow = !overlay && castShadow && material.alphaMode !== 'BLEND';
+      const withinShadowDist = canCastShadow && d2 <= shadowDist2;
       const withinForwardDist = d2 <= forwardDist2;
       if (!withinForwardDist && !withinShadowDist) return;
 
@@ -243,8 +223,10 @@ export const installRenderPipeline = (
       const cy = _sphereCenter[1]!;
       const cz = _sphereCenter[2]!;
 
-      const inCameraFrustum = withinForwardDist && (overlay || isSphereInFrustumPlanes(_frustum, cx, cy, cz, worldRadius));
-      const inLightFrustum = withinShadowDist && isSphereInFrustumPlanes(_lightFrustum, cx, cy, cz, worldRadius);
+      const inCameraFrustum =
+        withinForwardDist && (overlay || isSphereInFrustumPlanes(_frustum, cx, cy, cz, worldRadius));
+      const inLightFrustum =
+        withinShadowDist && isSphereInFrustumPlanes(_lightFrustum, cx, cy, cz, worldRadius);
       if (!inCameraFrustum && !inLightFrustum) return;
 
       const item = acquireItem();
@@ -255,18 +237,16 @@ export const installRenderPipeline = (
       const dy = y - camY;
       const dz = z - camZ;
       item.sortZ = dx * dx + dy * dy + dz * dz;
-      if (skin) {
-        if (!item.skin) item.skin = { palette: skin.palette, jointCount: skin.jointCount };
-        else {
-          item.skin.palette = skin.palette;
-          item.skin.jointCount = skin.jointCount;
-        }
-      } else {
-        item.skin = undefined;
-      }
+      item.skin = skin;
+      item.gpuModel = gpuModel;
       item.castShadow = inLightFrustum;
       item.overlay = overlay;
-      if (inCameraFrustum) forwardItems.push(item);
+
+      if (inCameraFrustum) {
+        if (overlay) overlayItems.push(item);
+        else if (material.alphaMode === 'BLEND') transparentItems.push(item);
+        else opaqueItems.push(item);
+      }
       if (inLightFrustum) shadowItems.push(item);
     };
 
@@ -278,7 +258,21 @@ export const installRenderPipeline = (
         if (part.visible === false) continue;
         const model = part.model ?? (e.components[COMPONENT_KEYS.transform] as Transform | undefined)?.world;
         if (!model) continue;
-        pushDrawItem(part.mesh, part.material, model, part.skin, part.castShadow !== false, false);
+        const skin = part.skin?.paletteGpu
+          ? {
+              jointCount: part.skin.jointCount,
+              paletteGpu: part.skin.paletteGpu,
+            }
+          : undefined;
+        pushDrawItem(
+          part.mesh,
+          part.material,
+          model,
+          skin,
+          part.castShadow !== false,
+          false,
+          part.gpuModel,
+        );
       }
     }
 
@@ -289,58 +283,75 @@ export const installRenderPipeline = (
 
       updateWorldMatrix(t);
       const model = r.model ?? t.world;
-      const skin = e.components[COMPONENT_KEYS.skin] as SkinInstance | undefined;
-      pushDrawItem(r.mesh, r.material, model, skin, r.castShadow !== false, r.overlay === true);
+      pushDrawItem(r.mesh, r.material, model, undefined, r.castShadow !== false, r.overlay === true);
     }
 
-    let groundItem: DrawItem | null = null;
+    let ground: { mesh: Mesh; model: Mat4; alpha: number } | null = null;
     for (const e of entityRegistry.view(COMPONENT_KEYS.groundPlane)) {
-      const ground = e.components[COMPONENT_KEYS.groundPlane] as GroundPlane | undefined;
-      if (!ground) continue;
-      groundItem = {
-        mesh: ground.mesh,
-        material: groundMaterial,
-        model: ground.model,
-        sortZ: 0,
-        castShadow: true,
+      const g = e.components[COMPONENT_KEYS.groundPlane] as GroundPlane | undefined;
+      if (!g) continue;
+      ground = {
+        mesh: g.mesh,
+        model: g.model,
+        alpha: camY < 0 ? 0.25 : 1,
       };
       break;
     }
 
-    shadowFbo.bind();
-    shadowPass.draw(lvp, groundItem, shadowItems);
-    shadowFbo.unbind();
+    opaqueItems.sort((a, b) => a.sortZ - b.sortZ);
+    transparentItems.sort((a, b) => b.sortZ - a.sortZ);
 
-    sceneFbo.resize(w, h);
-    sceneFbo.bind();
-    forwardPass.draw(camera, { lightViewProj: lvp, map: shadowFbo.depthTex, mapSize: shadowFbo.size }, groundItem, forwardItems);
-    sceneFbo.resolve();
-    sceneFbo.bindDefault();
-    gl.viewport(0, 0, w, h);
+    _camPosF32[0] = camX;
+    _camPosF32[1] = camY;
+    _camPosF32[2] = camZ;
 
-    const enabled = postStages.filter(s => s.enabled);
-    if (enabled.length > 0) {
-      let inputTex = sceneFbo.colorTex;
-      let pingIdx = 0;
+    const encoder = device.gpu.createCommandEncoder();
+    const poseEncode = preDrawEncode;
+    preDrawEncode = null;
+    poseEncode?.(encoder);
+    const staticBatches = staticPropBatcher.cullAndPrepare(
+      _frustum,
+      _lightFrustum,
+      _camPosF32,
+      optimization.forwardCullDist,
+      optimization.shadowCullDist,
+      encoder,
+    );
 
-      for (let i = 0; i < enabled.length; i++) {
-        const isLast = i === enabled.length - 1;
-        let outputFbo: WebGLFramebuffer | null = null;
+    const sceneSize = forwardPass.encode(
+      encoder,
+      camera,
+      lvp,
+      ground,
+      opaqueItems,
+      transparentItems,
+      overlayItems,
+      shadowItems,
+      staticBatches,
+    );
 
-        if (!isLast) {
-          pingFbos[pingIdx].resize(w, h);
-          outputFbo = pingFbos[pingIdx].fbo;
-        }
+    const enabled = postStages.filter((s) => s.enabled);
+    const canvasFrame = device.ensureFrame();
+    if (enabled.length === 0) {
+      device.gpu.queue.submit([encoder.finish()]);
+      return;
+    }
 
-        enabled[i].draw(inputTex, w, h, outputFbo);
+    postPingPong.resize(sceneSize.width, sceneSize.height);
+    let inputView = forwardPass.getSceneView();
+    let pingIdx: 0 | 1 = 0;
 
-        if (!isLast) {
-          inputTex = pingFbos[pingIdx].colorTex;
-          pingIdx ^= 1;
-        }
+    for (let i = 0; i < enabled.length; i++) {
+      const isLast = i === enabled.length - 1;
+      const outputView = isLast ? canvasFrame.colorView : postPingPong.get(pingIdx).view;
+      enabled[i]!.encode(encoder, inputView, sceneSize.width, sceneSize.height, outputView);
+      if (!isLast) {
+        inputView = postPingPong.get(pingIdx).view;
+        pingIdx = pingIdx === 0 ? 1 : 0;
       }
     }
 
+    device.gpu.queue.submit([encoder.finish()]);
   }, 0);
 
   const removeFps = registry.addAction('commit', (ctx) => {
@@ -373,15 +384,9 @@ export const installRenderPipeline = (
 
     for (const s of postStages) s.destroy?.();
     postStages.length = 0;
-
+    postPingPong.destroy();
     forwardPass.destroy();
-    shadowPass.destroy();
-    tonePass.destroy();
-
-    sceneFbo.destroy();
-    shadowFbo.destroy();
-    pingFbos[0].destroy();
-    pingFbos[1].destroy();
+    staticPropBatcher.destroy();
     device.destroy();
   };
 
@@ -389,6 +394,10 @@ export const installRenderPipeline = (
     device,
     camera,
     target,
+    staticPropBatcher,
+    setPreDrawEncode: (fn) => {
+      preDrawEncode = fn;
+    },
     addPostProcess: (stage) => {
       postStages.push(stage);
       return () => {

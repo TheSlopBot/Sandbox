@@ -1,13 +1,7 @@
 import { type Mat4 } from '../math/mat4.ts';
+import { type Mesh } from '../render/gl/mesh.ts';
 
-export type GroundPlaneMesh = {
-  vao: WebGLVertexArrayObject;
-  indexCount: number;
-  boundsMin: readonly [number, number, number];
-  boundsMax: readonly [number, number, number];
-  boundsCenter: readonly [number, number, number];
-  boundsRadius: number;
-};
+export type GroundPlaneMesh = Mesh;
 
 export type GroundPlane = {
   mesh: GroundPlaneMesh;

@@ -1,4 +1,5 @@
-﻿import {
+import {
+  type GpuDevice,
   type Scene,
   type Input,
   type RenderPipeline,
@@ -7,11 +8,11 @@
   type TextureCache,
   type EngineOptimizationOptions,
   type SharedMeshCache,
+  type StaticPropBatcher,
   useRegistry,
   installMovementSystem,
   installNavGridSystem,
   installCharacterPhysicsSystem,
-  installCollisionSystem,
   installColliderTransformSystem,
   installCharacterStateSystem,
   installCameraFollowSystem,
@@ -30,13 +31,15 @@ import { spawnGround } from '../../entities/ground/spawnGround.ts';
 import { instantiateProp, type PropPlacement } from './prop.ts';
 
 export type SceneDeps = {
-  gl: WebGL2RenderingContext;
+  device: GpuDevice;
   input: Input;
   pipeline: RenderPipeline;
   textures: TextureCache;
   gltfCache: GltfCache;
   meshes: SharedMeshCache;
   optimization: EngineOptimizationOptions;
+  staticPropBatcher: StaticPropBatcher;
+  setSimFlush: (fn: (() => Promise<void>) | null) => void;
 };
 
 export type AddProp = (propId: string, placement?: PropPlacement) => Promise<void>;
@@ -52,16 +55,17 @@ export const createPlayableScene = (
   const registry = useRegistry();
   let loaded = false;
 
-  installPlayerInputSystem(registry, deps.input, deps.gl);
+  installPlayerInputSystem(registry, deps.input, deps.device);
   installNavGridSystem(registry);
   installTestAiSystem(registry);
   installMovementSystem(registry);
   installCharacterPhysicsSystem(registry);
-  installCollisionSystem(registry);
   installColliderTransformSystem(registry);
   installCharacterStateSystem(registry);
   installCameraFollowSystem(registry, deps.pipeline, deps.input);
   installSkeletalCharacterSystems(registry, {
+    device: deps.device,
+    setPreDrawEncode: deps.pipeline.setPreDrawEncode,
     getLodOrigin: () => deps.pipeline.camera.position,
     optimization: deps.optimization,
   });
@@ -69,9 +73,10 @@ export const createPlayableScene = (
 
   const addProp: AddProp = async (propId, placement = {}) => {
     const def = getPropDefinition(propId);
-    await instantiateProp(deps.gl, registry, deps.textures, deps.gltfCache, def, placement, {
+    await instantiateProp(deps.device, registry, deps.textures, deps.gltfCache, def, placement, {
       meshes: deps.meshes,
       markNavDirty: false,
+      batcher: deps.staticPropBatcher,
     });
   };
 
@@ -83,19 +88,22 @@ export const createPlayableScene = (
     navGridEntity.components[COMPONENT_KEYS.navGrid] = createNavGrid(navGridConfig);
     registry.register(navGridEntity);
 
-    spawnGround(deps.gl, registry);
+    spawnGround(deps.device, registry);
     await spawnProps(addProp);
     markNavGridDirty(registry);
     if (spawnNpcs) await spawnNpcs(registry, deps);
-    await createPlayer(registry, deps.gl, deps.textures, deps.gltfCache);
+    await createPlayer(registry, deps.device, deps.textures, deps.gltfCache);
   };
 
   const unload = () => {
     if (!loaded) return;
 
+    deps.setSimFlush(null);
+
     const ids = [...registry.all()].map((entity) => entity.id);
     for (const id of ids) registry.deregister(id);
 
+    deps.staticPropBatcher.clear();
     loaded = false;
   };
 

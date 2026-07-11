@@ -2,24 +2,20 @@ import {
   createGltfCache,
   createTextureCache,
   createTransform,
-  installCharacterStateSystem,
-  installColliderTransformSystem,
   installRenderPipeline,
-  installTransformHierarchySystem,
   useGame,
   useScene,
 } from 'viberanium';
 import { createConstructOrbit } from '../entities/orbit/orbit.ts';
 import { createConstructOrbitOriginMarker } from '../entities/orbit/orbitOriginMarker.ts';
 import { createConstructAnim } from '../entities/orbit/constructAnim.ts';
-import { installConstructOrbitSystem } from '../entities/orbit/orbitSystem.ts';
-import { installConstructGizmoSystem } from '../entities/gizmos/gizmoSystem.ts';
 import {
   createSelectionEntity,
   ensureEditorGround,
   resetEditorScene,
   spawnEditorSceneScaffold,
 } from '../scenes/editorScene.ts';
+import { installEditorSceneSystems } from '../scenes/installEditorSystems.ts';
 import { applyClip, clearAnimationPreview, loadAnimationPack, resetToBindPose } from '../session/anim.ts';
 import { loadModel, setTextureVariant } from '../session/preview.ts';
 import {
@@ -197,18 +193,18 @@ const installOrbitInput = (
   };
 };
 
-export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
+export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSession> => {
   const game = useGame();
   const gameRegistry = game.registry;
   const scene = useScene();
   const sceneRegistry = scene.registry;
 
-  const pipeline = installRenderPipeline(gameRegistry, canvas, {
+  const pipeline = await installRenderPipeline(gameRegistry, canvas, {
     getEntityRegistry: () => sceneRegistry,
   });
 
-  const gl = pipeline.device.gl;
-  const textures = createTextureCache(gl);
+  const device = pipeline.device;
+  const textures = createTextureCache(device);
   const gltfCache = createGltfCache();
 
   const orbit = createConstructOrbit();
@@ -221,8 +217,9 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
   const constructAnim = createConstructAnim();
 
   const deps: ConstructSessionDeps = {
-    gl,
+    device,
     registry: sceneRegistry,
+    pipeline,
     textures,
     gltfCache,
     orbit,
@@ -232,11 +229,6 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
   };
 
   spawnEditorSceneScaffold(deps);
-
-  const removeOrbitSystem = installConstructOrbitSystem(sceneRegistry, pipeline);
-  installCharacterStateSystem(sceneRegistry);
-  installTransformHierarchySystem(sceneRegistry);
-  installColliderTransformSystem(sceneRegistry);
 
   const selectionEnt = createSelectionEntity(sceneRegistry);
   const state = createConstructSessionState(selectionEnt);
@@ -248,8 +240,8 @@ export const bootstrap = (canvas: HTMLCanvasElement): ConstructSession => {
 
   const removeOrbitInput = installOrbitInput(canvas, orbit, () => active && !gizmoDragging());
 
-  const gizmoController = installConstructGizmoSystem(
-    gl,
+  const { removeOrbitSystem, gizmoController } = installEditorSceneSystems(
+    device,
     sceneRegistry,
     pipeline,
     canvas,

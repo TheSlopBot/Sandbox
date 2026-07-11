@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   type Game,
   type Input,
@@ -20,7 +21,7 @@ export type SceneManagerDeps = {
   textures: TextureCache;
   gltfCache: GltfCache;
   meshes: SharedMeshCache;
-  gl: WebGL2RenderingContext;
+  device: GpuDevice;
   catalog: Record<string, LevelDefinition>;
   optimization: EngineOptimizationOptions;
   setActiveSceneRegistry: (registry: Registry) => void;
@@ -32,13 +33,15 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
   let removeUpdateAction: (() => void) | null = null;
 
   const sceneDeps = (): SceneDeps => ({
-    gl: deps.gl,
+    device: deps.device,
     input: deps.input,
     pipeline: deps.pipeline,
     textures: deps.textures,
     gltfCache: deps.gltfCache,
     meshes: deps.meshes,
     optimization: deps.optimization,
+    staticPropBatcher: deps.pipeline.staticPropBatcher,
+    setSimFlush: deps.game.setSimFlush,
   });
 
   const switchTo = async (levelId: string) => {

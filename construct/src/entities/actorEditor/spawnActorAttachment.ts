@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Entity,
   type GltfCache,
   type Material,
@@ -61,7 +62,7 @@ export const findActorAttachmentEntity = (registry: Registry, attachmentId: stri
 };
 
 export const spawnActorAttachment = async (
-  gl: WebGL2RenderingContext,
+  device: GpuDevice,
   registry: Registry,
   textures: TextureCache,
   gltfCache: GltfCache,
@@ -108,7 +109,7 @@ export const spawnActorAttachment = async (
         prim.materialIndex >= 0 && prim.materialIndex < mats.length
           ? mats[prim.materialIndex]!
           : mats[0]!;
-      const mesh = createInterleavedMesh(gl, prim.vertices, prim.indices);
+      const mesh = createInterleavedMesh(device, prim.vertices, prim.indices);
       parts.push({ mesh, material, gltfNodeIndex: pair.nodeIndex, visible: true });
     }
   }
@@ -133,7 +134,7 @@ export const spawnActorAttachment = async (
   entity.components[CONSTRUCT_KEYS.editableTarget] = createConstructEditableTarget(attachment.id);
 
   for (const part of parts) {
-    entity.onDeregister.push(() => destroyMesh(gl, part.mesh));
+    entity.onDeregister.push(() => destroyMesh(device, part.mesh));
   }
 
   registry.register(entity);

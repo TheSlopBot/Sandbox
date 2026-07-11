@@ -26,6 +26,43 @@ const nearestWalkableCell = (grid: NavGrid, col: number, row: number): Cell | nu
   return null;
 };
 
+type HeapNode = { cell: Cell; f: number };
+
+const heapPush = (heap: HeapNode[], node: HeapNode) => {
+  heap.push(node);
+  let i = heap.length - 1;
+  while (i > 0) {
+    const parent = (i - 1) >> 1;
+    if (heap[parent]!.f <= heap[i]!.f) break;
+    const tmp = heap[parent]!;
+    heap[parent] = heap[i]!;
+    heap[i] = tmp;
+    i = parent;
+  }
+};
+
+const heapPop = (heap: HeapNode[]): HeapNode | undefined => {
+  const top = heap[0];
+  if (top === undefined) return undefined;
+  const last = heap.pop()!;
+  if (heap.length === 0) return top;
+  heap[0] = last;
+  let i = 0;
+  for (;;) {
+    const left = i * 2 + 1;
+    const right = left + 1;
+    let smallest = i;
+    if (left < heap.length && heap[left]!.f < heap[smallest]!.f) smallest = left;
+    if (right < heap.length && heap[right]!.f < heap[smallest]!.f) smallest = right;
+    if (smallest === i) break;
+    const tmp = heap[i]!;
+    heap[i] = heap[smallest]!;
+    heap[smallest] = tmp;
+    i = smallest;
+  }
+  return top;
+};
+
 export const findPath = (
   grid: NavGrid,
   startX: number,
@@ -39,21 +76,26 @@ export const findPath = (
   const goalCell = nearestWalkableCell(grid, goalRaw.col, goalRaw.row);
   if (!startCell || !goalCell) return null;
 
-  const open: Cell[] = [startCell];
-  const openSet = new Set<string>([cellKey(startCell.col, startCell.row)]);
+  const open: HeapNode[] = [];
   const cameFrom = new Map<string, Cell>();
   const gScore = new Map<string, number>([[cellKey(startCell.col, startCell.row), 0]]);
-  const fScore = new Map<string, number>([[cellKey(startCell.col, startCell.row), heuristic(startCell, goalCell)]]);
+  const startF = heuristic(startCell, goalCell);
+  const fScore = new Map<string, number>([[cellKey(startCell.col, startCell.row), startF]]);
+  heapPush(open, { cell: startCell, f: startF });
 
   const dirs = [
-    { dc: 1, dr: 0 }, { dc: -1, dr: 0 }, { dc: 0, dr: 1 }, { dc: 0, dr: -1 },
+    { dc: 1, dr: 0 },
+    { dc: -1, dr: 0 },
+    { dc: 0, dr: 1 },
+    { dc: 0, dr: -1 },
   ];
 
   while (open.length > 0) {
-    open.sort((a, b) => (fScore.get(cellKey(a.col, a.row)) ?? Infinity) - (fScore.get(cellKey(b.col, b.row)) ?? Infinity));
-    const current = open.shift()!;
+    const currentNode = heapPop(open)!;
+    const current = currentNode.cell;
     const currentKey = cellKey(current.col, current.row);
-    openSet.delete(currentKey);
+    const bestF = fScore.get(currentKey) ?? Infinity;
+    if (currentNode.f > bestF) continue;
 
     if (current.col === goalCell.col && current.row === goalCell.row) {
       const path: Array<{ x: number; z: number }> = [];
@@ -78,11 +120,9 @@ export const findPath = (
       if (tentative < (gScore.get(neighborKey) ?? Infinity)) {
         cameFrom.set(neighborKey, current);
         gScore.set(neighborKey, tentative);
-        fScore.set(neighborKey, tentative + heuristic(neighbor, goalCell));
-        if (!openSet.has(neighborKey)) {
-          open.push(neighbor);
-          openSet.add(neighborKey);
-        }
+        const f = tentative + heuristic(neighbor, goalCell);
+        fScore.set(neighborKey, f);
+        heapPush(open, { cell: neighbor, f });
       }
     }
   }

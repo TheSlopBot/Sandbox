@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Registry,
   type Input,
   type Transform,
@@ -16,7 +17,7 @@ import { type PlayerController } from '../components/playerController.ts';
 
 const anyDown = (input: Input, keys: readonly string[]) => keys.some((key) => input.down(key));
 
-export const installPlayerInputSystem = (registry: Registry, input: Input, gl: WebGL2RenderingContext) => {
+export const installPlayerInputSystem = (registry: Registry, input: Input, device: GpuDevice) => {
   registry.addAction('update', () => {
     let camYaw = 0;
     for (const e of registry.view(COMPONENT_KEYS.cameraFollow)) {
@@ -58,7 +59,7 @@ export const installPlayerInputSystem = (registry: Registry, input: Input, gl: W
         } else if (pc.stowedHelmet) {
           const helmetEntity = spawnAttachmentFromLoad(
             registry,
-            gl,
+            device,
             e.id,
             e,
             pc.stowedHelmet,

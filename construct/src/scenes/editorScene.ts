@@ -1,4 +1,5 @@
 import {
+  type GpuDevice,
   type Entity,
   type Material,
   type Registry,
@@ -12,6 +13,7 @@ import { createConstructActorSelection } from '../entities/actorEditor/actorSele
 import { createConstructGizmoMode } from '../entities/gizmos/gizmoMode.ts';
 import { spawnConstructGround } from '../entities/ground/spawnGround.ts';
 import { type ConstructSessionDeps, type ConstructSessionState } from '../session/types.ts';
+import { stopModeSystems } from './installEditorSystems.ts';
 
 const MARKER_HALF = 0.09;
 
@@ -71,9 +73,9 @@ const buildUvSphere = (radius: number, rings: number, segments: number) => {
   return { v, idx };
 };
 
-const createOrbitOriginMarkerMesh = (gl: WebGL2RenderingContext) => {
+const createOrbitOriginMarkerMesh = (device: GpuDevice) => {
   const { v, idx } = buildUvSphere(MARKER_HALF, 10, 14);
-  const mesh = createInterleavedMesh(gl, v, idx);
+  const mesh = createInterleavedMesh(device, v, idx);
   const material: Material = {
     name: 'orbit-origin-marker',
     baseColorTex: null,
@@ -107,7 +109,7 @@ export const ensureSelectionEntity = (deps: ConstructSessionDeps, state: Constru
 };
 
 export const ensureEditorGround = (deps: ConstructSessionDeps) => {
-  spawnConstructGround(deps.gl, deps.registry);
+  spawnConstructGround(deps.device, deps.registry);
 };
 
 export const spawnEditorSceneScaffold = (deps: ConstructSessionDeps) => {
@@ -115,7 +117,7 @@ export const spawnEditorSceneScaffold = (deps: ConstructSessionDeps) => {
   orbitEnt.components[CONSTRUCT_KEYS.orbit] = deps.orbit;
   deps.registry.register(orbitEnt);
 
-  const markerMesh = createOrbitOriginMarkerMesh(deps.gl);
+  const markerMesh = createOrbitOriginMarkerMesh(deps.device);
   const markerEnt = deps.registry.createBare();
   markerEnt.components[COMPONENT_KEYS.transform] = deps.markerT;
   markerEnt.components[CONSTRUCT_KEYS.orbitOriginMarker] = deps.marker;
@@ -125,7 +127,7 @@ export const spawnEditorSceneScaffold = (deps: ConstructSessionDeps) => {
     castShadow: false,
     overlay: true,
   };
-  markerEnt.onDeregister.push(() => destroyMesh(deps.gl, markerMesh.mesh));
+  markerEnt.onDeregister.push(() => destroyMesh(deps.device, markerMesh.mesh));
   deps.registry.register(markerEnt);
 
   const animEnt = deps.registry.createBare();
@@ -141,20 +143,7 @@ export const resetEditorScene = (deps: ConstructSessionDeps, state: ConstructSes
   state.activeTextureVariantUrl = null;
   state.defaultBaseColorTex = null;
 
-  if (state.removeSkeletalSystem) {
-    state.removeSkeletalSystem();
-    state.removeSkeletalSystem = null;
-  }
-
-  if (state.removeStaticModelSystem) {
-    state.removeStaticModelSystem();
-    state.removeStaticModelSystem = null;
-  }
-
-  if (state.removeSkeletonOverlaySystem) {
-    state.removeSkeletonOverlaySystem();
-    state.removeSkeletonOverlaySystem = null;
-  }
+  stopModeSystems(state);
 
   destroyAllEntities(deps.registry);
   spawnEditorSceneScaffold(deps);

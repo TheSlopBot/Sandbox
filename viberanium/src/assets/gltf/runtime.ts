@@ -52,8 +52,29 @@ export type RuntimeScene = {
   gltf: Gltf;
   nodes: RuntimeNode[];
   skins: RuntimeSkin[];
-  models: RuntimeModel[]; // grouped by gltf mesh
+  models: RuntimeModel[];
   meshNodePairs: Array<{ nodeIndex: number; meshIndex: number; skinIndex: number }>;
+  nodeTopoOrder: readonly number[];
+};
+
+const buildNodeTopoOrder = (nodes: RuntimeNode[]): number[] => {
+  const n = nodes.length;
+  const depth = new Int32Array(n);
+  depth.fill(-1);
+
+  const nodeDepth = (i: number): number => {
+    if (depth[i]! >= 0) return depth[i]!;
+    const p = nodes[i]!.parent;
+    depth[i] = p < 0 ? 0 : nodeDepth(p) + 1;
+    return depth[i]!;
+  };
+
+  for (let i = 0; i < n; i++) nodeDepth(i);
+
+  const indices = new Array<number>(n);
+  for (let i = 0; i < n; i++) indices[i] = i;
+  indices.sort((a, b) => depth[a]! - depth[b]! || a - b);
+  return indices;
 };
 
 const numComponents = (type: string): number => {
@@ -353,10 +374,9 @@ export const buildRuntimeScene = (loaded: LoadedGltf): RuntimeScene => {
     meshNodePairs.push({ nodeIndex: ni, meshIndex: n.mesh, skinIndex: n.skin ?? -1 });
   }
 
-  // Initial world matrices (bind pose)
-  updateWorldFromLocals(nodes);
+  const nodeTopoOrder = buildNodeTopoOrder(nodes);
+  updateWorldFromLocals(nodes, nodeTopoOrder);
 
-  // Patch primitive node/skin indices for convenience
   for (const pair of meshNodePairs) {
     const m = models[pair.meshIndex];
     if (!m) continue;
@@ -366,15 +386,25 @@ export const buildRuntimeScene = (loaded: LoadedGltf): RuntimeScene => {
     }
   }
 
-  return { gltf, nodes, skins, models, meshNodePairs };
+  return {
+    gltf,
+    nodes,
+    skins,
+    models,
+    meshNodePairs,
+    nodeTopoOrder,
+  };
 };
 
-export const updateWorldFromLocals = (nodes: RuntimeNode[]): void => {
+export const updateWorldFromLocals = (nodes: RuntimeNode[], topoOrder?: readonly number[]): void => {
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i]!;
     m4FromTRSQuat(n.localM, n.localT, n.localR, n.localS);
   }
-  for (let i = 0; i < nodes.length; i++) {
+
+  const order = topoOrder ?? buildNodeTopoOrder(nodes);
+  for (let oi = 0; oi < order.length; oi++) {
+    const i = order[oi]!;
     const n = nodes[i]!;
     if (n.parent < 0) {
       n.worldM.set(n.localM);
@@ -384,8 +414,15 @@ export const updateWorldFromLocals = (nodes: RuntimeNode[]): void => {
   }
 };
 
-export const updateWorldFromLocalsDirty = (nodes: RuntimeNode[], dirtyLocals: Uint8Array): void => {
-  for (let i = 0; i < nodes.length; i++) {
+export const updateWorldFromLocalsDirty = (
+  nodes: RuntimeNode[],
+  dirtyLocals: Uint8Array,
+  topoOrder?: readonly number[],
+): void => {
+  const order = topoOrder ?? buildNodeTopoOrder(nodes);
+
+  for (let oi = 0; oi < order.length; oi++) {
+    const i = order[oi]!;
     const n = nodes[i]!;
     const localDirty = dirtyLocals[i] === 1;
     if (localDirty) m4FromTRSQuat(n.localM, n.localT, n.localR, n.localS);

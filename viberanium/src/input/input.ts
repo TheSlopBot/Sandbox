@@ -5,27 +5,30 @@ export type Input = {
   mousePressed: (button: number) => boolean;
   mouseDelta: () => { dx: number; dy: number };
   pointerLocked: () => boolean;
+  consumeEdges: () => void;
   commitFrame: () => void;
   destroy: () => void;
 };
 
 export const createInput = (target: Window = window, pointerLockEl?: HTMLElement): Input => {
   const held = new Set<string>();
-  const pressedThisFrame = new Set<string>();
+  const pressedEdges = new Set<string>();
   const heldMouse = new Set<number>();
-  const pressedMouseThisFrame = new Set<number>();
+  const pressedMouseEdges = new Set<number>();
   let mouseDX = 0;
   let mouseDY = 0;
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (!held.has(e.code)) pressedThisFrame.add(e.code);
+    if (!held.has(e.code)) pressedEdges.add(e.code);
     held.add(e.code);
   };
 
-  const onKeyUp = (e: KeyboardEvent) => { held.delete(e.code); };
+  const onKeyUp = (e: KeyboardEvent) => {
+    held.delete(e.code);
+  };
 
   const onMouseDown = (e: MouseEvent) => {
-    if (!heldMouse.has(e.button)) pressedMouseThisFrame.add(e.button);
+    if (!heldMouse.has(e.button)) pressedMouseEdges.add(e.button);
     heldMouse.add(e.button);
 
     if (pointerLockEl) {
@@ -38,7 +41,9 @@ export const createInput = (target: Window = window, pointerLockEl?: HTMLElement
     }
   };
 
-  const onMouseUp = (e: MouseEvent) => { heldMouse.delete(e.button); };
+  const onMouseUp = (e: MouseEvent) => {
+    heldMouse.delete(e.button);
+  };
 
   const onMouseMove = (e: MouseEvent) => {
     if (pointerLockEl && document.pointerLockElement === pointerLockEl) {
@@ -64,22 +69,24 @@ export const createInput = (target: Window = window, pointerLockEl?: HTMLElement
 
   return {
     down: (code) => held.has(code),
-    pressed: (code) => pressedThisFrame.has(code),
+    pressed: (code) => pressedEdges.has(code),
     mouseDown: (button) => heldMouse.has(button),
-    mousePressed: (button) => pressedMouseThisFrame.has(button),
+    mousePressed: (button) => pressedMouseEdges.has(button),
     mouseDelta: () => ({ dx: mouseDX, dy: mouseDY }),
     pointerLocked: () => (pointerLockEl ? document.pointerLockElement === pointerLockEl : false),
+    consumeEdges: () => {
+      pressedEdges.clear();
+      pressedMouseEdges.clear();
+    },
     commitFrame: () => {
-      pressedThisFrame.clear();
-      pressedMouseThisFrame.clear();
       mouseDX = 0;
       mouseDY = 0;
     },
     destroy: () => {
       held.clear();
-      pressedThisFrame.clear();
+      pressedEdges.clear();
       heldMouse.clear();
-      pressedMouseThisFrame.clear();
+      pressedMouseEdges.clear();
       mouseDX = 0;
       mouseDY = 0;
 

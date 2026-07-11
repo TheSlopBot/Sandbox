@@ -8,7 +8,24 @@ export type PerformanceMenuProps = {
 };
 
 const HISTORY_SIZE = 80;
-const GRAPH_REFERENCE_FPS = 60;
+const GRAPH_REFERENCE_CANDIDATES = [60, 75, 90, 120, 144, 165, 240] as const;
+
+const pickGraphReferenceFps = (history: readonly number[]): number => {
+  let peak = 0;
+  for (let i = 0; i < history.length; i++) {
+    const v = history[i]!;
+    if (v > peak) peak = v;
+  }
+  if (peak <= 0) return 60;
+
+  let best: number = GRAPH_REFERENCE_CANDIDATES[0]!;
+  for (let i = 0; i < GRAPH_REFERENCE_CANDIDATES.length; i++) {
+    const candidate = GRAPH_REFERENCE_CANDIDATES[i]!;
+    if (candidate + 5 >= peak) return candidate;
+    best = candidate;
+  }
+  return best;
+};
 
 type GraphColors = {
   accent: string;
@@ -50,10 +67,11 @@ const drawFpsGraph = (
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
-  const maxFps = Math.max(GRAPH_REFERENCE_FPS, ...history, 1);
+  const maxFps = Math.max(pickGraphReferenceFps(history), ...history, 1);
   const toY = (value: number) => height - (value / maxFps) * (height - 2) - 1;
 
-  const refY = toY(GRAPH_REFERENCE_FPS);
+  const refFps = pickGraphReferenceFps(history);
+  const refY = toY(refFps);
   ctx.strokeStyle = colors.border;
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 4]);
@@ -104,7 +122,7 @@ const drawFpsGraph = (
   ctx.font = '10px system-ui, sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(`${GRAPH_REFERENCE_FPS}`, width - 2, refY - 2);
+  ctx.fillText(`${refFps}`, width - 2, refY - 2);
 };
 
 export const PerformanceMenu = ({ visible, bootError, subscribeFps }: PerformanceMenuProps) => {
