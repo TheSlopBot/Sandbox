@@ -25,24 +25,14 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
   >(undefined);
 
   useEffect(() => {
-    if (!active) {
-      const session = sessionRef.current;
-      if (session) {
-        session.unload();
-        sessionRef.current = null;
-      }
-
-      setSubscribeFps(undefined);
-      setLoading(true);
-      return;
-    }
-
-    if (sessionRef.current) return;
+    if (!active) return;
 
     const gameCanvas = gameCanvasRef.current;
     const loadingCanvas = loadingCanvasRef.current;
     const loadingOverlay = loadingOverlayRef.current;
     if (!gameCanvas || !loadingCanvas || !loadingOverlay) return;
+
+    let cancelled = false;
 
     setBootError(null);
     setLoading(true);
@@ -51,19 +41,40 @@ export const SandboxApp = ({ active }: SandboxAppProps) => {
       let loadingScreen: Awaited<ReturnType<typeof createLoadingScreen>> | null = null;
       try {
         loadingScreen = await createLoadingScreen(loadingCanvas, { colors: LOADING_COLORS });
+        if (cancelled) return;
+
         const session = await bootstrap(gameCanvas);
+        if (cancelled) {
+          session.unload();
+          return;
+        }
+
         sessionRef.current = session;
         setSubscribeFps(() => session.subscribeFps);
         setBootError(null);
       } catch (err) {
-        setBootError(String(err));
+        if (!cancelled) setBootError(String(err));
       } finally {
         loadingScreen?.destroy();
-        await fadeOutLoadingScreen(loadingOverlay);
-        setLoading(false);
+        if (!cancelled) {
+          await fadeOutLoadingScreen(loadingOverlay);
+          setLoading(false);
+        }
       }
     })();
 
+    return () => {
+      cancelled = true;
+
+      const session = sessionRef.current;
+      if (session) {
+        session.unload();
+        sessionRef.current = null;
+      }
+
+      setSubscribeFps(undefined);
+      setLoading(true);
+    };
   }, [active]);
 
   return (

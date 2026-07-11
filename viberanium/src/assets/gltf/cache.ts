@@ -4,6 +4,7 @@ export type GltfCache = {
   getOrLoad: (url: string) => Promise<LoadedGltf>;
   preload: (urls: readonly string[]) => Promise<void>;
   has: (url: string) => boolean;
+  clear: () => void;
 };
 
 export const createGltfCache = (): GltfCache => {
@@ -22,5 +23,8 @@ export const createGltfCache = (): GltfCache => {
     getOrLoad,
     preload: async (urls) => { await Promise.all(urls.map(getOrLoad)); },
     has: (url) => entries.has(url),
+    clear: () => {
+      entries.clear();
+    },
   };
 };

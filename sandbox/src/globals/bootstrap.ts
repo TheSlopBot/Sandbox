@@ -98,15 +98,17 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
       game.setAfterUpdate(null);
       game.setSimFlush(null);
 
-      pipeline.destroy();
-      meshes.destroy();
       sceneManager.destroy();
       removeCommit();
       removeAsciiToggle();
       removeAsciiStage();
       asciiListeners.clear();
-
       input.destroy();
+
+      meshes.destroy();
+      textures.destroy();
+      gltfCache.clear();
+      pipeline.destroy();
     },
   };
 };

@@ -48,7 +48,6 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
 
   useEffect(() => {
     if (!active) return;
-    if (sessionRef.current) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -68,15 +67,16 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
 
     return () => {
       cancelled = true;
+
+      const session = sessionRef.current;
+      if (!session) return;
+
+      session.setPropDocumentListener(null);
+      session.setActorDocumentListener(null);
+      session.unload();
+      sessionRef.current = null;
     };
   }, [active]);
-
-  useEffect(() => {
-    const session = sessionRef.current;
-    if (!session) return;
-
-    session.setActive(active);
-  }, [active, sessionReady]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -94,17 +94,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
       session.setPropDocumentListener(null);
       session.setActorDocumentListener(null);
     };
-  }, [active, sessionReady]);
-
-  useEffect(() => {
-    if (active) return;
-
-    const session = sessionRef.current;
-    if (!session) return;
-
-    session.unload();
-    sessionRef.current = null;
-  }, [active]);
+  }, [sessionReady]);
 
   return {
     canvasRef,

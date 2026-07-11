@@ -11,11 +11,11 @@ import { createConstructOrbitOriginMarker } from '../entities/orbit/orbitOriginM
 import { createConstructAnim } from '../entities/orbit/constructAnim.ts';
 import {
   createSelectionEntity,
+  destroyAllEntities,
   ensureEditorGround,
-  resetEditorScene,
   spawnEditorSceneScaffold,
 } from '../scenes/editorScene.ts';
-import { installEditorSceneSystems } from '../scenes/installEditorSystems.ts';
+import { installEditorSceneSystems, stopModeSystems } from '../scenes/installEditorSystems.ts';
 import { applyClip, clearAnimationPreview, loadAnimationPack, resetToBindPose } from '../session/anim.ts';
 import { loadModel, setTextureVariant } from '../session/preview.ts';
 import {
@@ -329,10 +329,25 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
       removeOrbitInput();
       removeOrbitSystem();
       gizmoController.destroy();
+      stopModeSystems(state);
+
       game.stop();
       game.setActiveScene(null);
+
+      destroyAllEntities(sceneRegistry);
+
+      state.loadedModelUrl = null;
+      state.currentClipsByName = new Map();
+      state.activeMaterials = [];
+      state.textureVariants = [];
+      state.activeTextureVariantUrl = null;
+      state.defaultBaseColorTex = null;
+      state.propDocListener = null;
+      state.actorDocListener = null;
+
+      textures.destroy();
+      gltfCache.clear();
       pipeline.destroy();
-      resetEditorScene(deps, state);
     },
   };
 };
