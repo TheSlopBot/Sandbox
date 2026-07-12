@@ -81,6 +81,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setClipName,
     availableClipNames,
     setAvailableClipNames,
+    animPaused,
     textureVariants,
     textureVariantUrl,
     compatibleAnimPacks,
@@ -90,6 +91,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     handleTextureVariantChange,
     handleAnimPackChange,
     handleClipChange,
+    handleAnimPlayPause,
     handleAnimReset,
   } = useConstructViewer({
     active,
@@ -120,6 +122,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setRenameIntent,
     onNew,
     onSave,
+    onSaveAs,
     onLoad,
     onImport,
     onExport,
@@ -142,6 +145,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setSelectedPartId,
     setActorSelection,
     setStatus,
+    resetAnimationPreview: handleAnimReset,
   });
 
   const { propInspectorActions, actorInspectorActions } = useConstructInspectorActions({
@@ -288,6 +292,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
         onFileOpenChange={setFileOpen}
         onNew={onNew}
         onSave={onSave}
+        onSaveAs={onSaveAs}
         onLoad={onLoad}
         onImport={onImport}
         onExport={onExport}
@@ -347,12 +352,20 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               ? mode === 'actor'
                 ? 'Rename actor'
                 : 'Rename prop'
-              : mode === 'actor'
-                ? 'Name actor'
-                : 'Name prop'
+              : renameIntent === 'saveAs'
+                ? mode === 'actor'
+                  ? 'Save actor as'
+                  : 'Save prop as'
+                : mode === 'actor'
+                  ? 'Name actor'
+                  : 'Name prop'
           }
           confirmLabel={
-            renameIntent === 'save' ? 'Save' : renameIntent === 'export' ? 'Export' : 'Rename'
+            renameIntent === 'save' || renameIntent === 'saveAs'
+              ? 'Save'
+              : renameIntent === 'export'
+                ? 'Export'
+                : 'Rename'
           }
           onCancel={() => setRenameIntent(null)}
           onConfirm={onRenameConfirm}
@@ -380,6 +393,8 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               clipName={clipName}
               availableClipNames={availableClipNames}
               onClipChange={handleClipChange}
+              animPaused={animPaused}
+              onPlayPause={handleAnimPlayPause}
               onReset={handleAnimReset}
             />
           ) : null}
@@ -394,6 +409,8 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               clipName={clipName}
               availableClipNames={availableClipNames}
               onClipChange={handleClipChange}
+              animPaused={animPaused}
+              onPlayPause={handleAnimPlayPause}
               onReset={handleAnimReset}
             />
           ) : null}

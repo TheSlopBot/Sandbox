@@ -6,6 +6,7 @@ export type AnimationStateMachine = {
   current: AnimStateId;
   stateTime: number;
   animTime: number;
+  paused: boolean;
   runPlaybackSpeed: number;
   jumpStartDuration: number;
   jumpLandDuration: number;
@@ -17,6 +18,7 @@ export const createAnimationStateMachine = (): AnimationStateMachine => ({
   current: 'idle',
   stateTime: 0,
   animTime: 0,
+  paused: false,
   runPlaybackSpeed: 1.5,
   jumpStartDuration: 0.3,
   jumpLandDuration: 0.3,
@@ -34,6 +36,8 @@ export const stepAnimationFsm = (
   fsm: AnimationStateMachine,
   dt: number,
 ): void => {
+  if (fsm.paused) return;
+
   const wasOnGround = cc.wasOnGroundPrevious;
   const moving = isMoving(cc);
 

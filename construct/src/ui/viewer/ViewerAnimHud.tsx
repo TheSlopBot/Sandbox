@@ -15,6 +15,8 @@ export type ViewerAnimHudProps = {
   clipName: string | null;
   availableClipNames: string[];
   onClipChange: (clip: string | null) => void;
+  animPaused: boolean;
+  onPlayPause: () => void;
   onReset: () => void;
 };
 
@@ -33,70 +35,104 @@ export const ViewerAnimHud = ({
   clipName,
   availableClipNames,
   onClipChange,
+  animPaused,
+  onPlayPause,
   onReset,
-}: ViewerAnimHudProps) => (
-  <div className="construct-viewerHud">
-    <div className="construct-titleRow">
-      <div className="construct-title">{title}</div>
-      <div className="construct-subtle">{status}</div>
-    </div>
-    {showTextureVariant ? (
-      <div className="selectRow">
-        <label>Texture variant</label>
-        <select
-          disabled={!canSwitchTexture}
-          value={textureVariantUrl ?? ''}
-          onChange={(e) => onTextureVariantChange?.(e.target.value || null)}
-        >
-          <option value="">Default</option>
-          {textureVariants.map((v) => (
-            <option key={v.url} value={v.url}>
-              {v.label}
-            </option>
-          ))}
-        </select>
+}: ViewerAnimHudProps) => {
+  const playbackEnabled = canAnimate && !!clipName;
+  const playPauseLabel = animPaused ? 'Play' : 'Pause';
+  const packLabel = (p: KaykitManifestEntry) => p.path.split('/').slice(-1)[0] ?? p.path;
+  const sortedAnimPacks = [...compatibleAnimPacks].sort((a, b) =>
+    packLabel(a).localeCompare(packLabel(b), undefined, { sensitivity: 'base' }),
+  );
+  const sortedClipNames = [...availableClipNames].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  );
+
+  return (
+    <div className="construct-viewerHud">
+      <div className="construct-titleRow">
+        <div className="construct-title">{title}</div>
+        <div className="construct-subtle">{status}</div>
       </div>
-    ) : null}
-    <div className="selectRow">
-      <label>Animation pack</label>
-      <select
-        disabled={!canAnimate}
-        value={animPackUrl ?? ''}
-        onChange={(e) => onAnimPackChange(e.target.value || null)}
-      >
-        <option value="">(none)</option>
-        {compatibleAnimPacks.map((p) => (
-          <option key={p.path} value={p.url}>
-            {p.path.split('/').slice(-1)[0] ?? p.path}
-          </option>
-        ))}
-      </select>
-    </div>
-    <div className="selectRow">
-      <label>Clip</label>
-      <select
-        disabled={!canAnimate || availableClipNames.length === 0}
-        value={clipName ?? ''}
-        onChange={(e) => onClipChange(e.target.value || null)}
-      >
-        <option value="">(none)</option>
-        {availableClipNames.map((n) => (
-          <option key={n} value={n}>
-            {n}
-          </option>
-        ))}
-      </select>
-    </div>
-    {showTextureVariant && !canSwitchTexture ? (
-      <div className="mutedNote">Texture variants unavailable for this asset.</div>
-    ) : null}
-    <div className="construct-hudFooter">
-      <div className="mutedNote">
-        {canAnimate ? null : 'Animation selector disabled (no bones/skin).'}
+      {showTextureVariant ? (
+        <div className="selectRow">
+          <label>Texture variant</label>
+          <select
+            disabled={!canSwitchTexture}
+            value={textureVariantUrl ?? ''}
+            onChange={(e) => onTextureVariantChange?.(e.target.value || null)}
+          >
+            <option value="">Default</option>
+            {textureVariants.map((v) => (
+              <option key={v.url} value={v.url}>
+                {v.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      {canAnimate ? (
+        <>
+          <div className="selectRow">
+            <label>Animation pack</label>
+            <select
+              value={animPackUrl ?? ''}
+              onChange={(e) => onAnimPackChange(e.target.value || null)}
+            >
+              <option value="">(none)</option>
+              {sortedAnimPacks.map((p) => (
+                <option key={p.path} value={p.url}>
+                  {packLabel(p)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="selectRow">
+            <label>Clip</label>
+            <select
+              disabled={sortedClipNames.length === 0}
+              value={clipName ?? ''}
+              onChange={(e) => onClipChange(e.target.value || null)}
+            >
+              <option value="">(none)</option>
+              {sortedClipNames.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      ) : null}
+      {showTextureVariant && !canSwitchTexture ? (
+        <div className="mutedNote">Texture variants unavailable for this asset.</div>
+      ) : null}
+      <div className="construct-hudFooter">
+        <div className="construct-hudActions">
+          <button
+            type="button"
+            className="construct-hudIconBtn"
+            title={playPauseLabel}
+            aria-label={playPauseLabel}
+            disabled={!playbackEnabled}
+            onClick={onPlayPause}
+          >
+            {animPaused ? (
+              <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                <path fill="currentColor" d="M3.5 2.2v11.6L13.5 8 3.5 2.2Z" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                <path fill="currentColor" d="M3.5 2.5h3v11h-3v-11Zm6 0h3v11h-3v-11Z" />
+              </svg>
+            )}
+          </button>
+          <button type="button" className="construct-hudResetBtn" onClick={onReset}>
+            Reset
+          </button>
+        </div>
       </div>
-      <button type="button" className="construct-hudResetBtn" onClick={onReset}>
-        Reset
-      </button>
     </div>
-  </div>
-);
+  );
+};

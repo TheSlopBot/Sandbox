@@ -16,7 +16,7 @@ import {
   spawnEditorSceneScaffold,
 } from '../scenes/editorScene.ts';
 import { installEditorSceneSystems, stopModeSystems } from '../scenes/installEditorSystems.ts';
-import { applyClip, clearAnimationPreview, loadAnimationPack, resetToBindPose } from '../session/anim.ts';
+import { applyClip, clearAnimationPreview, loadAnimationPack, resetToBindPose, setAnimationPaused } from '../session/anim.ts';
 import { loadModel, setTextureVariant } from '../session/preview.ts';
 import {
   addAssetPart,
@@ -281,6 +281,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
     applyClip: (clipName) => applyClip(deps, state, clipName),
     clearAnimationPreview: () => clearAnimationPreview(deps, state),
     resetToBindPose: () => resetToBindPose(deps),
+    setAnimationPaused: (paused) => setAnimationPaused(deps, paused),
     setTextureVariant: (variantUrl) => setTextureVariant(deps, state, variantUrl),
     setPartTextureVariant: (partId, variantUrl) => setPartTextureVariant(deps, state, partId, variantUrl),
     newProp: () => newProp(deps, state),

@@ -212,7 +212,8 @@ export const installRenderPipeline = async (
       const y = model[13];
       const z = model[14];
       const d2 = distSqXZ(x, z, camX, camZ);
-      const canCastShadow = !overlay && castShadow && material.alphaMode !== 'BLEND';
+      const canCastShadow =
+        !overlay && castShadow && material.alphaMode !== 'BLEND' && material.alphaMode !== 'MASK';
       const withinShadowDist = canCastShadow && d2 <= shadowDist2;
       const withinForwardDist = d2 <= forwardDist2;
       if (!withinForwardDist && !withinShadowDist) return;

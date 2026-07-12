@@ -13,7 +13,7 @@ import { type PreparedStaticBatch } from '../gl/staticPropBatcher.ts';
 
 const FRAME_UNIFORM_FLOATS = 44;
 const FRAME_UNIFORM_SIZE = FRAME_UNIFORM_FLOATS * 4;
-const OBJECT_UNIFORM_SIZE = 80;
+const OBJECT_UNIFORM_SIZE = 96;
 const OBJECT_UNIFORM_ALIGN = 256;
 const MSAA_SAMPLES = 4;
 const IDENTITY_MODEL = new Float32Array([
@@ -402,13 +402,19 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
 
   const instanceBindByIndex = new WeakMap<GPUBuffer, GPUBindGroup>();
 
-  const writeObject = (index: number, model: Mat4, color: readonly [number, number, number, number]) => {
+  const writeObject = (
+    index: number,
+    model: Mat4,
+    color: readonly [number, number, number, number],
+    alphaCutoff = -1,
+  ) => {
     const base = index * (OBJECT_UNIFORM_ALIGN / 4);
     objectStaging.set(model, base);
     objectStaging[base + 16] = color[0];
     objectStaging[base + 17] = color[1];
     objectStaging[base + 18] = color[2];
     objectStaging[base + 19] = color[3];
+    objectStaging[base + 20] = alphaCutoff;
   };
 
   const flushObjectStaging = (count: number) => {
@@ -517,11 +523,13 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
     for (const _item of overlayList) overlayIndices.push(objectIndex++);
 
     const writeItemObject = (item: DrawItem, index: number) => {
+      const cutoff =
+        item.material.alphaMode === 'MASK' ? (item.material.alphaCutoff ?? 0.5) : -1;
       if (item.skin || item.gpuModel) {
-        writeObject(index, IDENTITY_MODEL, item.material.baseColorFactor);
+        writeObject(index, IDENTITY_MODEL, item.material.baseColorFactor, cutoff);
         return;
       }
-      writeObject(index, item.model, item.material.baseColorFactor);
+      writeObject(index, item.model, item.material.baseColorFactor, cutoff);
     };
 
     if (ground && groundObjectIndex >= 0) {

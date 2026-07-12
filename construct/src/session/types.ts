@@ -64,6 +64,7 @@ export type ConstructSession = {
   applyClip: (clipName: string) => void;
   clearAnimationPreview: () => void;
   resetToBindPose: () => void;
+  setAnimationPaused: (paused: boolean) => void;
   setTextureVariant: (variantUrl: string | null) => Promise<void>;
   setPartTextureVariant: (partId: string, variantUrl: string | null) => Promise<PropDocument>;
   newProp: () => PropDocument;

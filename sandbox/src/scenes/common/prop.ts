@@ -311,7 +311,7 @@ export const instantiateProp = async (
 
     if (batcher) {
       for (const part of meshParts) {
-        if (part.material.alphaMode === 'BLEND') {
+        if (part.material.alphaMode === 'BLEND' || part.material.alphaMode === 'MASK') {
           drawParts.push(part);
           continue;
         }

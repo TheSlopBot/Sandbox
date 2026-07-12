@@ -7,6 +7,7 @@ export type AppMenuProps = {
   onFileOpenChange: (open: boolean) => void;
   onNew: () => void;
   onSave: () => void;
+  onSaveAs: () => void;
   onLoad: () => void;
   onImport: () => void;
   onExport: () => void;
@@ -26,6 +27,7 @@ export const AppMenu = ({
   onFileOpenChange,
   onNew,
   onSave,
+  onSaveAs,
   onLoad,
   onImport,
   onExport,
@@ -67,6 +69,19 @@ export const AppMenu = ({
             }}
           >
             Save
+          </button>
+          <button
+            type="button"
+            className="construct-menuDropdownItem"
+            disabled={!propFileActionsEnabled}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
+            onClick={() => {
+              if (!propFileActionsEnabled) return;
+              onFileOpenChange(false);
+              onSaveAs();
+            }}
+          >
+            Save As
           </button>
           <button
             type="button"

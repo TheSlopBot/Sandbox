@@ -33,11 +33,15 @@ export const buildGltfMaterials = (
       }
     }
 
+    const alphaMode =
+      gm.alphaMode === 'BLEND' ? 'BLEND' : gm.alphaMode === 'MASK' ? 'MASK' : 'OPAQUE';
+
     mats.push({
       name: `${prefix}_${gm.name ?? i}`,
       baseColorTex: baseTex,
       baseColorFactor: [baseFactor[0], baseFactor[1], baseFactor[2], baseFactor[3]],
-      alphaMode: (gm.alphaMode ?? 'OPAQUE') === 'BLEND' ? 'BLEND' : 'OPAQUE',
+      alphaMode,
+      alphaCutoff: alphaMode === 'MASK' ? (gm.alphaCutoff ?? 0.5) : undefined,
       doubleSided: gm.doubleSided === true,
     });
   }

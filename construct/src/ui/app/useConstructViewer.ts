@@ -46,6 +46,7 @@ export const useConstructViewer = ({
   const [animPackUrl, setAnimPackUrl] = useState<string | null>(null);
   const [clipName, setClipName] = useState<string | null>(null);
   const [availableClipNames, setAvailableClipNames] = useState<string[]>([]);
+  const [animPaused, setAnimPaused] = useState(false);
   const [textureVariants, setTextureVariants] = useState<KaykitTextureVariant[]>([]);
   const [textureVariantUrl, setTextureVariantUrl] = useState<string | null>(null);
 
@@ -74,6 +75,7 @@ export const useConstructViewer = ({
     setAvailableClipNames([]);
     setClipName(null);
     setAnimPackUrl(null);
+    setAnimPaused(false);
     setTextureVariants(altVariants);
     setTextureVariantUrl(null);
 
@@ -168,6 +170,7 @@ export const useConstructViewer = ({
       session.clearAnimationPreview();
       setAvailableClipNames([]);
       setClipName(null);
+      setAnimPaused(false);
       return;
     }
 
@@ -178,6 +181,7 @@ export const useConstructViewer = ({
         setAvailableClipNames(loaded.clipNames);
         const nextClip = loaded.clipNames[0] ?? null;
         setClipName(nextClip);
+        setAnimPaused(false);
         if (nextClip) session.applyClip(nextClip);
         setStatus('Ready.');
       } catch (err) {
@@ -194,10 +198,21 @@ export const useConstructViewer = ({
 
     if (!next) {
       session.resetToBindPose();
+      setAnimPaused(false);
       return;
     }
 
     session.applyClip(next);
+    setAnimPaused(false);
+  };
+
+  const handleAnimPlayPause = () => {
+    const session = sessionRef.current;
+    if (!session) return;
+
+    const nextPaused = !animPaused;
+    session.setAnimationPaused(nextPaused);
+    setAnimPaused(nextPaused);
   };
 
   const handleAnimReset = () => {
@@ -208,6 +223,7 @@ export const useConstructViewer = ({
     setAnimPackUrl(null);
     setAvailableClipNames([]);
     setClipName(null);
+    setAnimPaused(false);
   };
 
   return {
@@ -218,6 +234,7 @@ export const useConstructViewer = ({
     setClipName,
     availableClipNames,
     setAvailableClipNames,
+    animPaused,
     textureVariants,
     textureVariantUrl,
     setTextureVariantUrl,
@@ -228,6 +245,7 @@ export const useConstructViewer = ({
     handleTextureVariantChange,
     handleAnimPackChange,
     handleClipChange,
+    handleAnimPlayPause,
     handleAnimReset,
   };
 };

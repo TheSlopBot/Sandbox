@@ -44,6 +44,7 @@ const applyEmptyBindPoseClips = (entity: Entity) => {
     fsm.current = 'idle';
     fsm.stateTime = 0;
     fsm.animTime = 0;
+    fsm.paused = false;
   }
 
   const model = entity.components[COMPONENT_KEYS.skeletalModel] as SkeletalModel | undefined;
@@ -105,6 +106,7 @@ export const applyClip = (
     fsm.current = 'idle';
     fsm.stateTime = 0;
     fsm.animTime = 0;
+    fsm.paused = false;
   }
 
   const cc = entity.components[COMPONENT_KEYS.character] as
@@ -145,4 +147,14 @@ export const resetToBindPose = (deps: ConstructSessionDeps) => {
 
   const anim = getConstructAnim(deps.registry);
   if (anim) anim.selectedClipName = null;
+};
+
+export const setAnimationPaused = (deps: ConstructSessionDeps, paused: boolean) => {
+  const entity = getActiveCharacterEntity(deps.registry);
+  if (!entity) return;
+
+  const fsm = entity.components[COMPONENT_KEYS.animationStateMachine] as
+    | ReturnType<typeof createAnimationStateMachine>
+    | undefined;
+  if (fsm) fsm.paused = paused;
 };

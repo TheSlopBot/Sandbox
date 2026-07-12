@@ -196,8 +196,8 @@ export const createStaticPropBatcher = (device: GpuDevice): StaticPropBatcher =>
   };
 
   const add: StaticPropBatcher['add'] = (mesh, material, model, center, radius, castShadow = true) => {
-    if (material.alphaMode === 'BLEND') {
-      throw new Error('Static prop batcher does not support BLEND materials');
+    if (material.alphaMode === 'BLEND' || material.alphaMode === 'MASK') {
+      throw new Error('Static prop batcher does not support BLEND or MASK materials');
     }
 
     const key = batchKey(mesh, material);

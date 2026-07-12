@@ -30,7 +30,7 @@ import { type ConstructSession } from '../../globals/bootstrap.ts';
 import { type ConstructMode } from '../menu/AppMenu.tsx';
 import { cloneActorDoc } from './useConstructSession.ts';
 
-type RenameIntent = 'edit' | 'save' | 'export';
+type RenameIntent = 'edit' | 'save' | 'saveAs' | 'export';
 
 const downloadPropDocument = (doc: PropDocument) => {
   const blob = new Blob([serializePropDocument(doc)], { type: 'application/json' });
@@ -65,6 +65,7 @@ export type UseConstructDocumentActionsParams = {
   setSelectedPartId: (id: string | null) => void;
   setActorSelection: (selection: ActorEditorSelection) => void;
   setStatus: (status: string) => void;
+  resetAnimationPreview: () => void;
 };
 
 export const useConstructDocumentActions = ({
@@ -78,6 +79,7 @@ export const useConstructDocumentActions = ({
   setSelectedPartId,
   setActorSelection,
   setStatus,
+  resetAnimationPreview,
 }: UseConstructDocumentActionsParams) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -196,6 +198,14 @@ export const useConstructDocumentActions = ({
     setStatus('Save is available in Prop or Actor mode.');
   };
 
+  const onSaveAs = () => {
+    if (mode !== 'prop' && mode !== 'actor') {
+      setStatus('Save As is available in Prop or Actor mode.');
+      return;
+    }
+    setRenameIntent('saveAs');
+  };
+
   const onLoad = () => {
     if (mode === 'prop') {
       setLocalPropEntries(listLocalPropEntries());
@@ -255,6 +265,14 @@ export const useConstructDocumentActions = ({
     if (!intent) return;
 
     if (mode === 'prop') {
+      if (intent === 'saveAs') {
+        const session = sessionRef.current;
+        if (!session) return;
+        const doc = session.renameProp(name);
+        setPropDoc({ ...doc, parts: [...doc.parts] });
+        persistLocalProp(doc);
+        return;
+      }
       const doc = applyRenamedProp(name);
       if (!doc) return;
       if (intent === 'save') {
@@ -270,6 +288,14 @@ export const useConstructDocumentActions = ({
     }
 
     if (mode === 'actor') {
+      if (intent === 'saveAs') {
+        const session = sessionRef.current;
+        if (!session) return;
+        const doc = session.renameActor(name);
+        setActorDoc(cloneActorDoc(doc));
+        persistLocalActor(doc);
+        return;
+      }
       const doc = applyRenamedActor(name);
       if (!doc) return;
       if (intent === 'save') {
@@ -294,6 +320,7 @@ export const useConstructDocumentActions = ({
         const loaded = await session.loadPropDocument(entry.document);
         setPropDoc({ ...loaded, parts: [...loaded.parts] });
         setSelectedPartId(null);
+        resetAnimationPreview();
         setStatus(`Loaded ${entry.displayName}`);
       } catch (err) {
         setStatus(`Load error: ${String(err)}`);
@@ -318,6 +345,7 @@ export const useConstructDocumentActions = ({
         setActorDoc(cloneActorDoc(loaded));
         setActorBoneNames(session.getActorBoneNames());
         setActorSelection(loaded.character ? { kind: 'actor' } : null);
+        resetAnimationPreview();
         setStatus(`Loaded ${entry.displayName}`);
       } catch (err) {
         setStatus(`Load error: ${String(err)}`);
@@ -346,6 +374,7 @@ export const useConstructDocumentActions = ({
           setActorDoc(cloneActorDoc(loaded));
           setActorBoneNames(session.getActorBoneNames());
           setActorSelection(loaded.character ? { kind: 'actor' } : null);
+          resetAnimationPreview();
           setStatus(`Imported ${file.name}`);
           return;
         }
@@ -354,6 +383,7 @@ export const useConstructDocumentActions = ({
         const loaded = await session.loadPropDocument(doc);
         setPropDoc({ ...loaded, parts: [...loaded.parts] });
         setSelectedPartId(null);
+        resetAnimationPreview();
         setStatus(`Imported ${file.name}`);
       } catch (err) {
         setStatus(`Import error: ${String(err)}`);
@@ -375,6 +405,7 @@ export const useConstructDocumentActions = ({
     setRenameIntent,
     onNew,
     onSave,
+    onSaveAs,
     onLoad,
     onImport,
     onExport,

@@ -6,7 +6,8 @@ export type Material = {
   name: string;
   baseColorTex: TextureHandle | null;
   baseColorFactor: [number, number, number, number];
-  alphaMode: 'OPAQUE' | 'BLEND';
+  alphaMode: 'OPAQUE' | 'MASK' | 'BLEND';
+  alphaCutoff?: number;
   doubleSided?: boolean;
 };
 

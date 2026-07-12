@@ -368,15 +368,40 @@
 .construct-hudFooter {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 8px;
   min-height: 28px;
   pointer-events: auto;
 }
 
-.construct-hudFooter .mutedNote {
-  min-width: 0;
-  flex: 1;
+.construct-hudActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.construct-hudIconBtn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d9e2ea;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.construct-hudIconBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.construct-hudIconBtn:disabled {
+  opacity: 0.35;
 }
 
 .construct-hudResetBtn {
@@ -390,6 +415,7 @@
   border-radius: 6px;
   cursor: default;
   flex-shrink: 0;
+  min-height: 28px;
 }
 
 .construct-hudResetBtn:hover {

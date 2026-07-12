@@ -13,6 +13,10 @@ struct FrameUniforms {
 struct ObjectUniforms {
   model: mat4x4f,
   color: vec4f,
+  alphaCutoff: f32,
+  _pad0: f32,
+  _pad1: f32,
+  _pad2: f32,
 };
 
 struct JointPalette {
@@ -100,6 +104,9 @@ fn fsMain(input: VsOut) -> @location(0) vec4f {
   let ndl = max(dot(n, -frame.lightDir), 0.0);
   let tex = textureSample(baseColorTex, baseColorSamp, input.uv);
   let base = tex * object.color;
+  if (object.alphaCutoff >= 0.0 && base.a < object.alphaCutoff) {
+    discard;
+  }
   let shadow = sampleShadow(input.worldPos, n, frame.lightDir);
   let lit = base.rgb * (frame.ambient + ndl * frame.lightColor * shadow);
   return vec4f(lit, base.a);
