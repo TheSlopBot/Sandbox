@@ -1,4 +1,5 @@
 import { type RefObject } from 'react';
+import { type LevelGroundVariant } from 'viberanium';
 import { type PropDocument } from '../../catalog/props/propDocument.ts';
 import { type ActorAiPackage, type ActorDocument, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
 import { type LevelDocument } from '../../catalog/levels/levelDocument.ts';
@@ -191,6 +192,10 @@ export const useConstructInspectorActions = ({
           setStatus(`Texture variant error: ${String(err)}`);
         }
       })();
+    },
+    onSetGroundPlaneVariant: (variant: LevelGroundVariant) => {
+      const doc = sessionRef.current?.setGroundPlaneVariant(variant);
+      if (doc) setLevelDoc(doc);
     },
     onRemoveInstances: (ids: string[]) => {
       const session = sessionRef.current;

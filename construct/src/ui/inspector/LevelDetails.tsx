@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
+  LEVEL_GROUND_PLANE_ID,
   LEVEL_PLAYER_SPAWN_ID,
   type LevelDocument,
 } from '../../catalog/levels/levelDocument.ts';
 import { type ActorAiPackage } from '../../catalog/actors/actorDocument.ts';
 import { type ConstructLevelSelection } from '../../session/types.ts';
 import type { KaykitTextureVariant } from '../../catalog/manifest/kaykitManifest.ts';
+import { type LevelGroundVariant, LEVEL_GROUND_VARIANTS } from 'viberanium';
 import { ConfirmModal } from '../modals/ConfirmModal.tsx';
 import { DetailsHeader } from './shared.tsx';
 
@@ -18,10 +20,19 @@ export type LevelDetailsProps = {
   onRenameGroup: (id: string, name: string) => void;
   onSetInstanceAiPackage: (id: string, aiPackage: ActorAiPackage) => void;
   onSetSimpleVariant: (id: string, url: string | null) => void;
+  onSetGroundPlaneVariant: (variant: LevelGroundVariant) => void;
   onRemoveInstances: (ids: string[]) => void;
   onOpenGroupModal: () => void;
   onUngroup: (groupId: string) => void;
   onDeleteGroup: (groupId: string, removeMembers: boolean) => void;
+};
+
+const groundVariantLabel = (variant: LevelGroundVariant): string => {
+  if (variant === 'green') return 'Grassy Green';
+  if (variant === 'brown') return 'Earthy Brown';
+  if (variant === 'yellow') return 'Warm Yellow';
+  if (variant === 'gray') return 'Editor Gray';
+  return 'Blueprint Blue';
 };
 
 const instanceKindLabel = (kind: string): string => {
@@ -30,6 +41,7 @@ const instanceKindLabel = (kind: string): string => {
   if (kind === 'simpleActor') return 'Simple Actor';
   if (kind === 'standardActor') return 'Standard Actor';
   if (kind === 'collider') return 'Collider';
+  if (kind === 'groundPlane') return 'Ground Plane';
   return 'Player Spawn';
 };
 
@@ -42,6 +54,7 @@ export const LevelDetails = ({
   onRenameGroup,
   onSetInstanceAiPackage,
   onSetSimpleVariant,
+  onSetGroundPlaneVariant,
   onRemoveInstances,
   onOpenGroupModal,
   onUngroup,
@@ -55,6 +68,8 @@ export const LevelDetails = ({
   const colliderInstance = doc.composition.colliders.find((c) => c.id === selection.instanceIds[0]) ?? null;
   const isPlayerSpawn =
     selection.instanceIds.length === 1 && selection.instanceIds[0] === LEVEL_PLAYER_SPAWN_ID;
+  const isGroundPlane =
+    selection.instanceIds.length === 1 && selection.instanceIds[0] === LEVEL_GROUND_PLANE_ID;
   const singleInstance =
     !group && selection.instanceIds.length === 1
       ? (propInstance ?? actorInstance ?? colliderInstance)
@@ -62,7 +77,9 @@ export const LevelDetails = ({
   const isPlaceableSelection =
     !group &&
     selection.instanceIds.length > 0 &&
-    selection.instanceIds.every((id) => id !== LEVEL_PLAYER_SPAWN_ID);
+    selection.instanceIds.every(
+      (id) => id !== LEVEL_PLAYER_SPAWN_ID && id !== LEVEL_GROUND_PLANE_ID,
+    );
 
   const [nameDraft, setNameDraft] = useState(group?.name ?? singleInstance?.name ?? '');
 
@@ -121,6 +138,39 @@ export const LevelDetails = ({
             }}
           />
         ) : null}
+      </div>
+    );
+  }
+
+  if (isGroundPlane) {
+    return (
+      <div className="construct-inspector">
+        <DetailsHeader displayName={doc.displayName} renameLabel="Rename level" onRename={onRenameLevel} />
+        <div className="construct-inspectorBody construct-detailsBody">
+          <div className="construct-detailsField">
+            <span>Type</span>
+            <span className="construct-detailsReadonly">Ground Plane</span>
+          </div>
+          <div className="construct-detailsField">
+            <span>Size</span>
+            <span className="construct-detailsReadonly">{doc.groundPlane.size.toFixed(2)}</span>
+          </div>
+          <div className="construct-detailsSection">
+            <div className="construct-detailsSectionTitle">Variant</div>
+            <select
+              className="construct-detailsSelect"
+              value={doc.groundPlane.variant}
+              onChange={(e) => onSetGroundPlaneVariant(e.target.value as LevelGroundVariant)}
+            >
+              {LEVEL_GROUND_VARIANTS.map((variant) => (
+                <option key={variant} value={variant}>
+                  {groundVariantLabel(variant)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="mutedNote">Move and scale only. Cannot be deleted or rotated.</div>
+        </div>
       </div>
     );
   }

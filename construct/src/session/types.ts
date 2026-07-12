@@ -10,6 +10,7 @@ import {
   type Transform,
   type AnimClip,
   type SimplePropCollider,
+  type LevelGroundVariant,
 } from 'viberanium';
 import { type ConstructOrbit } from '../entities/orbit/orbit.ts';
 import { type ConstructOrbitOriginMarker } from '../entities/orbit/orbitOriginMarker.ts';
@@ -139,13 +140,14 @@ export type ConstructSession = {
     textureVariantUrl?: string | null,
   ) => Promise<LevelDocument>;
   addStandardActor: (doc: ActorDocument) => Promise<LevelDocument>;
-  addLevelCollider: (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => LevelDocument;
+  addLevelCollider: (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => Promise<LevelDocument>;
   selectLevelInstances: (ids: string[]) => void;
   selectLevelGroup: (groupId: string | null) => void;
   selectLevelRoot: () => void;
   selectLevelPlayerSpawn: () => void;
+  selectLevelGroundPlane: () => void;
+  setGroundPlaneVariant: (variant: LevelGroundVariant) => LevelDocument;
   getLevelSelection: () => ConstructLevelSelection;
-  pickLevelInstanceAt: (clientX: number, clientY: number) => string | null;
   renameLevel: (name: string) => LevelDocument;
   renameInstance: (instanceId: string, name: string) => LevelDocument;
   renameGroup: (groupId: string, name: string) => LevelDocument;

@@ -23,7 +23,7 @@ import {
   COMPONENT_KEYS,
   markNavGridDirty,
 } from 'viberanium';
-import { type LevelNavGridConfig } from '../../catalog/levels/levelDefinition.ts';
+import { type LevelGroundVariant, type LevelNavGridConfig } from '../../catalog/levels/levelDefinition.ts';
 import { createPlayer } from '../../entities/player/createPlayer.ts';
 import { installTestAiSystem } from '../../entities/enemies/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../../entities/player/systems/playerInputSystem.ts';
@@ -54,6 +54,11 @@ export const createPlayableScene = (
   playerSpawn?: {
     position: [number, number, number];
     rotation: [number, number, number, number];
+  },
+  groundPlane?: {
+    position: [number, number, number];
+    size: number;
+    variant?: LevelGroundVariant;
   },
 ): Scene => {
   const registry = useRegistry();
@@ -91,7 +96,7 @@ export const createPlayableScene = (
     navGridEntity.components[COMPONENT_KEYS.navGrid] = createNavGrid(navGridConfig);
     registry.register(navGridEntity);
 
-    spawnGround(deps.device, registry);
+    spawnGround(deps.device, registry, groundPlane);
     await spawnProps(addProp);
     markNavGridDirty(registry);
     if (spawnNpcs) await spawnNpcs(registry, deps);

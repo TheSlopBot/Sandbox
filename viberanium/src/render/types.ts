@@ -1,6 +1,7 @@
 import { type Mat4 } from '../math/mat4.ts';
 import { type Mesh } from './gl/mesh.ts';
 import { type TextureHandle } from './gl/texture.ts';
+import { type LevelGroundVariant } from '../definitions/levels/levelDefinition.ts';
 
 export type Material = {
   name: string;
@@ -52,4 +53,5 @@ export type GroundDraw = {
   mesh: Mesh;
   model: Mat4;
   alpha: number;
+  variant: LevelGroundVariant;
 };

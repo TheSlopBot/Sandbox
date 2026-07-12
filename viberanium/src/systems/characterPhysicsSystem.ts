@@ -12,6 +12,7 @@ import {
 } from '../collision/capsule.ts';
 import { isCollisionBroadphaseDirty } from '../collision/collisionBroadphase.ts';
 import { getNearbyObstacles, getObstacles } from './collisionObstacles.ts';
+import { readGroundPlaneY } from './readGroundPlaneY.ts';
 
 const PHYSICS_STEP_SEC = 1 / 144;
 const MAX_PHYSICS_SUBSTEPS = 4;
@@ -43,6 +44,8 @@ export const installCharacterPhysicsSystem = (
   registry.addAction(
     'update',
     (ctx) => {
+      const groundY = readGroundPlaneY(registry);
+
       for (const e of registry.view(COMPONENT_KEYS.character)) {
         if (filter && !filter(e)) continue;
 
@@ -55,7 +58,7 @@ export const installCharacterPhysicsSystem = (
           cc.velocity[0] * cc.velocity[0] +
           cc.velocity[1] * cc.velocity[1] +
           cc.velocity[2] * cc.velocity[2];
-        const airborne = t.position[1] - foot > 0.05;
+        const airborne = t.position[1] - foot > groundY + 0.05;
         if (speed2 < 1e-10 && cc.onGround && !airborne) continue;
 
         const queryRadius = Math.max(
@@ -98,7 +101,7 @@ export const installCharacterPhysicsSystem = (
           t.position[0] = capsule.x;
           t.position[2] = capsule.z;
 
-          const surfaceY = getCapsuleSupportSurfaceY(capsule, obstacles);
+          const surfaceY = getCapsuleSupportSurfaceY(capsule, obstacles, groundY);
           if (surfaceY !== null && cc.velocity[1] <= 0) {
             cc.velocity[1] = 0;
             t.position[1] = surfaceY + foot;
@@ -131,8 +134,8 @@ export const installCharacterPhysicsSystem = (
           cc.velocity[1] = vertical.velocityY;
           if (vertical.onGround) cc.onGround = true;
 
-          if (t.position[1] - foot < 0) {
-            t.position[1] = foot;
+          if (t.position[1] - foot < groundY) {
+            t.position[1] = groundY + foot;
             cc.velocity[1] = 0;
             cc.onGround = true;
           }

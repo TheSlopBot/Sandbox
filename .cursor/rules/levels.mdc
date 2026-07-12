@@ -18,8 +18,8 @@ alwaysApply: false
 
 | Shape | Package | Contents |
 |-------|---------|----------|
-| `LevelDefinition` | `viberanium/definitions/levels/` | Indexed `simpleProps` / `standardProps` / `simpleActors` / `standardActors` + composition props/actors/colliders + `playerSpawn`. No `aiPackage`, groups, parse/serialize |
-| `LevelDocument` / `.level` | Construct `catalog/levels/` | `version: 1`, same index/composition (plus collider instances + player spawn), instance names, actor `aiPackage`, groups |
+| `LevelDefinition` | `viberanium/definitions/levels/` | Indexed `simpleProps` / `standardProps` / `simpleActors` / `standardActors` + composition props/actors/colliders + `playerSpawn` + `groundPlane`. No `aiPackage`, groups, parse/serialize |
+| `LevelDocument` / `.level` | Construct `catalog/levels/` | `version: 1`, same index/composition (plus collider instances + player spawn + ground plane), instance names, actor `aiPackage`, groups |
 | `levelFile` parse | Sandbox `catalog/levels/levelFile.ts` | Parses the same JSON → portable `LevelDefinition` + `aiPackages` map (ignores groups at runtime) |
 
 Index entries are unique; composition instances reference `indexId` + kind. Shared localStorage key: `construct.levelLocalStore`.
@@ -68,7 +68,7 @@ Bootstrap seeds `construct.levelLocalStore` from `LEVEL_SEED_DOCUMENTS` when emp
 
 | Phase | Creates / destroys |
 |-------|--------------------|
-| `load()` | nav grid, ground, props + level colliders from index, actors from index (+ `testAi` when aiPackage), player at `playerSpawn` |
+| `load()` | nav grid, ground (from `groundPlane`), props + level colliders from index, actors from index (+ `testAi` when aiPackage), player at `playerSpawn` |
 | `unload()` | deregisters **all** entities; clears static prop batcher |
 
 ## Prop / actor resolve

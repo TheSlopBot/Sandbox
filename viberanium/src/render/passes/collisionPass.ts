@@ -37,7 +37,12 @@ export type CollisionPass = {
   needsStaticRebuild: () => boolean;
   rebuildStatic: (colliders: readonly Collider[]) => void;
   writeCharacters: (chars: readonly CollisionCharacterInput[]) => void;
-  dispatchAndRead: (dt: number, characterCount: number, out: Float32Array) => Promise<number>;
+  dispatchAndRead: (
+    dt: number,
+    characterCount: number,
+    out: Float32Array,
+    groundY?: number,
+  ) => Promise<number>;
   destroy: () => void;
 };
 
@@ -154,7 +159,7 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
     size: 256,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  const frameF32 = new Float32Array(4);
+  const frameF32 = new Float32Array(8);
 
   let staticDirty = true;
   let colliderCount = 0;
@@ -378,7 +383,12 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
     }
   };
 
-  const dispatchAndRead: CollisionPass['dispatchAndRead'] = async (dt, characterCount, out) => {
+  const dispatchAndRead: CollisionPass['dispatchAndRead'] = async (
+    dt,
+    characterCount,
+    out,
+    groundY = 0,
+  ) => {
     if (characterCount === 0 || !characterBuffer || !colliderBuffer || !readbackBuffer) return 0;
     if (!cellStartBuffer || !cellCountBuffer || !cellIndexBuffer) return 0;
     if (readbackMapped) return 0;
@@ -387,6 +397,10 @@ export const createCollisionPass = (device: GpuDevice): CollisionPass => {
     frameF32[1] = characterCount;
     frameF32[2] = colliderCount;
     frameF32[3] = PHYSICS_STEP_SEC;
+    frameF32[4] = groundY;
+    frameF32[5] = 0;
+    frameF32[6] = 0;
+    frameF32[7] = 0;
     gpu.queue.writeBuffer(frameBuffer, 0, frameF32);
 
     const bindGroup = ensureComputeBindGroup();

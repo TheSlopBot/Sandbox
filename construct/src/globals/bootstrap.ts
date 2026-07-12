@@ -87,8 +87,10 @@ import {
   renameLevel,
   selectLevelGroup,
   selectLevelInstances,
+  selectLevelGroundPlane,
   selectLevelPlayerSpawn,
   selectLevelRoot,
+  setGroundPlaneVariant,
   setInstanceAiPackage,
   setLevelDocumentListener,
   setShowBones,
@@ -97,7 +99,6 @@ import {
   ungroup,
   ungroupInstances,
 } from '../session/levelEditor.ts';
-import { pickNearestLevelInstance } from '../entities/levelEditor/levelPick.ts';
 import { createConstructSessionState, type ConstructSession, type ConstructSessionDeps } from '../session/types.ts';
 
 const installOrbitInput = (
@@ -390,8 +391,9 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
     selectLevelGroup: (groupId) => selectLevelGroup(deps, state, groupId),
     selectLevelRoot: () => selectLevelRoot(deps, state),
     selectLevelPlayerSpawn: () => selectLevelPlayerSpawn(deps, state),
+    selectLevelGroundPlane: () => selectLevelGroundPlane(deps, state),
+    setGroundPlaneVariant: (variant) => setGroundPlaneVariant(deps, state, variant),
     getLevelSelection: () => getLevelSelection(state),
-    pickLevelInstanceAt: (clientX, clientY) => pickNearestLevelInstance(sceneRegistry, pipeline, canvas, clientX, clientY),
     renameLevel: (name) => renameLevel(deps, state, name),
     renameInstance: (instanceId, name) => renameInstance(state, instanceId, name),
     renameGroup: (groupId, name) => renameGroup(state, groupId, name),

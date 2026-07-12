@@ -4,14 +4,17 @@ import {
   type LevelColliderInstance,
   type LevelColliderShape,
   type LevelDefinition,
+  type LevelGroundPlane,
   type LevelNavGridConfig,
   type LevelPlayerSpawn,
   type LevelPropInstance,
   type PropDefinition,
   type SimplePropIndex,
+  DEFAULT_LEVEL_GROUND_PLANE,
   DEFAULT_LEVEL_NAV_GRID,
   DEFAULT_LEVEL_PLAYER_SPAWN,
   identityLevelLocal,
+  normalizeLevelGroundVariant,
   resolveLevelPropDefinition,
 } from 'viberanium';
 import {
@@ -37,6 +40,8 @@ export type LevelDocumentPropKind = 'simpleProp' | 'standardProp';
 export type LevelDocumentActorKind = 'simpleActor' | 'standardActor';
 
 export const LEVEL_PLAYER_SPAWN_ID = 'playerSpawn';
+
+export const LEVEL_GROUND_PLANE_ID = 'groundPlane';
 
 export const LEVEL_PLAYER_SPAWN_URL =
   'assets/kaykit/KayKit Character Animations 1.1/Mannequin Character/characters/Mannequin_Medium.glb';
@@ -85,6 +90,7 @@ export type LevelDocument = {
     colliders: LevelDocumentColliderInstance[];
   };
   playerSpawn: LevelPlayerSpawn;
+  groundPlane: LevelGroundPlane;
   groups: LevelDocumentGroup[];
 };
 
@@ -107,6 +113,11 @@ export const createEmptyLevelDocument = (): LevelDocument => ({
   playerSpawn: {
     position: [...DEFAULT_LEVEL_PLAYER_SPAWN.position] as [number, number, number],
     rotation: [...DEFAULT_LEVEL_PLAYER_SPAWN.rotation] as [number, number, number, number],
+  },
+  groundPlane: {
+    position: [...DEFAULT_LEVEL_GROUND_PLANE.position] as [number, number, number],
+    size: DEFAULT_LEVEL_GROUND_PLANE.size,
+    variant: DEFAULT_LEVEL_GROUND_PLANE.variant,
   },
   groups: [],
 });
@@ -345,6 +356,24 @@ const normalizePlayerSpawn = (raw: unknown): LevelPlayerSpawn => {
   };
 };
 
+const normalizeGroundPlane = (raw: unknown): LevelGroundPlane => {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      position: [...DEFAULT_LEVEL_GROUND_PLANE.position] as [number, number, number],
+      size: DEFAULT_LEVEL_GROUND_PLANE.size,
+      variant: DEFAULT_LEVEL_GROUND_PLANE.variant,
+    };
+  }
+
+  const plane = raw as Partial<LevelGroundPlane>;
+  const size = typeof plane.size === 'number' && plane.size > 0 ? plane.size : DEFAULT_LEVEL_GROUND_PLANE.size;
+  return {
+    position: readNumericTriple(plane.position) ?? ([...DEFAULT_LEVEL_GROUND_PLANE.position] as [number, number, number]),
+    size,
+    variant: normalizeLevelGroundVariant(plane.variant),
+  };
+};
+
 const parseEmbeddedPropDocument = (raw: unknown): PropDocument => {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid embedded prop');
 
@@ -433,6 +462,7 @@ export const parseLevelDocument = (raw: string): LevelDocument => {
       colliders: (compositionRaw.colliders ?? []).map(normalizeColliderInstance),
     },
     playerSpawn: normalizePlayerSpawn((doc as { playerSpawn?: unknown }).playerSpawn),
+    groundPlane: normalizeGroundPlane((doc as { groundPlane?: unknown }).groundPlane),
     groups: Array.isArray(doc.groups) ? doc.groups.map(normalizeGroup) : [],
   };
 };
@@ -502,6 +532,11 @@ export const toLevelDefinition = (doc: LevelDocument): LevelDefinition => {
     playerSpawn: {
       position: [...doc.playerSpawn.position] as [number, number, number],
       rotation: [...doc.playerSpawn.rotation] as [number, number, number, number],
+    },
+    groundPlane: {
+      position: [...doc.groundPlane.position] as [number, number, number],
+      size: doc.groundPlane.size,
+      variant: doc.groundPlane.variant,
     },
   };
 };
@@ -579,6 +614,56 @@ export const nextIndexId = (prefix: string, existing: Record<string, unknown>): 
   return id;
 };
 
+export const maxIdSuffix = (prefix: string, ids: Iterable<string>): number => {
+  const re = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`);
+  let max = 0;
+  for (const id of ids) {
+    const m = re.exec(id);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max;
+};
+
+const remappedUniqueIds = <T extends { id: string }>(
+  items: T[],
+  prefix: string,
+  used: Set<string>,
+): { items: T[]; changed: boolean } => {
+  let next = maxIdSuffix(prefix, [...used, ...items.map((item) => item.id)]);
+  let changed = false;
+  const result = items.map((item) => {
+    if (!used.has(item.id)) {
+      used.add(item.id);
+      return item;
+    }
+
+    next += 1;
+    const id = `${prefix}${next}`;
+    used.add(id);
+    changed = true;
+    return { ...item, id };
+  });
+  return { items: result, changed };
+};
+
+export const ensureUniqueInstanceIds = (doc: LevelDocument): LevelDocument => {
+  const used = new Set<string>();
+  const props = remappedUniqueIds(doc.composition.props, 'prop_', used);
+  const actors = remappedUniqueIds(doc.composition.actors, 'actor_', used);
+  const colliders = remappedUniqueIds(doc.composition.colliders, 'col_', used);
+
+  if (!props.changed && !actors.changed && !colliders.changed) return doc;
+
+  return {
+    ...doc,
+    composition: {
+      props: props.items,
+      actors: actors.items,
+      colliders: colliders.items,
+    },
+  };
+};
+
 export const uniqueInstanceName = (base: string, used: Set<string>): string => {
   if (!used.has(base)) return base;
   let n = 2;
@@ -623,6 +708,7 @@ export const resolveInstancePropDefinition = (
     index: { simpleProps: doc.index.simpleProps, standardProps: {}, simpleActors: {}, standardActors: {} },
     composition: { props: [], actors: [], colliders: [] },
     playerSpawn: doc.playerSpawn,
+    groundPlane: doc.groundPlane,
   };
   return resolveLevelPropDefinition(wrapper, instance);
 };

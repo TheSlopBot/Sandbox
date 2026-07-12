@@ -138,7 +138,11 @@ export const spawnEditorSceneScaffold = (deps: ConstructSessionDeps) => {
   deps.registry.register(animEnt);
 };
 
-export const resetEditorScene = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
+export const resetEditorScene = (
+  deps: ConstructSessionDeps,
+  state: ConstructSessionState,
+  opts?: { spawnGround?: boolean },
+) => {
   state.loadedModelUrl = null;
   state.currentClipsByName = new Map();
   state.activeMaterials = [];
@@ -151,5 +155,5 @@ export const resetEditorScene = (deps: ConstructSessionDeps, state: ConstructSes
   destroyAllEntities(deps.registry);
   spawnEditorSceneScaffold(deps);
   ensureSelectionEntity(deps, state);
-  ensureEditorGround(deps);
+  if (opts?.spawnGround !== false) ensureEditorGround(deps);
 };

@@ -94,6 +94,7 @@ export type UseConstructDocumentActionsParams = {
   setActorSelection: (selection: ActorEditorSelection) => void;
   setStatus: (status: string) => void;
   resetAnimationPreview: () => void;
+  onLocalLibraryChange?: () => void;
 };
 
 export const useConstructDocumentActions = ({
@@ -111,6 +112,7 @@ export const useConstructDocumentActions = ({
   setActorSelection,
   setStatus,
   resetAnimationPreview,
+  onLocalLibraryChange,
 }: UseConstructDocumentActionsParams) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -138,6 +140,7 @@ export const useConstructDocumentActions = ({
     if (previousId !== doc.id && getLocalPropEntry(previousId)) {
       removeLocalProp(previousId);
       saveLocalProp(doc);
+      onLocalLibraryChange?.();
     }
 
     return doc;
@@ -154,6 +157,7 @@ export const useConstructDocumentActions = ({
     if (previousId !== doc.id && getLocalActorEntry(previousId)) {
       removeLocalActor(previousId);
       saveLocalActor(doc);
+      onLocalLibraryChange?.();
     }
 
     return doc;
@@ -177,11 +181,13 @@ export const useConstructDocumentActions = ({
 
   const persistLocalProp = (doc: PropDocument) => {
     const entry = saveLocalProp(doc);
+    onLocalLibraryChange?.();
     setStatus(`Saved ${entry.displayName} to local storage`);
   };
 
   const persistLocalActor = (doc: ActorDocument) => {
     const entry = saveLocalActor(doc);
+    onLocalLibraryChange?.();
     setStatus(`Saved ${entry.displayName} to local storage`);
   };
 
@@ -462,6 +468,7 @@ export const useConstructDocumentActions = ({
   const onDeleteLocalPropEntry = (entry: PropLocalStoreEntry) => {
     removeLocalProp(entry.id);
     setLocalPropEntries(listLocalPropEntries());
+    onLocalLibraryChange?.();
     setStatus(`Deleted ${entry.displayName} from local storage`);
   };
 
@@ -487,6 +494,7 @@ export const useConstructDocumentActions = ({
   const onDeleteLocalActorEntry = (entry: ActorLocalStoreEntry) => {
     removeLocalActor(entry.id);
     setLocalActorEntries(listLocalActorEntries());
+    onLocalLibraryChange?.();
     setStatus(`Deleted ${entry.displayName} from local storage`);
   };
 

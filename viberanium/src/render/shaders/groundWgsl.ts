@@ -23,6 +23,15 @@ struct ObjectUniforms {
 struct VsOut {
   @builtin(position) position: vec4f,
   @location(0) worldPos: vec3f,
+  @location(1) uv: vec2f,
+};
+
+struct GroundPalette {
+  base: vec3f,
+  line: vec3f,
+  major: vec3f,
+  square: vec3f,
+  frame: vec3f,
 };
 
 fn sampleShadow(worldPos: vec3f, nrm: vec3f, lightDir: vec3f) -> f32 {
@@ -46,42 +55,135 @@ fn sampleShadow(worldPos: vec3f, nrm: vec3f, lightDir: vec3f) -> f32 {
   return select(1.0, shadow / 25.0, inBounds);
 }
 
+fn hash21(p: vec2f) -> f32 {
+  var p3 = fract(vec3f(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+fn hash22(p: vec2f) -> vec2f {
+  return vec2f(hash21(p), hash21(p + vec2f(17.13, 9.27)));
+}
+
+fn gridLine(p: vec2f, spacing: f32, aa: f32, halfWidth: f32) -> f32 {
+  let coord = p / spacing;
+  let cell = abs(fract(coord) - 0.5);
+  let d = min(0.5 - cell.x, 0.5 - cell.y) * spacing;
+  let line = 1.0 - smoothstep(halfWidth, halfWidth + aa * 1.5, d);
+  let fade = 1.0 - smoothstep(0.18, 0.65, aa);
+  return line * fade;
+}
+
+fn rotatedSquareMask(local: vec2f, halfSize: f32, angle: f32, aa: f32) -> f32 {
+  let c = cos(angle);
+  let s = sin(angle);
+  let q = vec2f(c * local.x - s * local.y, s * local.x + c * local.y);
+  let d = max(abs(q.x), abs(q.y)) - halfSize;
+  return 1.0 - smoothstep(-aa, aa * 1.25, d);
+}
+
+fn decorSquares(p: vec2f, aa: f32) -> f32 {
+  let cellSize = 1.4;
+  let cell = floor(p / cellSize);
+  var mask = 0.0;
+
+  for (var ox = -1; ox <= 1; ox++) {
+    for (var oz = -1; oz <= 1; oz++) {
+      let id = cell + vec2f(f32(ox), f32(oz));
+      let rnd = hash22(id);
+      if (rnd.x > 0.022) {
+        continue;
+      }
+
+      let rnd2 = hash22(id + vec2f(3.1, 7.7));
+      let center = (id + 0.5 + (rnd - 0.5) * 0.55) * cellSize;
+      let halfSize = mix(0.035, 0.085, rnd2.x);
+      let angle = rnd2.y * 6.2831853;
+      let local = p - center;
+      let sqAa = max(aa, 0.02);
+      mask = max(mask, rotatedSquareMask(local, halfSize, angle, sqAa));
+    }
+  }
+
+  let fade = 1.0 - smoothstep(0.25, 0.9, aa);
+  return mask * fade;
+}
+
+fn groundPalette(variant: i32) -> GroundPalette {
+  var p: GroundPalette;
+  if (variant == 1) {
+    p.base = vec3f(0.28, 0.48, 0.24);
+    p.line = vec3f(0.48, 0.68, 0.38);
+    p.major = vec3f(0.4, 0.58, 0.3);
+    p.square = vec3f(0.22, 0.4, 0.18);
+    p.frame = vec3f(0.42, 0.6, 0.34);
+  } else if (variant == 2) {
+    p.base = vec3f(0.46, 0.34, 0.24);
+    p.line = vec3f(0.66, 0.52, 0.38);
+    p.major = vec3f(0.58, 0.44, 0.3);
+    p.square = vec3f(0.36, 0.26, 0.18);
+    p.frame = vec3f(0.6, 0.46, 0.34);
+  } else if (variant == 3) {
+    p.base = vec3f(0.72, 0.6, 0.28);
+    p.line = vec3f(0.9, 0.8, 0.48);
+    p.major = vec3f(0.82, 0.7, 0.38);
+    p.square = vec3f(0.58, 0.48, 0.2);
+    p.frame = vec3f(0.84, 0.72, 0.42);
+  } else if (variant == 4) {
+    p.base = vec3f(0.52, 0.52, 0.54);
+    p.line = vec3f(0.68, 0.68, 0.7);
+    p.major = vec3f(0.62, 0.62, 0.64);
+    p.square = vec3f(0.42, 0.42, 0.44);
+    p.frame = vec3f(0.64, 0.64, 0.66);
+  } else {
+    p.base = vec3f(0.18, 0.42, 0.72);
+    p.line = vec3f(0.42, 0.62, 0.88);
+    p.major = vec3f(0.35, 0.55, 0.82);
+    p.square = vec3f(0.14, 0.34, 0.62);
+    p.frame = vec3f(0.32, 0.52, 0.78);
+  }
+  return p;
+}
+
 @vertex
 fn vsMain(
   @location(0) position: vec3f,
   @location(1) _normal: vec3f,
-  @location(2) _uv: vec2f,
+  @location(2) uv: vec2f,
 ) -> VsOut {
   var out: VsOut;
   let world = object.model * vec4f(position, 1.0);
   out.worldPos = world.xyz;
   out.position = frame.viewProj * world;
+  out.uv = uv;
   return out;
 }
 
 @fragment
 fn fsMain(input: VsOut) -> @location(0) vec4f {
   let p = input.worldPos.xz;
-  let cell = floor(p.x) + floor(p.y);
-  let baseSquare = cell - 2.0 * floor(cell * 0.5);
-  let paperA = vec3f(0.78, 0.76, 0.73);
-  let paperB = vec3f(0.74, 0.72, 0.69);
-  var col = mix(paperA, paperB, baseSquare);
+  let palette = groundPalette(i32(object.color.x + 0.5));
+  var col = palette.base;
 
-  let minorCell = abs(fract(p) - 0.5);
-  let minorD = 0.5 - minorCell;
-  let majorP = p / 5.0;
-  let majorCell = abs(fract(majorP) - 0.5);
-  let majorD = 0.5 - majorCell;
+  let aa = max(length(dpdx(p)), length(dpdy(p)));
+  let lineW = 0.012;
+  let minorLine = gridLine(p, 1.0, aa, lineW);
+  let midLine = gridLine(p, 5.0, aa, lineW * 3.0);
+  let majorLine = gridLine(p, 10.0, aa, lineW * 3.0);
 
-  let aaMinor = max(length(dpdx(p)), length(dpdy(p)));
-  let aaMajor = max(length(dpdx(majorP)), length(dpdy(majorP)));
+  col = mix(col, palette.line, minorLine * 0.4);
+  col = mix(col, palette.major, midLine * 0.55);
+  col = mix(col, palette.major, majorLine * 0.75);
 
-  let minorLine = 1.0 - smoothstep(0.0, aaMinor * 1.25, min(minorD.x, minorD.y));
-  let majorLine = 1.0 - smoothstep(0.0, aaMajor * 1.75, min(majorD.x, majorD.y));
+  let square = decorSquares(p, aa);
+  col = mix(col, palette.square, square * 0.92);
 
-  col = mix(col, vec3f(0.64, 0.62, 0.59), minorLine * 0.55);
-  col = mix(col, vec3f(0.54, 0.52, 0.49), majorLine * 0.85);
+  let edge = min(min(input.uv.x, 1.0 - input.uv.x), min(input.uv.y, 1.0 - input.uv.y));
+  let edgeAa = max(fwidth(edge), 0.001);
+  let frameBand = 1.0 - smoothstep(0.012, 0.012 + edgeAa * 2.0, edge);
+  let frameInner = 1.0 - smoothstep(0.028, 0.028 + edgeAa * 2.5, edge);
+  col = mix(col, palette.frame, frameInner * 0.35);
+  col = mix(col, palette.major, frameBand * 0.75);
 
   let n = vec3f(0.0, 1.0, 0.0);
   let shadow = sampleShadow(input.worldPos, n, frame.lightDir);

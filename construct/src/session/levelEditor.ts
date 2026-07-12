@@ -1,4 +1,33 @@
 import {
+  LEVEL_GROUND_PLANE_ID,
+  LEVEL_PLAYER_SPAWN_ID,
+  type LevelDocument,
+  type LevelDocumentActorInstance,
+  type LevelDocumentColliderInstance,
+  type LevelDocumentGroup,
+  type LevelDocumentPropInstance,
+  allInstanceNames,
+  applyLevelName,
+  cloneLevelDocument,
+  createEmptyLevelDocument,
+  findSimpleActorIndexId,
+  findSimplePropIndexId,
+  findStandardActorIndexId,
+  findStandardPropIndexId,
+  ensureUniqueInstanceIds,
+  maxIdSuffix,
+  nextIndexId,
+  resolveInstanceActorCharacter,
+  resolveInstanceActorDocument,
+  resolveInstancePropDefinition,
+  uniqueInstanceName,
+  withAnimDefaults,
+} from '../catalog/levels/levelDocument.ts';
+import { type PropDocument } from '../catalog/props/propDocument.ts';
+import { type ActorAiPackage, type ActorDocument } from '../catalog/actors/actorDocument.ts';
+import {
+  type GroundPlane,
+  type LevelGroundVariant,
   type LocalTransform,
   type Registry,
   type Renderable,
@@ -14,30 +43,6 @@ import {
   COMPONENT_KEYS,
 } from 'viberanium';
 import { CONSTRUCT_KEYS } from '../catalog/keys/components.ts';
-import {
-  LEVEL_PLAYER_SPAWN_ID,
-  type LevelDocument,
-  type LevelDocumentActorInstance,
-  type LevelDocumentColliderInstance,
-  type LevelDocumentGroup,
-  type LevelDocumentPropInstance,
-  allInstanceNames,
-  applyLevelName,
-  cloneLevelDocument,
-  createEmptyLevelDocument,
-  findSimpleActorIndexId,
-  findSimplePropIndexId,
-  findStandardActorIndexId,
-  findStandardPropIndexId,
-  nextIndexId,
-  resolveInstanceActorCharacter,
-  resolveInstanceActorDocument,
-  resolveInstancePropDefinition,
-  uniqueInstanceName,
-  withAnimDefaults,
-} from '../catalog/levels/levelDocument.ts';
-import { type PropDocument } from '../catalog/props/propDocument.ts';
-import { type ActorAiPackage, type ActorDocument } from '../catalog/actors/actorDocument.ts';
 import {
   boundsCenter,
   createEmptyBounds,
@@ -57,6 +62,7 @@ import { spawnLevelPropPlacementEntity } from '../entities/levelEditor/spawnLeve
 import { spawnLevelActorPlacementEntity } from '../entities/levelEditor/spawnLevelActorPlacement.ts';
 import { spawnLevelColliderPlacementEntity } from '../entities/levelEditor/spawnLevelColliderPlacement.ts';
 import { spawnLevelPlayerSpawnEntity } from '../entities/levelEditor/spawnLevelPlayerSpawn.ts';
+import { spawnLevelGroundPlaneEntity } from '../entities/levelEditor/spawnLevelGroundPlane.ts';
 import { defaultColliderPart } from '../entities/propEditor/spawnPropEditor.ts';
 import { LEVEL_GROUP_PIVOT_ID, LEVEL_MULTI_PIVOT_ID } from '../entities/levelEditor/levelPivot.ts';
 import { type ConstructEditorSelection } from '../entities/editorCommon/editorSelection.ts';
@@ -97,8 +103,19 @@ const levelSelectionAllowsScale = (
 ): boolean => {
   if (selection.groupId) return false;
   if (selection.instanceIds.length === 0) return false;
+  if (
+    selection.instanceIds.length === 1 &&
+    selection.instanceIds[0] === LEVEL_GROUND_PLANE_ID
+  ) {
+    return true;
+  }
   const colliderIds = new Set(doc.composition.colliders.map((c) => c.id));
   return selection.instanceIds.every((id) => colliderIds.has(id));
+};
+
+const levelSelectionAllowsRotate = (selection: ConstructLevelSelection): boolean => {
+  if (selection.groupId) return true;
+  return !selection.instanceIds.includes(LEVEL_GROUND_PLANE_ID);
 };
 
 const levelSelectionAllowedAxes = (
@@ -106,6 +123,12 @@ const levelSelectionAllowedAxes = (
   ids: string[],
 ): Axis[] | null => {
   if (ids.length === 0) return null;
+
+  if (ids.length === 1 && ids[0] === LEVEL_GROUND_PLANE_ID) {
+    const gizmo = state.selectionEnt.components[CONSTRUCT_KEYS.gizmoMode] as ConstructGizmoMode | undefined;
+    if (gizmo?.mode === 'rotate') return [];
+    return null;
+  }
 
   const actorIds = new Set(state.levelDocument.composition.actors.map((a) => a.id));
   actorIds.add(LEVEL_PLAYER_SPAWN_ID);
@@ -125,6 +148,10 @@ const applyLevelGizmoAxisPolicy = (state: ConstructSessionState, ids: string[]) 
     gizmo.mode = 'move';
   }
 
+  if (gizmo.mode === 'rotate' && !levelSelectionAllowsRotate(state.levelSelection)) {
+    gizmo.mode = 'move';
+  }
+
   gizmo.allowedAxes = levelSelectionAllowedAxes(state, ids);
 };
 
@@ -138,12 +165,54 @@ const clearLevelSelectionState = (state: ConstructSessionState) => {
   state.levelMultiPivotPrev = null;
 };
 
+const syncLevelInstanceCounters = (state: ConstructSessionState) => {
+  const doc = state.levelDocument;
+  state.levelPropCounter = maxIdSuffix(
+    'prop_',
+    doc.composition.props.map((p) => p.id),
+  );
+  state.levelActorCounter = maxIdSuffix(
+    'actor_',
+    doc.composition.actors.map((a) => a.id),
+  );
+  state.levelColliderCounter = maxIdSuffix(
+    'col_',
+    doc.composition.colliders.map((c) => c.id),
+  );
+  state.levelGroupCounter = maxIdSuffix(
+    'group_',
+    doc.groups.map((g) => g.id),
+  );
+};
+
+const prepareLevelInstanceAllocation = async (
+  deps: ConstructSessionDeps,
+  state: ConstructSessionState,
+) => {
+  const repaired = ensureUniqueInstanceIds(state.levelDocument);
+  if (repaired !== state.levelDocument) {
+    state.levelDocument = repaired;
+    await respawnAllLevelContent(deps, state);
+    notifyLevelDoc(state);
+  }
+  syncLevelInstanceCounters(state);
+};
+
 const findInstanceTRS = (doc: LevelDocument, id: string): LevelInstanceTRS | null => {
   if (id === LEVEL_PLAYER_SPAWN_ID) {
     return {
       position: doc.playerSpawn.position,
       rotation: doc.playerSpawn.rotation,
       scale: [1, 1, 1],
+    };
+  }
+
+  if (id === LEVEL_GROUND_PLANE_ID) {
+    const size = doc.groundPlane.size;
+    return {
+      position: doc.groundPlane.position,
+      rotation: [0, 0, 0, 1],
+      scale: [size, 1, size],
     };
   }
 
@@ -268,16 +337,20 @@ const respawnAllLevelContent = async (deps: ConstructSessionDeps, state: Constru
     rootId,
     state.levelDocument,
   );
+
+  spawnLevelGroundPlaneEntity(deps.device, deps.registry, rootId, state.levelDocument);
 };
 
 export const enterLevelMode = async (
   deps: ConstructSessionDeps,
   state: ConstructSessionState,
 ): Promise<LevelDocument> => {
-  resetEditorScene(deps, state);
+  resetEditorScene(deps, state, { spawnGround: false });
   state.editorMode = 'level';
   clearPropEditorEntities(deps.registry);
   clearActorEditorEntities(deps.registry);
+  state.levelDocument = ensureUniqueInstanceIds(state.levelDocument);
+  syncLevelInstanceCounters(state);
   ensureSelectionEntity(deps, state);
   clearLevelSelectionState(state);
   const sel = state.selectionEnt.components[CONSTRUCT_KEYS.editorSelection] as ConstructEditorSelection;
@@ -290,7 +363,7 @@ export const newLevel = async (
   deps: ConstructSessionDeps,
   state: ConstructSessionState,
 ): Promise<LevelDocument> => {
-  resetEditorScene(deps, state);
+  resetEditorScene(deps, state, { spawnGround: false });
   state.editorMode = 'level';
   clearPropEditorEntities(deps.registry);
   clearActorEditorEntities(deps.registry);
@@ -314,15 +387,12 @@ export const loadLevelDocument = async (
   state: ConstructSessionState,
   doc: LevelDocument,
 ): Promise<LevelDocument> => {
-  resetEditorScene(deps, state);
+  resetEditorScene(deps, state, { spawnGround: false });
   state.editorMode = 'level';
   clearPropEditorEntities(deps.registry);
   clearActorEditorEntities(deps.registry);
-  state.levelDocument = cloneLevelDocument(doc);
-  state.levelPropCounter = state.levelDocument.composition.props.length;
-  state.levelActorCounter = state.levelDocument.composition.actors.length;
-  state.levelColliderCounter = state.levelDocument.composition.colliders.length;
-  state.levelGroupCounter = state.levelDocument.groups.length;
+  state.levelDocument = ensureUniqueInstanceIds(cloneLevelDocument(doc));
+  syncLevelInstanceCounters(state);
   clearLevelSelectionState(state);
   ensureSelectionEntity(deps, state);
   const sel = state.selectionEnt.components[CONSTRUCT_KEYS.editorSelection] as ConstructEditorSelection;
@@ -382,6 +452,7 @@ export const addSimpleProp = async (
   displayName: string,
   textureVariantUrl: string | null = null,
 ): Promise<LevelDocument> => {
+  await prepareLevelInstanceAllocation(deps, state);
   const rootId = ensureLevelRootWithOrigin(deps, state);
 
   let indexId = findSimplePropIndexId(state.levelDocument, url, materialPrefix, textureVariantUrl);
@@ -446,14 +517,14 @@ export const addStandardProp = async (
   state: ConstructSessionState,
   doc: PropDocument,
 ): Promise<LevelDocument> => {
+  await prepareLevelInstanceAllocation(deps, state);
   const rootId = ensureLevelRootWithOrigin(deps, state);
 
   let indexId = findStandardPropIndexId(state.levelDocument, doc.id);
-  let nextIndex = state.levelDocument.index.standardProps;
   if (!indexId) {
     indexId = nextIndexId('standardProp', state.levelDocument.index.standardProps);
-    nextIndex = { ...nextIndex, [indexId]: doc };
   }
+  const nextIndex = { ...state.levelDocument.index.standardProps, [indexId]: doc };
 
   state.levelPropCounter += 1;
   const instanceId = `prop_${state.levelPropCounter}`;
@@ -505,6 +576,7 @@ export const addSimpleActor = async (
   displayName: string,
   textureVariantUrl: string | null = null,
 ): Promise<LevelDocument> => {
+  await prepareLevelInstanceAllocation(deps, state);
   const rootId = ensureLevelRootWithOrigin(deps, state);
 
   let indexId = findSimpleActorIndexId(state.levelDocument, url, materialPrefix, textureVariantUrl);
@@ -567,15 +639,15 @@ export const addStandardActor = async (
 ): Promise<LevelDocument> => {
   if (!doc.character) return state.levelDocument;
 
+  await prepareLevelInstanceAllocation(deps, state);
   const rootId = ensureLevelRootWithOrigin(deps, state);
   const docWithDefaults = withAnimDefaults(doc);
 
   let indexId = findStandardActorIndexId(state.levelDocument, docWithDefaults.id);
-  let nextIndex = state.levelDocument.index.standardActors;
   if (!indexId) {
     indexId = nextIndexId('standardActor', state.levelDocument.index.standardActors);
-    nextIndex = { ...nextIndex, [indexId]: docWithDefaults };
   }
+  const nextIndex = { ...state.levelDocument.index.standardActors, [indexId]: docWithDefaults };
 
   state.levelActorCounter += 1;
   const instanceId = `actor_${state.levelActorCounter}`;
@@ -612,11 +684,12 @@ export const addStandardActor = async (
 };
 
 
-export const addLevelCollider = (
+export const addLevelCollider = async (
   deps: ConstructSessionDeps,
   state: ConstructSessionState,
   shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
-): LevelDocument => {
+): Promise<LevelDocument> => {
+  await prepareLevelInstanceAllocation(deps, state);
   const rootId = ensureLevelRootWithOrigin(deps, state);
   state.levelColliderCounter += 1;
   const part = defaultColliderPart(shape, `col_${state.levelColliderCounter}`);
@@ -656,6 +729,31 @@ export const addLevelCollider = (
 
 export const selectLevelPlayerSpawn = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
   selectLevelInstances(deps, state, [LEVEL_PLAYER_SPAWN_ID]);
+};
+
+export const selectLevelGroundPlane = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
+  selectLevelInstances(deps, state, [LEVEL_GROUND_PLANE_ID]);
+};
+
+export const setGroundPlaneVariant = (
+  deps: ConstructSessionDeps,
+  state: ConstructSessionState,
+  variant: LevelGroundVariant,
+): LevelDocument => {
+  state.levelDocument = {
+    ...state.levelDocument,
+    groundPlane: {
+      ...state.levelDocument.groundPlane,
+      variant,
+    },
+  };
+
+  const entity = findLevelPlacementEntity(deps.registry, LEVEL_GROUND_PLANE_ID);
+  const ground = entity?.components[COMPONENT_KEYS.groundPlane] as GroundPlane | undefined;
+  if (ground) ground.variant = variant;
+
+  notifyLevelDoc(state);
+  return state.levelDocument;
 };
 
 export const selectLevelInstances = (
@@ -931,7 +1029,9 @@ export const removeInstances = (
   state: ConstructSessionState,
   ids: string[],
 ): LevelDocument => {
-  const idSet = new Set(ids.filter((id) => id !== LEVEL_PLAYER_SPAWN_ID));
+  const idSet = new Set(
+    ids.filter((id) => id !== LEVEL_PLAYER_SPAWN_ID && id !== LEVEL_GROUND_PLANE_ID),
+  );
   for (const id of idSet) removeLevelPlacementEntity(deps.registry, id);
 
   state.levelDocument = {
@@ -963,12 +1063,14 @@ export const createGroup = (
   const validIds = instanceIds.filter(
     (id) =>
       id !== LEVEL_PLAYER_SPAWN_ID &&
+      id !== LEVEL_GROUND_PLANE_ID &&
       (state.levelDocument.composition.props.some((p) => p.id === id) ||
         state.levelDocument.composition.actors.some((a) => a.id === id) ||
         state.levelDocument.composition.colliders.some((c) => c.id === id)),
   );
   if (validIds.length === 0) return state.levelDocument;
 
+  syncLevelInstanceCounters(state);
   state.levelGroupCounter += 1;
   const groupId = `group_${state.levelGroupCounter}`;
   const centroid = computeInstancesCentroid(state.levelDocument, validIds);
@@ -1014,7 +1116,9 @@ export const assignToGroup = (
   const group = state.levelDocument.groups.find((g) => g.id === groupId);
   if (!group) return state.levelDocument;
 
-  const idSet = new Set(instanceIds);
+  const idSet = new Set(
+    instanceIds.filter((id) => id !== LEVEL_PLAYER_SPAWN_ID && id !== LEVEL_GROUND_PLANE_ID),
+  );
   const memberSet = new Set([...group.memberInstanceIds, ...idSet]);
 
   state.levelDocument = {
@@ -1042,7 +1146,9 @@ export const ungroupInstances = (
   state: ConstructSessionState,
   instanceIds: string[],
 ): LevelDocument => {
-  const idSet = new Set(instanceIds.filter((id) => id !== LEVEL_PLAYER_SPAWN_ID));
+  const idSet = new Set(
+    instanceIds.filter((id) => id !== LEVEL_PLAYER_SPAWN_ID && id !== LEVEL_GROUND_PLANE_ID),
+  );
   if (idSet.size === 0) return state.levelDocument;
 
   const nextGroups = [];
@@ -1306,6 +1412,26 @@ const applyInstanceCommit = (
       playerSpawn: {
         position: trs.position,
         rotation: trs.rotation,
+      },
+    };
+    notifyLevelDoc(state);
+    return;
+  }
+
+  if (instanceId === LEVEL_GROUND_PLANE_ID) {
+    const size = Math.max(0.5, (Math.abs(trs.scale[0]) + Math.abs(trs.scale[2])) * 0.5);
+    const next: LevelInstanceTRS = {
+      position: trs.position,
+      rotation: [0, 0, 0, 1],
+      scale: [size, 1, size],
+    };
+    writeInstanceLocalToEntity(deps.registry, instanceId, next);
+    state.levelDocument = {
+      ...state.levelDocument,
+      groundPlane: {
+        position: next.position,
+        size,
+        variant: state.levelDocument.groundPlane.variant,
       },
     };
     notifyLevelDoc(state);

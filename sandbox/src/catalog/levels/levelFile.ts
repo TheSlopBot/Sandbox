@@ -2,12 +2,15 @@ import {
   type ActorDefinition,
   type LevelColliderInstance,
   type LevelDefinition,
+  type LevelGroundPlane,
   type LevelNavGridConfig,
   type LevelPlayerSpawn,
   type PropDefinition,
   type SimplePropIndex,
+  DEFAULT_LEVEL_GROUND_PLANE,
   DEFAULT_LEVEL_NAV_GRID,
   DEFAULT_LEVEL_PLAYER_SPAWN,
+  normalizeLevelGroundVariant,
 } from 'viberanium';
 
 export type LevelAiPackage = 'none' | 'testAi';
@@ -250,6 +253,23 @@ const normalizePlayerSpawn = (raw: unknown): LevelPlayerSpawn => {
   };
 };
 
+const normalizeGroundPlane = (raw: unknown): LevelGroundPlane => {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      position: [...DEFAULT_LEVEL_GROUND_PLANE.position] as [number, number, number],
+      size: DEFAULT_LEVEL_GROUND_PLANE.size,
+      variant: DEFAULT_LEVEL_GROUND_PLANE.variant,
+    };
+  }
+  const plane = raw as Partial<LevelGroundPlane>;
+  const size = typeof plane.size === 'number' && plane.size > 0 ? plane.size : DEFAULT_LEVEL_GROUND_PLANE.size;
+  return {
+    position: readNumericTriple(plane.position) ?? ([...DEFAULT_LEVEL_GROUND_PLANE.position] as [number, number, number]),
+    size,
+    variant: normalizeLevelGroundVariant(plane.variant),
+  };
+};
+
 export const parseLevelFile = (raw: string): ParsedLevelFile => {
   const data: unknown = JSON.parse(raw);
   if (!data || typeof data !== 'object') throw new Error('Invalid .level file');
@@ -271,6 +291,7 @@ export const parseLevelFile = (raw: string): ParsedLevelFile => {
       colliders?: unknown[];
     };
     playerSpawn?: unknown;
+    groundPlane?: unknown;
   };
 
   if (doc.version !== 1) throw new Error('Unsupported .level version');
@@ -358,6 +379,7 @@ export const parseLevelFile = (raw: string): ParsedLevelFile => {
         colliders: (doc.composition?.colliders ?? []).map(normalizeColliderInstance),
       },
       playerSpawn: normalizePlayerSpawn(doc.playerSpawn),
+      groundPlane: normalizeGroundPlane(doc.groundPlane),
     },
     aiPackages,
     documentJson: raw,

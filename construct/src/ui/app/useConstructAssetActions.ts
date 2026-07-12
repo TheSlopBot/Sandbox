@@ -188,10 +188,12 @@ export const useConstructAssetActions = ({
     if (!session) return;
 
     if (mode === 'level') {
-      const doc = session.addLevelCollider(shape);
-      setLevelDoc(doc);
-      setLevelSelection(session.getLevelSelection());
-      setStatus(`Added ${shape} collider`);
+      void (async () => {
+        const doc = await session.addLevelCollider(shape);
+        setLevelDoc(doc);
+        setLevelSelection(session.getLevelSelection());
+        setStatus(`Added ${shape} collider`);
+      })();
       return;
     }
 

@@ -1,25 +1,30 @@
-export type {
-  LevelNavGridConfig,
-  SimplePropIndex,
-  LevelPropKind,
-  LevelActorKind,
-  LevelPropInstance,
-  LevelActorInstance,
-  LevelColliderShape,
-  LevelColliderInstance,
-  LevelPlayerSpawn,
-  LevelIndex,
-  LevelComposition,
-  LevelDefinition,
-} from 'viberanium';
-
-export {
-  DEFAULT_LEVEL_NAV_GRID,
-  DEFAULT_LEVEL_PLAYER_SPAWN,
-  identityLevelLocal,
-  collectUrlsFromLevel,
-  resolveLevelPropDefinition,
-  resolveLevelActorDefinition,
-  resolveLevelColliderPropDefinition,
-} from 'viberanium';
-
+export type {
+  LevelNavGridConfig,
+  SimplePropIndex,
+  LevelPropKind,
+  LevelActorKind,
+  LevelPropInstance,
+  LevelActorInstance,
+  LevelColliderShape,
+  LevelColliderInstance,
+  LevelPlayerSpawn,
+  LevelGroundVariant,
+  LevelGroundPlane,
+  LevelIndex,
+  LevelComposition,
+  LevelDefinition,
+} from 'viberanium';
+
+export {
+  DEFAULT_LEVEL_NAV_GRID,
+  DEFAULT_LEVEL_PLAYER_SPAWN,
+  DEFAULT_LEVEL_GROUND_PLANE,
+  LEVEL_GROUND_VARIANTS,
+  groundVariantIndex,
+  normalizeLevelGroundVariant,
+  identityLevelLocal,
+  collectUrlsFromLevel,
+  resolveLevelPropDefinition,
+  resolveLevelActorDefinition,
+  resolveLevelColliderPropDefinition,
+} from 'viberanium';

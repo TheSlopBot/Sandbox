@@ -11,6 +11,7 @@ import {
   type CollisionCharacterInput,
 } from '../render/passes/collisionPass.ts';
 import { onCollisionStaticDirty } from './collisionStaticDirty.ts';
+import { readGroundPlaneY } from './readGroundPlaneY.ts';
 
 export type CollisionSystemOptions = {
   device: GpuDevice;
@@ -81,6 +82,8 @@ export const installCollisionSystem = (
       inputs.length = 0;
       entities.length = 0;
 
+      const groundY = readGroundPlaneY(registry);
+
       for (const e of registry.view(COMPONENT_KEYS.character)) {
         const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
         const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
@@ -91,7 +94,7 @@ export const installCollisionSystem = (
           cc.velocity[1] * cc.velocity[1] +
           cc.velocity[2] * cc.velocity[2];
         const foot = cc.halfHeight + cc.radius;
-        const airborne = t.position[1] - foot > 0.05;
+        const airborne = t.position[1] - foot > groundY + 0.05;
         const active = !(speed2 < 1e-10 && cc.onGround && !airborne);
         if (!active) continue;
 
@@ -122,7 +125,12 @@ export const installCollisionSystem = (
     const needed = packedCount * CHARACTER_STATE_FLOATS;
     if (readback.length < needed) readback = new Float32Array(needed);
 
-    const count = await pass.dispatchAndRead(packedDt, packedCount, readback);
+    const count = await pass.dispatchAndRead(
+      packedDt,
+      packedCount,
+      readback,
+      readGroundPlaneY(registry),
+    );
     if (count <= 0) return;
 
     applyReadback(readback, packedEntities, count);

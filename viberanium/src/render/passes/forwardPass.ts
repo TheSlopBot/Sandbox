@@ -10,6 +10,7 @@ import { groundWGSL } from '../shaders/groundWgsl.ts';
 import { instancedLitWGSL } from '../shaders/instancedLitWgsl.ts';
 import { createShadowPass } from './shadowPass.ts';
 import { type PreparedStaticBatch } from '../gl/staticPropBatcher.ts';
+import { groundVariantIndex } from '../../definitions/levels/levelDefinition.ts';
 
 const FRAME_UNIFORM_FLOATS = 44;
 const FRAME_UNIFORM_SIZE = FRAME_UNIFORM_FLOATS * 4;
@@ -533,7 +534,7 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
     };
 
     if (ground && groundObjectIndex >= 0) {
-      writeObject(groundObjectIndex, ground.model, [1, 1, 1, 1]);
+      writeObject(groundObjectIndex, ground.model, [groundVariantIndex(ground.variant), 0, 0, 1]);
     }
     for (let i = 0; i < opaqueList.length; i++) writeItemObject(opaqueList[i]!, opaqueIndices[i]!);
     for (let i = 0; i < transparentList.length; i++) {

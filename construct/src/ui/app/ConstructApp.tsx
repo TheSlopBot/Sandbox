@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { mapTextureVariants, resolveManifestEntryForAssetUrl } from '../../catalog/manifest/manifestLookup.ts';
 import { AppMenu } from '../menu/AppMenu.tsx';
 import { AssetExplorer } from '../explorer/AssetExplorer.tsx';
@@ -9,6 +9,7 @@ import { ActorInspector } from '../inspector/ActorInspector.tsx';
 import { ActorDetails } from '../inspector/ActorDetails.tsx';
 import { LevelInspector } from '../inspector/LevelInspector.tsx';
 import { LevelDetails } from '../inspector/LevelDetails.tsx';
+import { LEVEL_GROUND_PLANE_ID } from '../../catalog/levels/levelDocument.ts';
 import { OrientationCube } from '../orientation/OrientationCube.tsx';
 import { ViewerAnimHud } from '../viewer/ViewerAnimHud.tsx';
 import { ConfirmModal } from '../modals/ConfirmModal.tsx';
@@ -20,8 +21,8 @@ import { RenamePropModal } from '../modals/RenamePropModal.tsx';
 import { collectPropDocumentTags } from '../../catalog/props/propDocument.ts';
 import { parseActorDocument } from '../../catalog/actors/actorDocument.ts';
 import { parsePropDocument } from '../../catalog/props/propDocument.ts';
-import { listLocalPropEntries, type PropLocalStoreEntry } from '../../storage/propLocalStore.ts';
-import { listLocalActorEntries, type ActorLocalStoreEntry } from '../../storage/actorLocalStore.ts';
+import { listLocalPropEntries, saveLocalProp, type PropLocalStoreEntry } from '../../storage/propLocalStore.ts';
+import { listLocalActorEntries, saveLocalActor, type ActorLocalStoreEntry } from '../../storage/actorLocalStore.ts';
 import { useConstructSession } from './useConstructSession.ts';
 import { useManifestExplorer } from './useManifestExplorer.ts';
 import { useConstructViewer } from './useConstructViewer.ts';
@@ -94,14 +95,19 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   const levelScaleAllowed =
     !levelSelection.groupId &&
     levelSelection.instanceIds.length > 0 &&
-    levelSelection.instanceIds.every((id) =>
+    (levelSelection.instanceIds.every((id) =>
       levelDoc.composition.colliders.some((c) => c.id === id),
-    );
+    ) ||
+      (levelSelection.instanceIds.length === 1 &&
+        levelSelection.instanceIds[0] === LEVEL_GROUND_PLANE_ID));
+
+  const levelRotateAllowed = !levelSelection.instanceIds.includes(LEVEL_GROUND_PLANE_ID);
 
   const { mode, setMode, transformMode, setTransformMode } = useConstructMode({
     active,
     sessionRef,
     levelScaleAllowed,
+    levelRotateAllowed,
     setPropDoc,
     setActorDoc,
     setActorBoneNames,
@@ -196,6 +202,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setActorSelection,
     setStatus,
     resetAnimationPreview: handleAnimReset,
+    onLocalLibraryChange: refreshLevelStandardEntries,
   });
 
   const { propInspectorActions, actorInspectorActions, levelInspectorActions } = useConstructInspectorActions({
@@ -227,6 +234,11 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setLevelDoc,
     setLevelSelection,
   });
+
+  const handleModeChange = (next: typeof mode) => {
+    if (next === 'level') refreshLevelStandardEntries();
+    setMode(next);
+  };
 
   useEffect(() => {
     if (mode !== 'level') return;
@@ -360,6 +372,13 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setLevelSelection(session.getLevelSelection());
   };
 
+  const handleSelectLevelGroundPlane = () => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.selectLevelGroundPlane();
+    setLevelSelection(session.getLevelSelection());
+  };
+
   const handleShowCollidersChange = (show: boolean) => {
     setShowColliders(show);
     sessionRef.current?.setShowColliders(show);
@@ -370,40 +389,42 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     sessionRef.current?.setShowBones(show);
   };
 
-  const handleCanvasClick = (e: ReactMouseEvent<HTMLCanvasElement>) => {
-    if (mode !== 'level') return;
-    const session = sessionRef.current;
-    if (!session) return;
-
-    const hitId = session.pickLevelInstanceAt(e.clientX, e.clientY);
-    if (!hitId) return;
-
-    const additive = e.shiftKey || e.ctrlKey;
-    handleSelectLevelInstance(hitId, additive);
-  };
-
   const handleImportStandardFiles = (files: FileList) => {
     void (async () => {
+      let libraryChanged = false;
       for (const file of Array.from(files)) {
         try {
           const text = await file.text();
           if (file.name.endsWith('.actor')) {
-            onAddStandardActor(parseActorDocument(text));
+            const doc = parseActorDocument(text);
+            saveLocalActor(doc);
+            libraryChanged = true;
+            onAddStandardActor(doc);
             continue;
           }
           if (file.name.endsWith('.prop')) {
-            onAddStandardProp(parsePropDocument(text));
+            const doc = parsePropDocument(text);
+            saveLocalProp(doc);
+            libraryChanged = true;
+            onAddStandardProp(doc);
             continue;
           }
           try {
-            onAddStandardProp(parsePropDocument(text));
+            const doc = parsePropDocument(text);
+            saveLocalProp(doc);
+            libraryChanged = true;
+            onAddStandardProp(doc);
           } catch {
-            onAddStandardActor(parseActorDocument(text));
+            const doc = parseActorDocument(text);
+            saveLocalActor(doc);
+            libraryChanged = true;
+            onAddStandardActor(doc);
           }
         } catch (err) {
           setStatus(`Import error (${file.name}): ${String(err)}`);
         }
       }
+      if (libraryChanged) refreshLevelStandardEntries();
     })();
   };
 
@@ -492,7 +513,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     <div className="construct-root">
       <AppMenu
         mode={mode}
-        onModeChange={setMode}
+        onModeChange={handleModeChange}
         fileOpen={fileOpen}
         onFileOpenChange={setFileOpen}
         onNew={onNew}
@@ -633,7 +654,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
         <div className="construct-panelLeft">{mode === 'level' ? levelExplorer : explorer}</div>
 
         <div className="construct-viewer">
-          <canvas ref={canvasRef} className="construct-canvas" onClick={handleCanvasClick} />
+          <canvas ref={canvasRef} className="construct-canvas" />
           {mode === 'preview' ? (
             <ViewerAnimHud
               title={viewerTitle}
@@ -699,18 +720,20 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
             <div className="construct-toolRail">
               {TRANSFORM_MODES.map((tool) => {
                 const scaleDisabled = mode === 'level' && tool === 'scale' && !levelScaleAllowed;
+                const rotateDisabled = mode === 'level' && tool === 'rotate' && !levelRotateAllowed;
+                const toolDisabled = scaleDisabled || rotateDisabled;
                 return (
                   <button
                     key={tool}
                     type="button"
-                    disabled={scaleDisabled}
+                    disabled={toolDisabled}
                     className={
                       transformMode === tool
                         ? 'construct-toolBtn construct-toolBtnActive'
                         : 'construct-toolBtn'
                     }
                     onClick={() => {
-                      if (scaleDisabled) return;
+                      if (toolDisabled) return;
                       setTransformMode(tool);
                       sessionRef.current?.setTransformMode(tool);
                     }}
@@ -786,6 +809,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               onSelectInstance={handleSelectLevelInstance}
               onSelectGroup={handleSelectLevelGroup}
               onSelectPlayerSpawn={handleSelectLevelPlayerSpawn}
+              onSelectGroundPlane={handleSelectLevelGroundPlane}
             />
             <LevelDetails
               doc={levelDoc}
@@ -796,6 +820,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               onRenameGroup={levelInspectorActions.onRenameGroup}
               onSetInstanceAiPackage={levelInspectorActions.onSetInstanceAiPackage}
               onSetSimpleVariant={levelInspectorActions.onSetSimpleVariant}
+              onSetGroundPlaneVariant={levelInspectorActions.onSetGroundPlaneVariant}
               onRemoveInstances={levelInspectorActions.onRemoveInstances}
               onOpenGroupModal={() => setGroupModalOpen(true)}
               onUngroup={levelInspectorActions.onUngroup}

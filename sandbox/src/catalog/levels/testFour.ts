@@ -59,6 +59,7 @@ const definition: LevelDefinition = {
     colliders: [],
   },
   playerSpawn: { position: [0, 1.6, 0], rotation: [0, 0, 0, 1] },
+  groundPlane: { position: [0, 0, 0], size: 60, variant: 'blue' },
 };
 
 export const TEST_FOUR: LevelBuild = {

@@ -406,6 +406,8 @@
 
 .construct-explorerFooter {
   display: flex;
+  flex-shrink: 0;
+  margin-top: auto;
   padding: 10px 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -506,7 +508,9 @@
 .construct-explorer {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
   padding: 0;
   background: rgba(0, 0, 0, 0.10);

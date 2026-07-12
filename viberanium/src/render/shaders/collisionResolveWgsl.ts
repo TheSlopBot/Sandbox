@@ -4,6 +4,10 @@ struct FrameParams {
   characterCount: f32,
   colliderCount: f32,
   stepSec: f32,
+  groundY: f32,
+  _pad0: f32,
+  _pad1: f32,
+  _pad2: f32,
 };
 
 struct StaticCollider {
@@ -288,7 +292,7 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
   let foot = ch.halfHeight + ch.radius;
   let speed2 = ch.velX * ch.velX + ch.velY * ch.velY + ch.velZ * ch.velZ;
   let footY0 = ch.posY - foot;
-  if (speed2 < 1e-10 && ch.onGround > 0.5 && footY0 <= SURFACE_EPS + 0.05) {
+  if (speed2 < 1e-10 && ch.onGround > 0.5 && footY0 <= params.groundY + SURFACE_EPS + 0.05) {
     characters[i] = ch;
     return;
   }
@@ -339,8 +343,8 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
     let footY = ch.posY - foot;
     var supportY = -1e30;
     var hasSupport = false;
-    if (footY <= SURFACE_EPS) {
-      supportY = 0.0;
+    if (footY <= params.groundY + SURFACE_EPS) {
+      supportY = params.groundY;
       hasSupport = true;
     } else {
       for (var c = 0u; c < candCount; c++) {
@@ -404,8 +408,8 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
       box = capsuleAabb(pos, ch.radius, ch.halfHeight);
     }
 
-    if (ch.posY - foot < 0.0) {
-      ch.posY = foot;
+    if (ch.posY - foot < params.groundY) {
+      ch.posY = params.groundY + foot;
       ch.velY = 0.0;
       ch.onGround = 1.0;
     }

@@ -20,8 +20,15 @@ const cycleTransformMode = (
   return modes[next]!;
 };
 
-const levelTransformModes = (scaleAllowed: boolean): readonly PropEditorTransformMode[] =>
-  scaleAllowed ? TRANSFORM_MODES : (['move', 'rotate'] as const);
+const levelTransformModes = (
+  scaleAllowed: boolean,
+  rotateAllowed: boolean,
+): readonly PropEditorTransformMode[] => {
+  const modes: PropEditorTransformMode[] = ['move'];
+  if (scaleAllowed) modes.push('scale');
+  if (rotateAllowed) modes.push('rotate');
+  return modes;
+};
 
 const isEditableKeyboardTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -34,6 +41,7 @@ export type UseConstructModeParams = {
   active: boolean;
   sessionRef: RefObject<ConstructSession | null>;
   levelScaleAllowed: boolean;
+  levelRotateAllowed: boolean;
   setPropDoc: (doc: PropDocument) => void;
   setActorDoc: (doc: ActorDocument) => void;
   setActorBoneNames: (names: string[]) => void;
@@ -51,6 +59,7 @@ export const useConstructMode = ({
   active,
   sessionRef,
   levelScaleAllowed,
+  levelRotateAllowed,
   setPropDoc,
   setActorDoc,
   setActorBoneNames,
@@ -128,11 +137,16 @@ export const useConstructMode = ({
 
   useEffect(() => {
     if (!active || mode !== 'level') return;
-    if (transformMode !== 'scale' || levelScaleAllowed) return;
-
-    setTransformMode('move');
-    sessionRef.current?.setTransformMode('move');
-  }, [active, mode, transformMode, levelScaleAllowed]);
+    if (transformMode === 'scale' && !levelScaleAllowed) {
+      setTransformMode('move');
+      sessionRef.current?.setTransformMode('move');
+      return;
+    }
+    if (transformMode === 'rotate' && !levelRotateAllowed) {
+      setTransformMode('move');
+      sessionRef.current?.setTransformMode('move');
+    }
+  }, [active, mode, transformMode, levelScaleAllowed, levelRotateAllowed]);
 
   useEffect(() => {
     if (!active || (mode !== 'prop' && mode !== 'actor' && mode !== 'level')) return;
@@ -144,7 +158,10 @@ export const useConstructMode = ({
 
       e.preventDefault();
       const direction: 1 | -1 = e.shiftKey ? -1 : 1;
-      const modes = mode === 'level' ? levelTransformModes(levelScaleAllowed) : TRANSFORM_MODES;
+      const modes =
+        mode === 'level'
+          ? levelTransformModes(levelScaleAllowed, levelRotateAllowed)
+          : TRANSFORM_MODES;
       setTransformMode((current) => {
         const next = cycleTransformMode(current, direction, modes);
         sessionRef.current?.setTransformMode(next);
@@ -154,7 +171,7 @@ export const useConstructMode = ({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [active, mode, levelScaleAllowed]);
+  }, [active, mode, levelScaleAllowed, levelRotateAllowed]);
 
   return { mode, setMode, transformMode, setTransformMode };
 };

@@ -274,9 +274,10 @@ export const resolveCapsuleHorizontal = (
 export const getCapsuleSupportSurfaceY = (
   capsule: CapsuleY,
   obstacles: Collider[],
+  groundY = 0,
 ): number | null => {
   const footY = capsule.y - capsule.halfHeight - capsule.radius;
-  if (footY <= SURFACE_EPS) return 0;
+  if (footY <= groundY + SURFACE_EPS) return groundY;
 
   let bestTop = -Infinity;
   for (const s of obstacles) {

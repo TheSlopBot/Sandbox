@@ -287,14 +287,18 @@ export const installRenderPipeline = async (
       pushDrawItem(r.mesh, r.material, model, undefined, r.castShadow !== false, r.overlay === true);
     }
 
-    let ground: { mesh: Mesh; model: Mat4; alpha: number } | null = null;
+    let ground: { mesh: Mesh; model: Mat4; alpha: number; variant: GroundPlane['variant'] } | null =
+      null;
     for (const e of entityRegistry.view(COMPONENT_KEYS.groundPlane)) {
       const g = e.components[COMPONENT_KEYS.groundPlane] as GroundPlane | undefined;
       if (!g) continue;
+      const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
+      if (t) updateWorldMatrix(t);
       ground = {
         mesh: g.mesh,
-        model: g.model,
+        model: t?.world ?? g.model,
         alpha: camY < 0 ? 0.25 : 1,
+        variant: g.variant,
       };
       break;
     }

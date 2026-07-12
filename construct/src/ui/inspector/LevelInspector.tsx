@@ -1,4 +1,5 @@
 import {
+  LEVEL_GROUND_PLANE_ID,
   LEVEL_PLAYER_SPAWN_ID,
   type LevelDocument,
   type LevelDocumentActorInstance,
@@ -15,6 +16,7 @@ export type LevelInspectorProps = {
   onSelectInstance: (id: string, additive: boolean) => void;
   onSelectGroup: (groupId: string) => void;
   onSelectPlayerSpawn: () => void;
+  onSelectGroundPlane: () => void;
 };
 
 const instanceRow = (
@@ -44,11 +46,14 @@ export const LevelInspector = ({
   onSelectInstance,
   onSelectGroup,
   onSelectPlayerSpawn,
+  onSelectGroundPlane,
 }: LevelInspectorProps) => {
   const isRootSelected = selection.instanceIds.length === 0 && !selection.groupId;
   const selectedIds = new Set(selection.instanceIds);
   const playerSpawnSelected =
     selection.instanceIds.length === 1 && selection.instanceIds[0] === LEVEL_PLAYER_SPAWN_ID;
+  const groundPlaneSelected =
+    selection.instanceIds.length === 1 && selection.instanceIds[0] === LEVEL_GROUND_PLANE_ID;
 
   const simpleProps = doc.composition.props.filter((p) => p.kind === 'simpleProp');
   const standardProps = doc.composition.props.filter((p) => p.kind === 'standardProp');
@@ -73,6 +78,16 @@ export const LevelInspector = ({
           >
             <span>▤</span>
             <span>{doc.displayName}</span>
+          </div>
+
+          <div
+            className="construct-elementsRow"
+            style={{ paddingLeft: 16 }}
+            data-selected={groundPlaneSelected}
+            onClick={onSelectGroundPlane}
+          >
+            <span>▦</span>
+            <span>Ground Plane</span>
           </div>
 
           <div

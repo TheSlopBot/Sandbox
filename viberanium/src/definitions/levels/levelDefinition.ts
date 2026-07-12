@@ -59,6 +59,14 @@ export type LevelPlayerSpawn = {
   rotation: [number, number, number, number];
 };
 
+export type LevelGroundVariant = 'blue' | 'green' | 'brown' | 'yellow' | 'gray';
+
+export type LevelGroundPlane = {
+  position: [number, number, number];
+  size: number;
+  variant: LevelGroundVariant;
+};
+
 export type LevelIndex = {
   simpleProps: Record<string, SimplePropIndex>;
   standardProps: Record<string, PropDefinition>;
@@ -79,6 +87,7 @@ export type LevelDefinition = {
   index: LevelIndex;
   composition: LevelComposition;
   playerSpawn: LevelPlayerSpawn;
+  groundPlane: LevelGroundPlane;
 };
 
 export const DEFAULT_LEVEL_NAV_GRID: LevelNavGridConfig = {
@@ -92,6 +101,38 @@ export const DEFAULT_LEVEL_NAV_GRID: LevelNavGridConfig = {
 export const DEFAULT_LEVEL_PLAYER_SPAWN: LevelPlayerSpawn = {
   position: [0, 1.6, 0],
   rotation: [0, 0, 0, 1],
+};
+
+export const DEFAULT_LEVEL_GROUND_PLANE: LevelGroundPlane = {
+  position: [0, 0, 0],
+  size: 60,
+  variant: 'blue',
+};
+
+export const LEVEL_GROUND_VARIANTS: readonly LevelGroundVariant[] = [
+  'blue',
+  'green',
+  'brown',
+  'yellow',
+  'gray',
+];
+
+export const groundVariantIndex = (variant: LevelGroundVariant): number => {
+  const index = LEVEL_GROUND_VARIANTS.indexOf(variant);
+  return index < 0 ? 0 : index;
+};
+
+export const normalizeLevelGroundVariant = (raw: unknown): LevelGroundVariant => {
+  if (
+    raw === 'green' ||
+    raw === 'brown' ||
+    raw === 'yellow' ||
+    raw === 'blue' ||
+    raw === 'gray'
+  ) {
+    return raw;
+  }
+  return DEFAULT_LEVEL_GROUND_PLANE.variant;
 };
 
 export const identityLevelLocal = (): Pick<

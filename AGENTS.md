@@ -106,8 +106,8 @@ See `.cursor/rules/sandbox-structure.mdc` and `.cursor/rules/construct-structure
 
 ### Levels & assets
 
-- Portable shape: indexed `LevelDefinition` in viberanium (`simpleProps` / `standardProps` / `simpleActors` / `standardActors` + props/actors/colliders composition + `playerSpawn`)
-- Authoring: Construct `LevelDocument` (`.level`) with groups + `aiPackage` + player spawn; shared localStorage key `construct.levelLocalStore`
+- Portable shape: indexed `LevelDefinition` in viberanium (`simpleProps` / `standardProps` / `simpleActors` / `standardActors` + props/actors/colliders composition + `playerSpawn` + `groundPlane`)
+- Authoring: Construct `LevelDocument` (`.level`) with groups + `aiPackage` + player spawn + ground plane; shared localStorage key `construct.levelLocalStore`
 - Sandbox: seed store on boot; Digit0 opens level modal; Digit1–4 load testOne–testFour; each `switchTo` creates a fresh scene
 - Preload via `collectUrlsFromLevel` (index only)
 - `scene.load()` creates level content; `scene.unload()` destroys everything on the scene registry

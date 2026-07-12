@@ -7,9 +7,9 @@ import { type CameraFollow } from '../components/cameraFollow.ts';
 import { type RenderPipeline } from '../render/pipeline.ts';
 import { rayAabbDistance } from '../collision/aabb.ts';
 import { v3Set } from '../math/vec3.ts';
+import { readGroundPlaneY } from './readGroundPlaneY.ts';
 
 const MIN_DIST = 1.0;
-const GROUND_Y = 0;
 const CAM_RADIUS = 0.15;
 const SPATIAL_CELL = 4;
 
@@ -135,6 +135,7 @@ export const installCameraFollowSystem = (
 
   registry.addAction('postUpdate', (ctx) => {
     const colliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
+    const groundY = readGroundPlaneY(registry);
 
     for (const e of registry.view(COMPONENT_KEYS.cameraFollow)) {
       const cf = e.components[COMPONENT_KEYS.cameraFollow] as CameraFollow;
@@ -163,7 +164,7 @@ export const installCameraFollowSystem = (
       let dist = idealDist;
 
       if (rayY < 0) {
-        const groundT = (GROUND_Y + CAM_RADIUS - pivotY) / rayY;
+        const groundT = (groundY + CAM_RADIUS - pivotY) / rayY;
         if (groundT >= MIN_DIST) dist = Math.min(dist, groundT);
       }
 
@@ -177,7 +178,7 @@ export const installCameraFollowSystem = (
       let camY = pivotY + rayY * cf.currentDist;
       let camZ = pivotZ + rayZ * cf.currentDist;
 
-      if (camY < GROUND_Y + CAM_RADIUS) camY = GROUND_Y + CAM_RADIUS;
+      if (camY < groundY + CAM_RADIUS) camY = groundY + CAM_RADIUS;
 
       v3Set(pipeline.camera.position, camX, camY, camZ);
       v3Set(pipeline.target, pivotX, pivotY, pivotZ);

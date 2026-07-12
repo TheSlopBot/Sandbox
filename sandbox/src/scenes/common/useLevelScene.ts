@@ -86,5 +86,12 @@ export const useLevelScene = (
       }
     : undefined;
 
-  return createPlayableScene(deps, definition.navGrid, spawnProps, spawnNpcs, definition.playerSpawn);
+  return createPlayableScene(
+    deps,
+    definition.navGrid,
+    spawnProps,
+    spawnNpcs,
+    definition.playerSpawn,
+    definition.groundPlane,
+  );
 };

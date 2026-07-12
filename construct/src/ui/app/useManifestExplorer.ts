@@ -69,9 +69,9 @@ export const useManifestExplorer = ({ active, setStatus }: UseManifestExplorerPa
   const [selectedEntry, setSelectedEntry] = useState<KaykitManifestEntry | null>(null);
   const [explorerQueryInput, setExplorerQueryInput] = useState<string>('');
   const [explorerQuery, setExplorerQuery] = useState<string>('');
-  const [assetsExpanded, setAssetsExpanded] = useState(true);
-  const [charactersExpanded, setCharactersExpanded] = useState(true);
-  const [colliderExpanded, setColliderExpanded] = useState(true);
+  const [assetsExpanded, setAssetsExpanded] = useState(false);
+  const [charactersExpanded, setCharactersExpanded] = useState(false);
+  const [colliderExpanded, setColliderExpanded] = useState(false);
 
   useEffect(() => {
     if (!active) return;
