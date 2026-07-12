@@ -10,7 +10,7 @@ import {
 import { CONSTRUCT_KEYS } from '../catalog/keys/components.ts';
 import { createConstructEditorSelection } from '../entities/editorCommon/editorSelection.ts';
 import { createConstructActorSelection } from '../entities/actorEditor/actorSelection.ts';
-import { createConstructGizmoMode } from '../entities/gizmos/gizmoMode.ts';
+import { createConstructGizmoMode, type ConstructGizmoMode } from '../entities/gizmos/gizmoMode.ts';
 import { spawnConstructGround } from '../entities/ground/spawnGround.ts';
 import { type ConstructSessionDeps, type ConstructSessionState } from '../session/types.ts';
 import { stopModeSystems } from './installEditorSystems.ts';
@@ -103,9 +103,12 @@ export const createSelectionEntity = (registry: Registry): Entity => {
 };
 
 export const ensureSelectionEntity = (deps: ConstructSessionDeps, state: ConstructSessionState) => {
-  if (deps.registry.get(state.selectionEnt.id)) return;
+  if (!deps.registry.get(state.selectionEnt.id)) {
+    state.selectionEnt = createSelectionEntity(deps.registry);
+  }
 
-  state.selectionEnt = createSelectionEntity(deps.registry);
+  const gizmo = state.selectionEnt.components[CONSTRUCT_KEYS.gizmoMode] as ConstructGizmoMode;
+  gizmo.moveOrientation = state.editorMode === 'actor' ? 'local' : 'world';
 };
 
 export const ensureEditorGround = (deps: ConstructSessionDeps) => {

@@ -4,6 +4,9 @@ import {
   type RenderPipeline,
   type Vec3,
   m4,
+  q4,
+  q4Normalize,
+  q4TransformVec3,
   v3,
   COMPONENT_KEYS,
 } from 'viberanium';
@@ -22,31 +25,61 @@ import {
 } from './gizmoFrame.ts';
 import { pickHandle, unprojectScreenRay } from './gizmoPicking.ts';
 import { commitPartLocal, findEditableTarget, resolveGizmoSelection, syncPartWorld } from './gizmoTarget.ts';
+import { type ConstructGizmoMoveOrientation } from './gizmoMode.ts';
 
 const SHIFT_SNAP = 0.1;
 const SHIFT_ROTATE_SNAP = (15 * Math.PI) / 180;
+
+const _axisLocal = v3();
+const _rotatedAxis = v3();
+const _rotQ = q4();
 
 const snapToIncrement = (value: number, increment: number) =>
   Math.round(value / increment) * increment;
 
 const axisIndex = (axis: Axis) => (axis === 'x' ? 0 : axis === 'y' ? 1 : 2);
 
+const unitAxis = (out: Vec3, axis: Axis) => {
+  out[0] = axis === 'x' ? 1 : 0;
+  out[1] = axis === 'y' ? 1 : 0;
+  out[2] = axis === 'z' ? 1 : 0;
+  return out;
+};
+
+const applyLocalAxisMove = (
+  local: LocalTransform,
+  startPos: [number, number, number],
+  startRot: [number, number, number, number],
+  axis: Axis,
+  delta: number,
+) => {
+  _rotQ[0] = startRot[0];
+  _rotQ[1] = startRot[1];
+  _rotQ[2] = startRot[2];
+  _rotQ[3] = startRot[3];
+  q4TransformVec3(_rotatedAxis, _rotQ, unitAxis(_axisLocal, axis));
+  local.position[0] = startPos[0] + _rotatedAxis[0] * delta;
+  local.position[1] = startPos[1] + _rotatedAxis[1] * delta;
+  local.position[2] = startPos[2] + _rotatedAxis[2] * delta;
+};
+
 const quatMulLocal = (local: LocalTransform, axis: Axis, angle: number) => {
   const half = angle * 0.5;
   const s = Math.sin(half);
   const c = Math.cos(half);
-  const qx = axis === 'x' ? s : 0;
-  const qy = axis === 'y' ? s : 0;
-  const qz = axis === 'z' ? s : 0;
-  const qw = c;
+  const dx = axis === 'x' ? s : 0;
+  const dy = axis === 'y' ? s : 0;
+  const dz = axis === 'z' ? s : 0;
+  const dw = c;
   const x = local.rotation[0];
   const y = local.rotation[1];
   const z = local.rotation[2];
   const w = local.rotation[3];
-  local.rotation[0] = qw * x + qx * w + qy * z - qz * y;
-  local.rotation[1] = qw * y - qx * z + qy * w + qz * x;
-  local.rotation[2] = qw * z + qx * y - qy * x + qz * w;
-  local.rotation[3] = qw * w - qx * x - qy * y - qz * z;
+  local.rotation[0] = w * dx + x * dw + y * dz - z * dy;
+  local.rotation[1] = w * dy - x * dz + y * dw + z * dx;
+  local.rotation[2] = w * dz + x * dy - y * dx + z * dw;
+  local.rotation[3] = w * dw - x * dx - y * dy - z * dz;
+  q4Normalize(local.rotation, local.rotation);
 };
 
 const rayPlaneHit = (
@@ -119,6 +152,7 @@ const projectRayOntoAxis = (
 type DragState = {
   axis: Axis;
   mode: PropEditorTransformMode;
+  moveOrientation: ConstructGizmoMoveOrientation;
   partId: string;
   axisSign: 1 | -1;
   startLocalPos: [number, number, number];
@@ -165,6 +199,7 @@ export const installConstructGizmoInput = (
     e: PointerEvent,
     axis: Axis,
     mode: PropEditorTransformMode,
+    moveOrientation: ConstructGizmoMoveOrientation,
     partId: string,
     origin: Vec3,
     axisSign: 1 | -1,
@@ -205,6 +240,7 @@ export const installConstructGizmoInput = (
     drag = {
       axis,
       mode,
+      moveOrientation,
       partId,
       axisSign,
       startLocalPos: [local.position[0], local.position[1], local.position[2]],
@@ -292,8 +328,13 @@ export const installConstructGizmoInput = (
         const rawDelta = tNow - drag.startAxisT;
         const i = axisIndex(drag.axis);
         if (drag.mode === 'move') {
-          const next = drag.startLocalPos[i] + rawDelta;
-          local.position[i] = snap ? snapToIncrement(next, SHIFT_SNAP) : next;
+          if (drag.moveOrientation === 'world') {
+            const next = drag.startLocalPos[i] + rawDelta;
+            local.position[i] = snap ? snapToIncrement(next, SHIFT_SNAP) : next;
+          } else {
+            const delta = snap ? snapToIncrement(rawDelta, SHIFT_SNAP) : rawDelta;
+            applyLocalAxisMove(local, drag.startLocalPos, drag.startLocalRot, drag.axis, delta);
+          }
         } else {
           const next = Math.max(0.05, drag.startLocalScale[i] + rawDelta * drag.axisSign);
           local.scale[i] = snap ? Math.max(0.05, snapToIncrement(next, SHIFT_SNAP)) : next;
@@ -328,7 +369,7 @@ export const installConstructGizmoInput = (
 
     e.preventDefault();
     e.stopPropagation();
-    beginDrag(e, axis, ctx.mode, ctx.targetId, ctx.origin, ctx.signs[axis], ctx.frame);
+    beginDrag(e, axis, ctx.mode, ctx.moveOrientation, ctx.targetId, ctx.origin, ctx.signs[axis], ctx.frame);
   };
 
   const onPointerMove = (e: PointerEvent) => {

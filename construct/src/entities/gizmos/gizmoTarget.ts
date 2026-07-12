@@ -4,13 +4,10 @@ import {
   type LocalTransform,
   type RenderPipeline,
   type Registry,
-  type SkeletalModel,
   type Transform,
   type Vec3,
   m4,
-  m4Copy,
   m4Mul,
-  updateWorldMatrix,
   v3,
   COMPONENT_KEYS,
 } from 'viberanium';
@@ -19,11 +16,12 @@ import { type ConstructEditableTarget } from '../editorCommon/editableTarget.ts'
 import { type ConstructEditorSelection } from '../editorCommon/editorSelection.ts';
 import { syncPartLocalToWorld } from '../editorCommon/syncPartLocal.ts';
 import { syncAttachmentOffsetFromLocal } from '../actorEditor/spawnActorAttachment.ts';
-import { type ConstructGizmoMode } from './gizmoMode.ts';
+import { type ConstructGizmoMode, type ConstructGizmoMoveOrientation } from './gizmoMode.ts';
 import { type PropDocument, type PropEditorTransformMode } from '../../catalog/props/propDocument.ts';
 import { type Axis } from './meshes.ts';
 import {
   type GizmoFrame,
+  boneWorldForAttachment,
   currentSigns,
   gizmoOriginForPart,
   resolveGizmoFrame,
@@ -45,28 +43,23 @@ export const syncPartWorld = (registry: Registry, selected: Entity) => {
   if (boneAtt) {
     syncAttachmentOffsetFromLocal(selected);
 
-    const childOf = selected.components[COMPONENT_KEYS.childOf] as { parentId: number } | undefined;
     const t = selected.components[COMPONENT_KEYS.transform] as Transform | undefined;
-    if (!childOf || !t) return;
+    if (!t) return;
 
-    const parent = registry.get(childOf.parentId);
-    const parentT = parent?.components[COMPONENT_KEYS.transform] as Transform | undefined;
-    const parentModel = parent?.components[COMPONENT_KEYS.skeletalModel] as SkeletalModel | undefined;
-    if (!parentT || !parentModel) return;
-
-    const boneNode = parentModel.bodyScene.nodes[boneAtt.boneNodeIndex];
-    if (!boneNode) return;
-
-    updateWorldMatrix(parentT);
-
-    const renderRoot = m4();
     const boneWorld = m4();
-    m4Copy(renderRoot, parentT.world);
-    renderRoot[13]! += parentModel.visualYOffset;
-    m4Mul(boneWorld, renderRoot, boneNode.worldM);
+    if (!boneWorldForAttachment(boneWorld, registry, selected, boneAtt)) return;
+
     m4Mul(t.world, boneWorld, boneAtt.localOffset);
     t.dirty = false;
     return;
+  }
+
+  const childOf = selected.components[COMPONENT_KEYS.childOf] as { parentId: number } | undefined;
+  if (childOf) {
+    const parent = registry.get(childOf.parentId);
+    if (parent?.components[COMPONENT_KEYS.boneAttachment]) {
+      syncPartWorld(registry, parent);
+    }
   }
 
   syncPartLocalToWorld(registry, selected);
@@ -108,6 +101,7 @@ export type GizmoSelectionContext = {
   selected: Entity;
   targetId: string;
   mode: PropEditorTransformMode;
+  moveOrientation: ConstructGizmoMoveOrientation;
   origin: Vec3;
   frame: GizmoFrame;
   signs: Record<Axis, 1 | -1>;
@@ -125,10 +119,13 @@ export const resolveGizmoSelection = (
   const selectedT = selected?.components[COMPONENT_KEYS.transform] as Transform | undefined;
   if (!selected || !selectedT || !targetId) return null;
 
+  syncPartWorld(registry, selected);
+
   const origin = gizmoOriginForPart(v3(), selected, selectedT);
   const mode = gizmoMode?.mode ?? 'move';
-  const frame = resolveGizmoFrame(registry, selected);
+  const moveOrientation = gizmoMode?.moveOrientation ?? 'world';
+  const frame = resolveGizmoFrame(registry, selected, moveOrientation, mode);
   const signs = currentSigns(pipeline.camera.position, origin, frame);
 
-  return { selected, targetId, mode, origin, frame, signs };
+  return { selected, targetId, mode, moveOrientation, origin, frame, signs };
 };

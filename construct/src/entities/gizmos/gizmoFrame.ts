@@ -8,13 +8,14 @@ import {
   type Vec3,
   m4,
   m4Copy,
-  m4Invert,
   m4Mul,
   updateWorldMatrix,
   v3,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { type Axis, CUBE_HALF, SHAFT_LEN } from './meshes.ts';
+import { type ConstructGizmoMoveOrientation } from './gizmoMode.ts';
+import { type PropEditorTransformMode } from '../../catalog/props/propDocument.ts';
 import { partModelSpaceCenter, worldFromModelPoint } from '../propEditor/partPivot.ts';
 
 const GIZMO_SCALE = 1;
@@ -110,26 +111,21 @@ export const boneWorldForAttachment = (
   return out;
 };
 
-export const resolveGizmoFrame = (registry: Registry, selected: Entity | null): GizmoFrame => {
+export const resolveGizmoFrame = (
+  _registry: Registry,
+  selected: Entity | null,
+  moveOrientation: ConstructGizmoMoveOrientation = 'local',
+  mode: PropEditorTransformMode = 'move',
+): GizmoFrame => {
+  if (mode === 'move' && moveOrientation === 'world') return createWorldGizmoFrame();
+
   const frame = createWorldGizmoFrame();
   if (!selected) return frame;
 
-  const boneAtt = selected.components[COMPONENT_KEYS.boneAttachment] as BoneAttachment | undefined;
-  if (!boneAtt) return frame;
-
   const t = selected.components[COMPONENT_KEYS.transform] as Transform | undefined;
-  if (t) {
-    const invOffset = m4();
-    const boneWorld = m4();
-    m4Invert(invOffset, boneAtt.localOffset);
-    m4Mul(boneWorld, t.world, invOffset);
-    if (extractFrameAxes(frame, boneWorld)) return frame;
-  }
+  if (t && extractFrameAxes(frame, t.world)) return frame;
 
-  const boneWorld = m4();
-  if (!boneWorldForAttachment(boneWorld, registry, selected, boneAtt)) return createWorldGizmoFrame();
-  if (!extractFrameAxes(frame, boneWorld)) return createWorldGizmoFrame();
-  return frame;
+  return createWorldGizmoFrame();
 };
 
 export const frameAxis = (frame: GizmoFrame, axis: Axis) =>
