@@ -98,6 +98,8 @@ import {
   setSimpleVariant,
   ungroup,
   ungroupInstances,
+  updateGroupLocal,
+  updateInstanceLocal,
 } from '../session/levelEditor.ts';
 import { createConstructSessionState, type ConstructSession, type ConstructSessionDeps } from '../session/types.ts';
 
@@ -397,6 +399,8 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
     renameLevel: (name) => renameLevel(deps, state, name),
     renameInstance: (instanceId, name) => renameInstance(state, instanceId, name),
     renameGroup: (groupId, name) => renameGroup(state, groupId, name),
+    updateInstanceLocal: (instanceId, patch) => updateInstanceLocal(deps, state, instanceId, patch),
+    updateGroupLocal: (groupId, patch) => updateGroupLocal(deps, state, groupId, patch),
     setInstanceAiPackage: (instanceId, aiPackage) => setInstanceAiPackage(state, instanceId, aiPackage),
     setSimpleVariant: (instanceId, variantUrl) => setSimpleVariant(deps, state, instanceId, variantUrl),
     removeInstances: (ids) => removeInstances(deps, state, ids),

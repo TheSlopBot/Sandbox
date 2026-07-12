@@ -34,6 +34,7 @@ import {
   type SimplePropCollider,
   type SimplePropIndex,
   type Transform,
+  createLocalTransform,
   q4,
   q4Conjugate,
   q4Normalize,
@@ -78,6 +79,7 @@ import {
   type ConstructLevelSelection,
   type ConstructSessionDeps,
   type ConstructSessionState,
+  type ConstructTransformPatch,
 } from './types.ts';
 
 type LevelInstanceTRS = {
@@ -1492,4 +1494,79 @@ export const applyLevelGizmoCommit = (
     return;
   }
   applyInstanceCommit(deps, state, targetId, local);
+};
+
+const trsToLocal = (trs: LevelInstanceTRS): LocalTransform => {
+  const local = createLocalTransform();
+  applyLocalFromTRS(local, trs);
+  return local;
+};
+
+const mergeInstancePatch = (
+  current: LevelInstanceTRS,
+  patch: ConstructTransformPatch,
+  options: { allowScale: boolean; allowRotate: boolean },
+): LevelInstanceTRS => ({
+  position: patch.position
+    ? [patch.position[0], patch.position[1], patch.position[2]]
+    : [current.position[0], current.position[1], current.position[2]],
+  rotation:
+    options.allowRotate && patch.rotation
+      ? [patch.rotation[0], patch.rotation[1], patch.rotation[2], patch.rotation[3]]
+      : [current.rotation[0], current.rotation[1], current.rotation[2], current.rotation[3]],
+  scale:
+    options.allowScale && patch.scale
+      ? [patch.scale[0], patch.scale[1], patch.scale[2]]
+      : [current.scale[0], current.scale[1], current.scale[2]],
+});
+
+export const updateInstanceLocal = (
+  deps: ConstructSessionDeps,
+  state: ConstructSessionState,
+  instanceId: string,
+  patch: ConstructTransformPatch,
+): LevelDocument => {
+  const current = findInstanceTRS(state.levelDocument, instanceId);
+  if (!current) return state.levelDocument;
+
+  const selection: ConstructLevelSelection = { instanceIds: [instanceId], groupId: null };
+  const next = mergeInstancePatch(current, patch, {
+    allowScale: levelSelectionAllowsScale(state.levelDocument, selection),
+    allowRotate: levelSelectionAllowsRotate(selection),
+  });
+
+  applyInstanceCommit(deps, state, instanceId, trsToLocal(next));
+  return state.levelDocument;
+};
+
+export const updateGroupLocal = (
+  deps: ConstructSessionDeps,
+  state: ConstructSessionState,
+  groupId: string,
+  patch: ConstructTransformPatch,
+): LevelDocument => {
+  const group = state.levelDocument.groups.find((g) => g.id === groupId);
+  if (!group) return state.levelDocument;
+
+  const next = mergeInstancePatch(
+    { position: group.position, rotation: group.rotation, scale: group.scale },
+    patch,
+    { allowScale: false, allowRotate: true },
+  );
+
+  const pivot = findLevelPivotEntity(deps.registry, 'group');
+  const local = pivot?.components[COMPONENT_KEYS.localTransform] as LocalTransform | undefined;
+  const t = pivot?.components[COMPONENT_KEYS.transform] as Transform | undefined;
+  const childOf = pivot?.components[COMPONENT_KEYS.childOf] as { parentId: number } | undefined;
+  const parent = childOf ? deps.registry.get(childOf.parentId) : null;
+  const parentT = parent?.components[COMPONENT_KEYS.transform] as Transform | undefined;
+
+  const commitLocal = local ?? trsToLocal(next);
+  applyLocalFromTRS(commitLocal, next);
+  if (local && t && parentT) {
+    bakeChildWorld(parentT, t, local);
+  }
+
+  applyGroupPivotCommit(deps, state, commitLocal);
+  return state.levelDocument;
 };

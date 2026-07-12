@@ -100,9 +100,17 @@ export const spawnLevelPlayerSpawnEntity = async (
 
   for (const mat of mats) {
 
-    mat.baseColorFactor[3] = 0.75;
+    mat.baseColorTex = null;
 
-    mat.alphaMode = 'BLEND';
+    mat.baseColorFactor[0] = 0.2;
+
+    mat.baseColorFactor[1] = 0.85;
+
+    mat.baseColorFactor[2] = 0.25;
+
+    mat.baseColorFactor[3] = 1;
+
+    mat.alphaMode = 'OPAQUE';
 
   }
 

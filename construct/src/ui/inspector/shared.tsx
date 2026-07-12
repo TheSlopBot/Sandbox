@@ -10,13 +10,18 @@ export const parseNum = (raw: string, fallback: number) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+export type AxisKey = 'x' | 'y' | 'z';
+
 export type AxisRowProps = {
   label: string;
   values: [number, number, number];
   onCommit: (next: [number, number, number]) => void;
+  disabledAxes?: readonly AxisKey[];
 };
 
-export const AxisRow = ({ label, values, onCommit }: AxisRowProps) => {
+const AXIS_KEYS: readonly AxisKey[] = ['x', 'y', 'z'];
+
+export const AxisRow = ({ label, values, onCommit, disabledAxes }: AxisRowProps) => {
   const [draft, setDraft] = useState<[string, string, string]>([
     formatNum(values[0]),
     formatNum(values[1]),
@@ -27,13 +32,19 @@ export const AxisRow = ({ label, values, onCommit }: AxisRowProps) => {
     setDraft([formatNum(values[0]), formatNum(values[1]), formatNum(values[2])]);
   }, [values[0], values[1], values[2]]);
 
+  const isDisabled = (index: 0 | 1 | 2) => !!disabledAxes?.includes(AXIS_KEYS[index]!);
+
   const commitAxis = (index: 0 | 1 | 2) => {
+    if (isDisabled(index)) {
+      setDraft([formatNum(values[0]), formatNum(values[1]), formatNum(values[2])]);
+      return;
+    }
+
     const next: [number, number, number] = [
-      parseNum(draft[0], values[0]),
-      parseNum(draft[1], values[1]),
-      parseNum(draft[2], values[2]),
+      isDisabled(0) ? values[0] : parseNum(draft[0], values[0]),
+      isDisabled(1) ? values[1] : parseNum(draft[1], values[1]),
+      isDisabled(2) ? values[2] : parseNum(draft[2], values[2]),
     ];
-    next[index] = parseNum(draft[index], values[index]);
     setDraft([formatNum(next[0]), formatNum(next[1]), formatNum(next[2])]);
     onCommit(next);
   };
@@ -48,6 +59,7 @@ export const AxisRow = ({ label, values, onCommit }: AxisRowProps) => {
             <input
               className="construct-detailsInput"
               value={draft[i]!}
+              disabled={isDisabled(i as 0 | 1 | 2)}
               onChange={(e) => {
                 const next: [string, string, string] = [...draft];
                 next[i] = e.target.value;

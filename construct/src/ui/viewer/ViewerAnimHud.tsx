@@ -2,7 +2,6 @@ import type { KaykitManifestEntry, KaykitTextureVariant } from '../../catalog/ma
 
 export type ViewerAnimHudProps = {
   title: string;
-  status: string;
   showTextureVariant?: boolean;
   canSwitchTexture?: boolean;
   textureVariants?: KaykitTextureVariant[];
@@ -27,7 +26,6 @@ export type ViewerAnimHudProps = {
 
 export const ViewerAnimHud = ({
   title,
-  status,
   showTextureVariant = false,
   canSwitchTexture = false,
   textureVariants = [],
@@ -64,7 +62,6 @@ export const ViewerAnimHud = ({
     <div className="construct-viewerHud">
       <div className="construct-titleRow">
         <div className="construct-title">{title}</div>
-        <div className="construct-subtle">{status}</div>
       </div>
       {showTextureVariant ? (
         <div className="selectRow">

@@ -5,11 +5,12 @@ import {
   type LevelDocument,
 } from '../../catalog/levels/levelDocument.ts';
 import { type ActorAiPackage } from '../../catalog/actors/actorDocument.ts';
-import { type ConstructLevelSelection } from '../../session/types.ts';
+import { type ConstructLevelSelection, type ConstructTransformPatch } from '../../session/types.ts';
 import type { KaykitTextureVariant } from '../../catalog/manifest/kaykitManifest.ts';
 import { type LevelGroundVariant, LEVEL_GROUND_VARIANTS } from 'viberanium';
 import { ConfirmModal } from '../modals/ConfirmModal.tsx';
-import { DetailsHeader } from './shared.tsx';
+import { createEulerQuat, quatToEulerDegrees } from './euler.ts';
+import { AxisRow, DetailsHeader, type AxisKey } from './shared.tsx';
 
 export type LevelDetailsProps = {
   doc: LevelDocument;
@@ -18,6 +19,8 @@ export type LevelDetailsProps = {
   onRenameLevel: () => void;
   onRenameInstance: (id: string, name: string) => void;
   onRenameGroup: (id: string, name: string) => void;
+  onCommitLocal: (id: string, patch: ConstructTransformPatch) => void;
+  onCommitGroupLocal: (id: string, patch: ConstructTransformPatch) => void;
   onSetInstanceAiPackage: (id: string, aiPackage: ActorAiPackage) => void;
   onSetSimpleVariant: (id: string, url: string | null) => void;
   onSetGroundPlaneVariant: (variant: LevelGroundVariant) => void;
@@ -26,6 +29,9 @@ export type LevelDetailsProps = {
   onUngroup: (groupId: string) => void;
   onDeleteGroup: (groupId: string, removeMembers: boolean) => void;
 };
+
+const ALL_AXES: readonly AxisKey[] = ['x', 'y', 'z'];
+const YAW_ONLY_DISABLED: readonly AxisKey[] = ['x', 'z'];
 
 const groundVariantLabel = (variant: LevelGroundVariant): string => {
   if (variant === 'green') return 'Grassy Green';
@@ -45,6 +51,51 @@ const instanceKindLabel = (kind: string): string => {
   return 'Player Spawn';
 };
 
+const LevelTransformFields = ({
+  position,
+  rotation,
+  scale,
+  scaleDisabledAxes,
+  rotateDisabledAxes,
+  onCommit,
+}: {
+  position: [number, number, number];
+  rotation: [number, number, number, number];
+  scale: [number, number, number];
+  scaleDisabledAxes: readonly AxisKey[];
+  rotateDisabledAxes: readonly AxisKey[];
+  onCommit: (patch: ConstructTransformPatch) => void;
+}) => {
+  const euler = quatToEulerDegrees(rotation);
+
+  return (
+    <>
+      <AxisRow
+        label="Position"
+        values={position}
+        onCommit={(next) => onCommit({ position: next })}
+      />
+      <AxisRow
+        label="Scale"
+        values={scale}
+        disabledAxes={scaleDisabledAxes}
+        onCommit={(next) => onCommit({ scale: next })}
+      />
+      <AxisRow
+        label="Rotation"
+        values={euler}
+        disabledAxes={rotateDisabledAxes}
+        onCommit={(degrees) => {
+          const q = createEulerQuat(degrees);
+          onCommit({
+            rotation: [q[0]!, q[1]!, q[2]!, q[3]!],
+          });
+        }}
+      />
+    </>
+  );
+};
+
 export const LevelDetails = ({
   doc,
   selection,
@@ -52,6 +103,8 @@ export const LevelDetails = ({
   onRenameLevel,
   onRenameInstance,
   onRenameGroup,
+  onCommitLocal,
+  onCommitGroupLocal,
   onSetInstanceAiPackage,
   onSetSimpleVariant,
   onSetGroundPlaneVariant,
@@ -97,6 +150,9 @@ export const LevelDetails = ({
       onRenameGroup(group.id, next);
     };
 
+    const actorIds = new Set(doc.composition.actors.map((a) => a.id));
+    const yawOnly = group.memberInstanceIds.every((id) => actorIds.has(id));
+
     return (
       <div className="construct-inspector">
         <DetailsHeader displayName={doc.displayName} renameLabel="Rename level" onRename={onRenameLevel} />
@@ -117,6 +173,14 @@ export const LevelDetails = ({
             <span>Members</span>
             <span className="construct-detailsReadonly">{group.memberInstanceIds.length}</span>
           </div>
+          <LevelTransformFields
+            position={group.position}
+            rotation={group.rotation}
+            scale={group.scale}
+            scaleDisabledAxes={ALL_AXES}
+            rotateDisabledAxes={yawOnly ? YAW_ONLY_DISABLED : []}
+            onCommit={(patch) => onCommitGroupLocal(group.id, patch)}
+          />
           <div className="construct-detailsFooter construct-detailsFooterSplit">
             <button type="button" className="construct-modalBtn" onClick={() => onUngroup(group.id)}>
               Ungroup
@@ -143,6 +207,8 @@ export const LevelDetails = ({
   }
 
   if (isGroundPlane) {
+    const size = doc.groundPlane.size;
+
     return (
       <div className="construct-inspector">
         <DetailsHeader displayName={doc.displayName} renameLabel="Rename level" onRename={onRenameLevel} />
@@ -151,10 +217,14 @@ export const LevelDetails = ({
             <span>Type</span>
             <span className="construct-detailsReadonly">Ground Plane</span>
           </div>
-          <div className="construct-detailsField">
-            <span>Size</span>
-            <span className="construct-detailsReadonly">{doc.groundPlane.size.toFixed(2)}</span>
-          </div>
+          <LevelTransformFields
+            position={doc.groundPlane.position}
+            rotation={[0, 0, 0, 1]}
+            scale={[size, 1, size]}
+            scaleDisabledAxes={['y']}
+            rotateDisabledAxes={ALL_AXES}
+            onCommit={(patch) => onCommitLocal(LEVEL_GROUND_PLANE_ID, patch)}
+          />
           <div className="construct-detailsSection">
             <div className="construct-detailsSectionTitle">Variant</div>
             <select
@@ -169,7 +239,6 @@ export const LevelDetails = ({
               ))}
             </select>
           </div>
-          <div className="mutedNote">Move and scale only. Cannot be deleted or rotated.</div>
         </div>
       </div>
     );
@@ -184,7 +253,14 @@ export const LevelDetails = ({
             <span>Type</span>
             <span className="construct-detailsReadonly">Player Spawn</span>
           </div>
-          <div className="mutedNote">Move and yaw-rotate only. Cannot be deleted.</div>
+          <LevelTransformFields
+            position={doc.playerSpawn.position}
+            rotation={doc.playerSpawn.rotation}
+            scale={[1, 1, 1]}
+            scaleDisabledAxes={ALL_AXES}
+            rotateDisabledAxes={YAW_ONLY_DISABLED}
+            onCommit={(patch) => onCommitLocal(LEVEL_PLAYER_SPAWN_ID, patch)}
+          />
         </div>
       </div>
     );
@@ -214,6 +290,9 @@ export const LevelDetails = ({
         : actorInstance?.kind === 'simpleActor'
           ? (doc.index.simpleActors[actorInstance.indexId]?.character?.textureVariantUrl ?? null)
           : null;
+
+    const scaleDisabledAxes: readonly AxisKey[] = colliderInstance ? [] : ALL_AXES;
+    const rotateDisabledAxes: readonly AxisKey[] = actorInstance ? YAW_ONLY_DISABLED : [];
 
     return (
       <div className="construct-inspector">
@@ -245,6 +324,14 @@ export const LevelDetails = ({
                       : 'Element'}
                 </span>
               </div>
+              <LevelTransformFields
+                position={singleInstance.position}
+                rotation={singleInstance.rotation}
+                scale={singleInstance.scale}
+                scaleDisabledAxes={scaleDisabledAxes}
+                rotateDisabledAxes={rotateDisabledAxes}
+                onCommit={(patch) => onCommitLocal(singleInstance.id, patch)}
+              />
               {isSimple ? (
                 <div className="construct-detailsSection">
                   <div className="construct-detailsSectionTitle">Variant</div>

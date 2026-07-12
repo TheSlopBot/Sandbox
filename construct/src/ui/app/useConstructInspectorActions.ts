@@ -4,7 +4,7 @@ import { type PropDocument } from '../../catalog/props/propDocument.ts';
 import { type ActorAiPackage, type ActorDocument, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
 import { type LevelDocument } from '../../catalog/levels/levelDocument.ts';
 import { type ConstructSession } from '../../globals/bootstrap.ts';
-import { type ConstructLevelSelection } from '../../session/types.ts';
+import { type ConstructLevelSelection, type ConstructTransformPatch } from '../../session/types.ts';
 import { cloneActorDoc } from './useConstructSession.ts';
 
 export type UseConstructInspectorActionsParams = {
@@ -175,6 +175,14 @@ export const useConstructInspectorActions = ({
     },
     onRenameGroup: (groupId: string, name: string) => {
       const doc = sessionRef.current?.renameGroup(groupId, name);
+      if (doc) setLevelDoc(doc);
+    },
+    onCommitLocal: (instanceId: string, patch: ConstructTransformPatch) => {
+      const doc = sessionRef.current?.updateInstanceLocal(instanceId, patch);
+      if (doc) setLevelDoc(doc);
+    },
+    onCommitGroupLocal: (groupId: string, patch: ConstructTransformPatch) => {
+      const doc = sessionRef.current?.updateGroupLocal(groupId, patch);
       if (doc) setLevelDoc(doc);
     },
     onSetInstanceAiPackage: (instanceId: string, aiPackage: ActorAiPackage) => {

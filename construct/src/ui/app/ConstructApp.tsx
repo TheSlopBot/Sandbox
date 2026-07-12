@@ -40,7 +40,7 @@ export type ConstructAppProps = {
 
 export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
   const [fileOpen, setFileOpen] = useState(false);
-  const [status, setStatus] = useState<string>('Loading manifest…');
+  const [, setStatus] = useState<string>('Loading manifest…');
 
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [levelStandardPropEntries, setLevelStandardPropEntries] = useState<PropLocalStoreEntry[]>([]);
@@ -660,7 +660,6 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
           {mode === 'preview' ? (
             <ViewerAnimHud
               title={viewerTitle}
-              status={status}
               showTextureVariant
               canSwitchTexture={canSwitchTexture}
               textureVariants={textureVariants}
@@ -681,7 +680,6 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
           {mode === 'actor' ? (
             <ViewerAnimHud
               title={viewerTitle}
-              status={status}
               canAnimate={canAnimateActor}
               animPackUrl={animPackUrl}
               compatibleAnimPacks={compatibleAnimPacks}
@@ -701,7 +699,6 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
           {mode === 'prop' ? (
             <ViewerAnimHud
               title={propDoc.displayName || 'Prop'}
-              status={status}
               canAnimate={false}
               showAnimControls={false}
               showColliders={showColliders}
@@ -711,7 +708,6 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
           {mode === 'level' ? (
             <ViewerAnimHud
               title={levelDoc.displayName || 'Level'}
-              status={status}
               canAnimate={false}
               showAnimControls={false}
               showColliders={showColliders}
@@ -820,6 +816,8 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
               onRenameLevel={onRenameDocument}
               onRenameInstance={levelInspectorActions.onRenameInstance}
               onRenameGroup={levelInspectorActions.onRenameGroup}
+              onCommitLocal={levelInspectorActions.onCommitLocal}
+              onCommitGroupLocal={levelInspectorActions.onCommitGroupLocal}
               onSetInstanceAiPackage={levelInspectorActions.onSetInstanceAiPackage}
               onSetSimpleVariant={levelInspectorActions.onSetSimpleVariant}
               onSetGroundPlaneVariant={levelInspectorActions.onSetGroundPlaneVariant}
