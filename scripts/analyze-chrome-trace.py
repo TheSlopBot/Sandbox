@@ -5,9 +5,25 @@ from pathlib import Path
 import sys
 
 
-def analyze(path: Path) -> None:
-    with path.open("r", encoding="utf-8") as f:
-        d = json.load(f)
+def _pct(sorted_vals: list[float], p: float) -> float:
+    if not sorted_vals:
+        return 0.0
+    return sorted_vals[min(len(sorted_vals) - 1, int(len(sorted_vals) * p))]
+
+
+def _summarize(label: str, vals: list[float], raf_n: int = 0) -> None:
+    if not vals:
+        return
+    ordered = sorted(vals)
+    extra = f" perFrame~={sum(vals) / max(1, raf_n):.2f}" if raf_n else ""
+    print(
+        f"{label} n={len(vals)} mean={statistics.mean(vals):.2f}ms "
+        f"p50={statistics.median(vals):.2f} p95={_pct(ordered, 0.95):.2f} "
+        f"max={max(vals):.2f}{extra}"
+    )
+
+
+def analyze_chrome(path: Path, d: dict) -> None:
     events = d.get("traceEvents") or []
 
     raf = []
@@ -47,24 +63,19 @@ def analyze(path: Path) -> None:
         if ("GPUQueue" in name or name.endswith("::Submit") or name == "DeviceQueue::Submit"):
             submits += 1
 
-    print("====", path.name, "====")
+    print("====", path.name, "(chrome) ====")
     if anim_intervals:
         mean_i = statistics.mean(anim_intervals)
         print(
             f"frameInterval n={len(anim_intervals)} mean={mean_i:.2f}ms "
             f"(~{1000 / mean_i:.1f} FPS) p50={statistics.median(anim_intervals):.2f} "
-            f"p95={sorted(anim_intervals)[int(len(anim_intervals) * 0.95)]:.2f}"
+            f"p95={_pct(sorted(anim_intervals), 0.95):.2f}"
         )
-    if raf:
-        print(
-            f"FireAnimationFrame work n={len(raf)} mean={statistics.mean(raf):.2f}ms "
-            f"p50={statistics.median(raf):.2f} p95={sorted(raf)[int(len(raf) * 0.95)]:.2f} "
-            f"max={max(raf):.2f}"
-        )
+    _summarize("FireAnimationFrame work", raf)
     if gpu:
         print(
             f"GPUTask n={len(gpu)} mean={statistics.mean(gpu):.2f}ms "
-            f"p95={sorted(gpu)[int(len(gpu) * 0.95)]:.2f} max={max(gpu):.2f} "
+            f"p95={_pct(sorted(gpu), 0.95):.2f} max={max(gpu):.2f} "
             f"sum={sum(gpu):.1f} perFrame~={sum(gpu) / max(1, len(raf)):.2f}"
         )
     if run_task:
@@ -74,6 +85,10 @@ def analyze(path: Path) -> None:
         )
     if submits:
         print(f"submit-like events n={submits} perFrame~={submits / max(1, len(raf)):.2f}")
+
+    if raf and anim_intervals:
+        gap = statistics.mean(anim_intervals) - statistics.mean(raf)
+        print(f"RAF vs interval gap mean≈{gap:.2f}ms (outside animation callback)")
 
     print("top FunctionCall total ms:")
     for k, v in func_ms.most_common(20):
@@ -111,9 +126,153 @@ def analyze(path: Path) -> None:
             print(f"  {v / 1000:8.1f}ms  {k}")
 
 
+def analyze_safari(path: Path, d: dict) -> None:
+    rec = d.get("recording") or {}
+    records = rec.get("records") or []
+
+    def dur_ms(r: dict) -> float:
+        return (r["endTime"] - r["startTime"]) * 1000
+
+    frames = [r for r in records if r.get("type") == "timeline-record-type-rendering-frame"]
+    scripts = [r for r in records if r.get("type") == "timeline-record-type-script"]
+    layouts = [r for r in records if r.get("type") == "timeline-record-type-layout"]
+    cpus = [r for r in records if r.get("type") == "timeline-record-type-cpu"]
+
+    rafs = [r for r in scripts if r.get("eventType") == "animation-frame-fired"]
+    raf_durs = [dur_ms(r) for r in rafs]
+    comps = [r for r in layouts if r.get("eventType") == "composite"]
+    comp_durs = [dur_ms(r) for r in comps]
+
+    frame_starts = sorted(r["startTime"] for r in frames)
+    frame_intervals = [(b - a) * 1000 for a, b in zip(frame_starts, frame_starts[1:])]
+    raf_starts = sorted(r["startTime"] for r in rafs)
+    raf_intervals = [(b - a) * 1000 for a, b in zip(raf_starts, raf_starts[1:])]
+
+    print("====", path.name, "(safari timeline) ====")
+    if frame_intervals:
+        mean_i = statistics.mean(frame_intervals)
+        print(
+            f"frameInterval n={len(frame_intervals)} mean={mean_i:.2f}ms "
+            f"(~{1000 / mean_i:.1f} FPS) p50={statistics.median(frame_intervals):.2f} "
+            f"p95={_pct(sorted(frame_intervals), 0.95):.2f}"
+        )
+    elif raf_intervals:
+        mean_i = statistics.mean(raf_intervals)
+        print(
+            f"rafInterval n={len(raf_intervals)} mean={mean_i:.2f}ms "
+            f"(~{1000 / mean_i:.1f} FPS) p50={statistics.median(raf_intervals):.2f} "
+            f"p95={_pct(sorted(raf_intervals), 0.95):.2f}"
+        )
+
+    _summarize("FireAnimationFrame work", raf_durs)
+
+    intervals = frame_intervals or raf_intervals
+    if raf_durs and intervals:
+        gap = statistics.mean(intervals) - statistics.mean(raf_durs)
+        print(f"RAF vs interval gap mean≈{gap:.2f}ms (outside animation callback)")
+        idle_gaps = 0
+        for a, b in zip(sorted(rafs, key=lambda r: r["startTime"]), sorted(rafs, key=lambda r: r["startTime"])[1:]):
+            gap_ms = (b["startTime"] - a["endTime"]) * 1000
+            between = sum(
+                dur_ms(s)
+                for s in scripts
+                if s["startTime"] >= a["endTime"] and s["startTime"] < b["startTime"]
+            )
+            if gap_ms > 30 and between < 1:
+                idle_gaps += 1
+        n_pairs = max(1, len(rafs) - 1)
+        print(
+            f"idle gaps >30ms with <1ms script: {idle_gaps}/{n_pairs} "
+            f"({100 * idle_gaps / n_pairs:.0f}%)"
+        )
+
+    _summarize("composite", comp_durs, raf_n=len(raf_durs))
+
+    by_script: dict[str, list[float]] = collections.defaultdict(list)
+    for r in scripts:
+        by_script[str(r.get("eventType") or "?")].append(dur_ms(r))
+    print("script eventTypes:")
+    for et, ds in sorted(by_script.items(), key=lambda kv: -sum(kv[1])):
+        print(
+            f"  {et}: n={len(ds)} sum={sum(ds):.1f}ms mean={statistics.mean(ds):.2f} "
+            f"p95={_pct(sorted(ds), 0.95):.2f} max={max(ds):.2f}"
+        )
+
+    by_layout: dict[str, list[float]] = collections.defaultdict(list)
+    for r in layouts:
+        by_layout[str(r.get("eventType") or "?")].append(dur_ms(r))
+    if by_layout:
+        print("layout eventTypes:")
+        for et, ds in sorted(by_layout.items(), key=lambda kv: -sum(kv[1])):
+            print(
+                f"  {et}: n={len(ds)} sum={sum(ds):.1f}ms mean={statistics.mean(ds):.2f} "
+                f"p95={_pct(sorted(ds), 0.95):.2f} max={max(ds):.2f}"
+            )
+
+    if cpus:
+        usages = [float(r.get("usage") or 0) for r in cpus]
+        mains = []
+        for r in cpus:
+            for t in r.get("threads") or []:
+                if t.get("type") == "main":
+                    mains.append(float(t.get("usage") or 0))
+        print(
+            f"CPU samples n={len(cpus)} mean_usage%={statistics.mean(usages):.1f} "
+            f"max={max(usages):.1f}"
+        )
+        if mains:
+            print(f"main thread usage% mean={statistics.mean(mains):.1f} max={max(mains):.1f}")
+
+    sample_blobs = rec.get("samples") or []
+    leaf_count: collections.Counter[str] = collections.Counter()
+    path_count: collections.Counter[str] = collections.Counter()
+    for blob in sample_blobs:
+        if not isinstance(blob, dict):
+            continue
+        for st in blob.get("stackTraces") or []:
+            frames_s = st.get("stackFrames") or []
+            if not frames_s:
+                leaf_count["(empty)"] += 1
+                continue
+            names = [f.get("name") or "(anon)" for f in frames_s]
+            leaf_count[names[0]] += 1
+            path_count[" <- ".join(names[:6])] += 1
+
+    if leaf_count:
+        print("CPU sample leaf frames (counts):")
+        for k, v in leaf_count.most_common(25):
+            print(f"  {v:6d}  {k}")
+        print("CPU sample paths (counts):")
+        for k, v in path_count.most_common(15):
+            print(f"  {v:6d}  {k}")
+
+    markers = rec.get("markers") or []
+    if markers:
+        details = collections.Counter(str(m.get("details") or m.get("type") or "?") for m in markers)
+        print("markers:")
+        for k, v in details.most_common(15):
+            print(f"  {v:6d}  {k}")
+
+
+def analyze(path: Path) -> None:
+    with path.open("r", encoding="utf-8") as f:
+        d = json.load(f)
+
+    if isinstance(d, dict) and "traceEvents" in d:
+        analyze_chrome(path, d)
+        return
+
+    if isinstance(d, dict) and isinstance(d.get("recording"), dict):
+        analyze_safari(path, d)
+        return
+
+    print(f"==== {path.name} ====")
+    print("Unrecognized recording format (need Chrome traceEvents or Safari recording).")
+
+
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: python scripts/analyze-chrome-trace.py <Trace-....json> [more.json...]")
+        print("Usage: python3 scripts/analyze-chrome-trace.py <Trace-....json> [more.json...]")
         sys.exit(1)
 
     for arg in sys.argv[1:]:

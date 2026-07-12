@@ -35,9 +35,10 @@ import '../theme/style.css';
 
 export type ConstructAppProps = {
   active: boolean;
+  onOpenSandbox?: () => void;
 };
 
-export const ConstructApp = ({ active }: ConstructAppProps) => {
+export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
   const [fileOpen, setFileOpen] = useState(false);
   const [status, setStatus] = useState<string>('Loading manifest…');
 
@@ -522,6 +523,7 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
         onLoad={onLoad}
         onImport={onImport}
         onExport={onExport}
+        onOpenSandbox={onOpenSandbox}
       />
       <input
         ref={fileInputRef}

@@ -11,6 +11,7 @@ export type AppMenuProps = {
   onLoad: () => void;
   onImport: () => void;
   onExport: () => void;
+  onOpenSandbox?: () => void;
 };
 
 const MODES: { id: ConstructMode; label: string; enabled: boolean }[] = [
@@ -31,6 +32,7 @@ export const AppMenu = ({
   onLoad,
   onImport,
   onExport,
+  onOpenSandbox,
 }: AppMenuProps) => {
   const propFileActionsEnabled = mode === 'prop' || mode === 'actor' || mode === 'level';
 
@@ -123,6 +125,19 @@ export const AppMenu = ({
           >
             Export
           </button>
+          {onOpenSandbox ? (
+            <button
+              type="button"
+              className="construct-menuDropdownItem"
+              onClick={() => {
+                onFileOpenChange(false);
+                onOpenSandbox();
+              }}
+            >
+              Sandbox
+              <span className="construct-menuShortcut">F1</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

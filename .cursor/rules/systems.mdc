@@ -83,7 +83,7 @@ await sceneManager.switchTo('testOne');
 
 Sequence: unload previous → `gltfCache.preload(urls)` → `useLevelScene` → `game.setActiveScene` → `await scene.load()`. Always creates a **fresh** scene per level id.
 
-Digit0 requests the React level select modal (`onRequestLevelSelect`). Digit1–4 hard-switch to the seeded test levels (`testOne`–`testFour`). Levels resolve from `construct.levelLocalStore` via `parseLevelFile`. Prop spawn uses engine `instantiateProp` from `viberanium/spawn`.
+Digit1–4 hard-switch to the seeded test levels (`testOne`–`testFour`). Level select opens from the sandbox main menu (Load Level). Levels resolve from `construct.levelLocalStore` via `parseLevelFile`. Prop spawn uses engine `instantiateProp` from `viberanium/spawn`.
 
 Install on the **game registry**. Scene systems install on each ephemeral scene registry inside `createPlayableScene`.
 ## Nav grid system

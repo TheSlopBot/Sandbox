@@ -1,0 +1,177 @@
+.main-menu-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface-overlay) 90%, transparent);
+}
+
+.main-menu-modal {
+  width: min(420px, calc(100vw - var(--space-lg) * 2));
+  max-height: min(560px, calc(100vh - var(--space-lg) * 2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-primary);
+  overflow-y: auto;
+}
+
+.main-menu-modal--settings {
+  width: min(560px, calc(100vw - var(--space-lg) * 2));
+  max-height: min(720px, calc(100vh - var(--space-lg) * 2));
+}
+
+.main-menu-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.main-menu-modal__title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.main-menu-modal__close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--duration-normal) var(--ease-standard);
+}
+
+.main-menu-modal__close:hover {
+  color: var(--text-primary);
+}
+
+.main-menu-modal__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.main-menu-modal__sectionTitle {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.main-menu-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.main-menu-modal__list--presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xs);
+}
+
+.main-menu-modal__item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(var(--radius-md) - 4px);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    background var(--duration-normal) var(--ease-standard),
+    border-color var(--duration-normal) var(--ease-standard);
+}
+
+.main-menu-modal__item:hover {
+  background: color-mix(in srgb, var(--border-subtle) 60%, transparent);
+}
+
+.main-menu-modal__item[data-active='true'] {
+  border-color: var(--accent-primary);
+}
+
+.main-menu-modal__item-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.main-menu-modal__item-id {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.main-menu-modal__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.main-menu-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.main-menu-modal__fieldLabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.main-menu-modal__select {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background: color-mix(in srgb, var(--surface-overlay) 70%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(var(--radius-md) - 4px);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition:
+    background var(--duration-normal) var(--ease-standard),
+    border-color var(--duration-normal) var(--ease-standard);
+}
+
+.main-menu-modal__select:hover,
+.main-menu-modal__select:focus {
+  border-color: var(--accent-primary);
+  outline: none;
+}
+
+.main-menu-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.main-menu-modal__button {
+  padding: var(--space-xs) var(--space-md);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(var(--radius-md) - 4px);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--duration-normal) var(--ease-standard);
+}
+
+.main-menu-modal__button:hover {
+  background: color-mix(in srgb, var(--border-subtle) 60%, transparent);
+}

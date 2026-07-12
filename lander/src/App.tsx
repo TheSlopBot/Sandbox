@@ -36,11 +36,11 @@ export const App = () => {
     <div className="lander-root">
       {active === 'sandbox' ? (
         <div className="app-layer" data-active="true">
-          <SandboxApp active />
+          <SandboxApp active onOpenConstruct={() => onToggle('construct')} />
         </div>
       ) : (
         <div className="app-layer" data-active="true">
-          <ConstructApp active />
+          <ConstructApp active onOpenSandbox={() => onToggle('sandbox')} />
         </div>
       )}
     </div>

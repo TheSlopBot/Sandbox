@@ -25,7 +25,6 @@ export type SceneManagerDeps = {
   optimization: EngineOptimizationOptions;
   setActiveSceneRegistry: (registry: Registry) => void;
   resolveLevel: (levelId: string) => LevelBuild | null;
-  onRequestLevelSelect: () => void;
 };
 
 export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDeps) => {
@@ -70,8 +69,6 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
 
   removeUpdateAction = gameRegistry.addAction('update', () => {
     if (switching) return;
-
-    if (deps.input.pressed('Digit0')) deps.onRequestLevelSelect();
 
     if (deps.input.pressed('Digit1')) void switchTo('testOne');
 

@@ -5,6 +5,8 @@ export type Input = {
   mousePressed: (button: number) => boolean;
   mouseDelta: () => { dx: number; dy: number };
   pointerLocked: () => boolean;
+  lockPointer: () => void;
+  unlockPointer: () => void;
   consumeEdges: () => void;
   commitFrame: () => void;
   destroy: () => void;
@@ -30,15 +32,6 @@ export const createInput = (target: Window = window, pointerLockEl?: HTMLElement
   const onMouseDown = (e: MouseEvent) => {
     if (!heldMouse.has(e.button)) pressedMouseEdges.add(e.button);
     heldMouse.add(e.button);
-
-    if (pointerLockEl) {
-      const targetNode = e.target;
-      const isOnPointerLockEl = targetNode instanceof Node && pointerLockEl.contains(targetNode);
-      if (!isOnPointerLockEl) return;
-
-      if (document.pointerLockElement === pointerLockEl) document.exitPointerLock();
-      else pointerLockEl.requestPointerLock();
-    }
   };
 
   const onMouseUp = (e: MouseEvent) => {
@@ -74,6 +67,16 @@ export const createInput = (target: Window = window, pointerLockEl?: HTMLElement
     mousePressed: (button) => pressedMouseEdges.has(button),
     mouseDelta: () => ({ dx: mouseDX, dy: mouseDY }),
     pointerLocked: () => (pointerLockEl ? document.pointerLockElement === pointerLockEl : false),
+    lockPointer: () => {
+      if (!pointerLockEl) return;
+      if (document.pointerLockElement === pointerLockEl) return;
+      void pointerLockEl.requestPointerLock();
+    },
+    unlockPointer: () => {
+      if (!pointerLockEl) return;
+      if (document.pointerLockElement !== pointerLockEl) return;
+      document.exitPointerLock();
+    },
     consumeEdges: () => {
       pressedEdges.clear();
       pressedMouseEdges.clear();

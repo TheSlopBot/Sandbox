@@ -5,19 +5,28 @@ export type GpuFrameTargets = {
   depthView: GPUTextureView;
 };
 
+export type DeviceOptions = {
+  maxDpr?: number;
+};
+
 export type GpuDevice = {
   readonly gpu: GPUDevice;
   readonly context: GPUCanvasContext;
   readonly format: GPUTextureFormat;
   readonly canvas: HTMLCanvasElement;
+  readonly adapter: GPUAdapter;
   resize: () => void;
+  setMaxDpr: (maxDpr: number) => void;
   getSize: () => { width: number; height: number };
   ensureFrame: () => GpuFrameTargets;
   clear: (r?: number, g?: number, b?: number, a?: number) => void;
   destroy: () => void;
 };
 
-export const createDevice = async (canvas: HTMLCanvasElement): Promise<GpuDevice> => {
+export const createDevice = async (
+  canvas: HTMLCanvasElement,
+  options: DeviceOptions = {},
+): Promise<GpuDevice> => {
   if (!navigator.gpu) throw new Error('WebGPU not supported');
 
   const adapter = await navigator.gpu.requestAdapter(
@@ -37,6 +46,7 @@ export const createDevice = async (canvas: HTMLCanvasElement): Promise<GpuDevice
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
+  let maxDpr = Math.max(0.5, options.maxDpr ?? 2);
   let cssW = 0;
   let cssH = 0;
   let dpr = 1;
@@ -47,7 +57,7 @@ export const createDevice = async (canvas: HTMLCanvasElement): Promise<GpuDevice
   let destroyed = false;
 
   const measure = () => {
-    dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    dpr = Math.max(1, Math.min(maxDpr, window.devicePixelRatio || 1));
     cssW = canvas.clientWidth;
     cssH = canvas.clientHeight;
     sizeDirty = true;
@@ -86,19 +96,32 @@ export const createDevice = async (canvas: HTMLCanvasElement): Promise<GpuDevice
     sizeDirty = false;
     const w = Math.max(1, Math.floor(cssW * dpr));
     const h = Math.max(1, Math.floor(cssH * dpr));
+    const sizeChanged = canvas.width !== w || canvas.height !== h || width !== w || height !== h;
+
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
     }
+
     width = w;
     height = h;
     ensureDepth(w, h);
-    context.configure({
-      device: gpu,
-      format,
-      alphaMode: 'opaque',
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
+
+    if (sizeChanged) {
+      context.configure({
+        device: gpu,
+        format,
+        alphaMode: 'opaque',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+    }
+  };
+
+  const setMaxDpr = (next: number) => {
+    const clamped = Math.max(0.5, next);
+    if (clamped === maxDpr) return;
+    maxDpr = clamped;
+    measure();
   };
 
   const getSize = () => ({ width, height });
@@ -155,5 +178,17 @@ export const createDevice = async (canvas: HTMLCanvasElement): Promise<GpuDevice
 
   resize();
 
-  return { gpu, context, format, canvas, resize, getSize, ensureFrame, clear, destroy };
+  return {
+    gpu,
+    context,
+    format,
+    canvas,
+    adapter,
+    resize,
+    setMaxDpr,
+    getSize,
+    ensureFrame,
+    clear,
+    destroy,
+  };
 };

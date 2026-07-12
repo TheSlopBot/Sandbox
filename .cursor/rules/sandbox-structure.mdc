@@ -75,7 +75,7 @@ New enemies follow `entities/enemies/spider/` with `createSpider.ts`, `component
 - `scenes/common/prop.ts` — re-export engine `instantiateProp`
 - `entities/ground/spawnGround.ts` — ground entity with `groundPlane` component
 
-Digit0 opens `menus/levels/LevelSelectModal`; Digit1–4 load `testOne`–`testFour`; each `switchTo` creates a **fresh** scene (never reuse one scene across levels).
+Main menu Load Level opens `menus/levels/LevelSelectModal`; Digit1–4 load `testOne`–`testFour`; each `switchTo` creates a **fresh** scene (never reuse one scene across levels).
 
 ## Globals rule
 

@@ -12,7 +12,7 @@ import { type Gltf } from '../assets/gltf/types.ts';
 import {
   DEFAULT_ENGINE_OPTIMIZATION,
   type EngineOptimizationOptions,
-  skeletonSkipChanceForDist,
+  skeletonLodUpdateInterval,
 } from '../engine/optimizationOptions.ts';
 import { m4, m4Copy, type Mat4 } from '../math/mat4.ts';
 import { type Vec3 } from '../math/vec3.ts';
@@ -41,6 +41,7 @@ export type SkeletalGpuPoseOptions = {
 type GpuPoseState = {
   asset: SkeletonGpuAsset;
   slotIndex: number;
+  lodAccum: number;
 };
 
 type SharedAssetEntry = {
@@ -127,6 +128,7 @@ export const installSkeletalGpuPoseSystem = (
     state = {
       asset,
       slotIndex: posePass.allocSlot(),
+      lodAccum: 0,
     };
     stateByModel.set(model, state);
     return state;
@@ -161,8 +163,18 @@ export const installSkeletalGpuPoseSystem = (
 
       const d2 = origin ? distSqXZ(t.position[0], t.position[2], ox, oz) : 0;
       const dist = origin ? Math.sqrt(d2) : 0;
-      const skipChance = origin ? skeletonSkipChanceForDist(dist, optimization.skeletonLod) : 0;
-      const skip = skipChance > 0 && (skipChance >= 1 || Math.random() < skipChance);
+      const state = ensureState(model, skin, clipMap);
+      const interval = origin ? skeletonLodUpdateInterval(dist, optimization.skeletonLod) : 1;
+      let skip = false;
+      if (interval === 0) {
+        skip = true;
+      } else if (interval > 1) {
+        state.lodAccum += 1;
+        if (state.lodAccum < interval) skip = true;
+        else state.lodAccum = 0;
+      } else {
+        state.lodAccum = 0;
+      }
       const castShadow = !origin || d2 <= shadowDist2;
 
       let renderRoot = renderRootByModel.get(model);
@@ -173,7 +185,6 @@ export const installSkeletalGpuPoseSystem = (
       m4Copy(renderRoot, t.world);
       renderRoot[13] += model.visualYOffset;
 
-      const state = ensureState(model, skin, clipMap);
       pending.push({
         entity: e,
         model,

@@ -24,7 +24,8 @@ ${fullscreenPostWGSL}
 
 struct PostUniforms {
   resolution: vec2f,
-  _pad: vec2f,
+  bloomAmount: f32,
+  _pad: f32,
 };
 
 @group(0) @binding(0) var<uniform> post: PostUniforms;
@@ -70,7 +71,9 @@ fn cheapBloom(uv: vec2f, base: vec3f) -> vec3f {
 @fragment
 fn fsMain(input: VsOut) -> @location(0) vec4f {
   var col = textureSampleLevel(sceneTex, sceneSamp, input.uv, 0.0).rgb;
-  col = cheapBloom(input.uv, col);
+  if (post.bloomAmount > 0.0) {
+    col = mix(col, cheapBloom(input.uv, col), post.bloomAmount);
+  }
   col *= 0.96;
   col = pow(max(col, vec3f(0.0)), vec3f(1.02));
   col = warmGrade(col);

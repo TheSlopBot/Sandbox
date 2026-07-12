@@ -117,9 +117,12 @@ export const installRenderPipeline = async (
 ): Promise<RenderPipeline> => {
   const getEntityRegistry = options.getEntityRegistry ?? (() => registry);
   const optimization = options.optimization ?? DEFAULT_ENGINE_OPTIMIZATION;
-  const device = await createDevice(canvas);
-  const forwardPass = createForwardPass(device);
-  const tonePass = createTonePostPass(device);
+  const device = await createDevice(canvas, { maxDpr: optimization.maxDpr });
+  const forwardPass = createForwardPass(device, {
+    msaaSamples: optimization.msaaSamples,
+    shadowMapSize: optimization.shadowMapSize,
+  });
+  const tonePass = createTonePostPass(device, { bloom: optimization.toneBloom });
   const postPingPong = createPostPingPong(device);
   const staticPropBatcher = createStaticPropBatcher(device);
   const _camPosF32 = new Float32Array(3);

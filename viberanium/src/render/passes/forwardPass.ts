@@ -16,7 +16,6 @@ const FRAME_UNIFORM_FLOATS = 44;
 const FRAME_UNIFORM_SIZE = FRAME_UNIFORM_FLOATS * 4;
 const OBJECT_UNIFORM_SIZE = 96;
 const OBJECT_UNIFORM_ALIGN = 256;
-const MSAA_SAMPLES = 4;
 const IDENTITY_MODEL = new Float32Array([
   1, 0, 0, 0,
   0, 1, 0, 0,
@@ -58,6 +57,11 @@ const BLEND_ALPHA: GPUBlendState = {
   },
 };
 
+export type ForwardPassOptions = {
+  msaaSamples?: number;
+  shadowMapSize?: number;
+};
+
 export type ForwardPass = {
   encode: (
     encoder: GPUCommandEncoder,
@@ -78,14 +82,19 @@ type LitPipelineKey = 'opaqueCull' | 'opaqueNone' | 'blendCull' | 'blendNone';
 
 const isSkinnedMesh = (mesh: Mesh): mesh is SkinnedMesh => 'jointBuffer' in mesh;
 
-export const createForwardPass = (device: GpuDevice): ForwardPass => {
+export const createForwardPass = (
+  device: GpuDevice,
+  options: ForwardPassOptions = {},
+): ForwardPass => {
+  const msaaSamples = options.msaaSamples ?? 4;
+  const shadowMapSize = options.shadowMapSize ?? 2048;
   const gpu = device.gpu;
   const litShader = gpu.createShaderModule({ code: litWGSL });
   const groundShader = gpu.createShaderModule({ code: groundWGSL });
   const instancedLitShader = gpu.createShaderModule({ code: instancedLitWGSL });
   const whiteTex = createSolidTexture(device);
-  const shadowMap = createShadowMap(device, 2048);
-  const sceneTargets = createSceneTargets(device, MSAA_SAMPLES);
+  const shadowMap = createShadowMap(device, shadowMapSize);
+  const sceneTargets = createSceneTargets(device, msaaSamples);
   const shadowPass = createShadowPass(device, shadowMap);
   const sampleCount = sceneTargets.samples;
 
@@ -580,13 +589,20 @@ export const createForwardPass = (device: GpuDevice): ForwardPass => {
 
     const pass = encoder.beginRenderPass({
       colorAttachments: [
-        {
-          view: sceneTargets.getColorView(),
-          resolveTarget: sceneTargets.getResolveView(),
-          clearValue: { r: 0.56, g: 0.66, b: 0.82, a: 1 },
-          loadOp: 'clear',
-          storeOp: 'discard',
-        },
+        sampleCount > 1
+          ? {
+              view: sceneTargets.getColorView(),
+              resolveTarget: sceneTargets.getResolveView(),
+              clearValue: { r: 0.56, g: 0.66, b: 0.82, a: 1 },
+              loadOp: 'clear',
+              storeOp: 'discard',
+            }
+          : {
+              view: sceneTargets.getResolveView(),
+              clearValue: { r: 0.56, g: 0.66, b: 0.82, a: 1 },
+              loadOp: 'clear',
+              storeOp: 'store',
+            },
       ],
       depthStencilAttachment: {
         view: sceneTargets.getDepthView(),

@@ -12,7 +12,8 @@ export type SceneTargets = {
 };
 
 export const createSceneTargets = (device: GpuDevice, requestedSamples = 4): SceneTargets => {
-  const samples = Math.max(1, Math.min(requestedSamples, 4));
+  const samples = requestedSamples >= 4 ? 4 : 1;
+  const multisampled = samples > 1;
   let width = 0;
   let height = 0;
   let colorTexture: GPUTexture | null = null;
@@ -42,25 +43,36 @@ export const createSceneTargets = (device: GpuDevice, requestedSamples = 4): Sce
     height = nextH;
     colorTexture?.destroy();
     depthTexture?.destroy();
-    resolveTexture?.destroy();
+    if (multisampled) resolveTexture?.destroy();
     overlayDepthTexture?.destroy();
 
-    colorTexture = device.gpu.createTexture({
-      size: { width, height },
-      sampleCount: samples,
-      format: device.format,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
+    if (multisampled) {
+      colorTexture = device.gpu.createTexture({
+        size: { width, height },
+        sampleCount: samples,
+        format: device.format,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      resolveTexture = device.gpu.createTexture({
+        size: { width, height },
+        format: device.format,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      });
+    } else {
+      colorTexture = device.gpu.createTexture({
+        size: { width, height },
+        sampleCount: 1,
+        format: device.format,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      });
+      resolveTexture = colorTexture;
+    }
+
     depthTexture = device.gpu.createTexture({
       size: { width, height },
       sampleCount: samples,
       format: 'depth24plus',
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-    resolveTexture = device.gpu.createTexture({
-      size: { width, height },
-      format: device.format,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     overlayDepthTexture = device.gpu.createTexture({
       size: { width, height },
@@ -97,9 +109,13 @@ export const createSceneTargets = (device: GpuDevice, requestedSamples = 4): Sce
       return overlayDepthView;
     },
     destroy: () => {
-      colorTexture?.destroy();
+      if (multisampled) {
+        colorTexture?.destroy();
+        resolveTexture?.destroy();
+      } else {
+        colorTexture?.destroy();
+      }
       depthTexture?.destroy();
-      resolveTexture?.destroy();
       overlayDepthTexture?.destroy();
       colorTexture = null;
       depthTexture = null;

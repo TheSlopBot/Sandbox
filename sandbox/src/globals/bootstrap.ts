@@ -6,8 +6,9 @@
   createTextureCache,
   createSharedMeshCache,
   createAsciiPostProcessStage,
-  createEngineOptimizationOptions,
   type EngineOptimizationOptions,
+  type Input,
+  type RenderQualityPresetId,
 } from 'viberanium';
 import { parseLevelFile } from '../catalog/levels/levelFile.ts';
 import { type LevelSeedDocument } from '../catalog/levels/levelSeed.ts';
@@ -19,6 +20,15 @@ import {
   saveLocalLevel,
   seedLocalLevelsIfEmpty,
 } from '../storage/levelLocalStore.ts';
+import {
+  createOptimizationForQualityChoice,
+  readStoredQualityChoice,
+  readStoredQualityOverrides,
+  writeStoredQualityChoice,
+  writeStoredQualityOverrides,
+  type RenderQualityChoice,
+  type RenderQualityOverrides,
+} from '../catalog/ui/renderQuality.ts';
 import { installSceneManager } from './sceneManager.ts';
 
 export type LevelImportResult = {
@@ -28,7 +38,12 @@ export type LevelImportResult = {
 
 export type SandboxSession = {
   unload: () => void;
+  input: Input;
   optimization: EngineOptimizationOptions;
+  qualityChoice: RenderQualityChoice;
+  resolvedQualityPreset: RenderQualityPresetId;
+  setQualityChoice: (choice: RenderQualityChoice) => void;
+  setQualityOverrides: (overrides: RenderQualityOverrides) => void;
   getAsciiEnabled: () => boolean;
   setAsciiEnabled: (enabled: boolean) => void;
   subscribeAscii: (listener: (enabled: boolean) => void) => () => void;
@@ -37,7 +52,6 @@ export type SandboxSession = {
   getCurrentLevelId: () => string | null;
   switchToLevel: (levelId: string) => Promise<void>;
   importLevelFiles: (files: FileList) => Promise<LevelImportResult>;
-  subscribeLevelSelectRequest: (listener: () => void) => () => void;
 };
 
 export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSession> => {
@@ -46,7 +60,16 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
 
   let activeSceneRegistry = game.registry;
 
-  const optimization = createEngineOptimizationOptions();
+  const qualityChoice = readStoredQualityChoice();
+  const qualityOverrides = readStoredQualityOverrides();
+  let probeAdapter: GPUAdapter | null = null;
+  if (navigator.gpu) {
+    probeAdapter = await navigator.gpu.requestAdapter(
+      /Windows/i.test(navigator.userAgent) ? undefined : { powerPreference: 'high-performance' },
+    );
+  }
+  const quality = createOptimizationForQualityChoice(qualityChoice, probeAdapter, qualityOverrides);
+  const optimization = quality.optimization;
 
   const pipeline = await installRenderPipeline(game.registry, canvas, {
     getEntityRegistry: () => activeSceneRegistry,
@@ -74,8 +97,6 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
 
   seedLocalLevelsIfEmpty(LEVEL_SEED_DOCUMENTS);
 
-  const levelSelectListeners = new Set<() => void>();
-
   const sceneManager = installSceneManager(game.registry, {
     game,
     input,
@@ -87,9 +108,6 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
     optimization,
     setActiveSceneRegistry: (registry) => { activeSceneRegistry = registry; },
     resolveLevel: resolveLocalLevel,
-    onRequestLevelSelect: () => {
-      for (const listener of levelSelectListeners) listener();
-    },
   });
 
   const initialLevelId = LEVEL_SEED_DOCUMENTS[0]?.id ?? null;
@@ -105,7 +123,17 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
   game.start();
 
   return {
+    input,
     optimization,
+    qualityChoice: quality.choice,
+    resolvedQualityPreset: quality.preset,
+    setQualityChoice: (choice) => {
+      writeStoredQualityChoice(choice);
+      writeStoredQualityOverrides({});
+    },
+    setQualityOverrides: (overrides) => {
+      writeStoredQualityOverrides(overrides);
+    },
     getAsciiEnabled: () => asciiStage.enabled,
     setAsciiEnabled: (enabled) => {
       asciiStage.enabled = enabled;
@@ -140,12 +168,6 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
 
       return { imported, errors };
     },
-    subscribeLevelSelectRequest: (listener) => {
-      levelSelectListeners.add(listener);
-      return () => {
-        levelSelectListeners.delete(listener);
-      };
-    },
     unload: () => {
       game.stop();
       game.setActiveScene(null);
@@ -157,7 +179,6 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<SandboxSessi
       removeAsciiToggle();
       removeAsciiStage();
       asciiListeners.clear();
-      levelSelectListeners.clear();
       input.destroy();
 
       meshes.destroy();

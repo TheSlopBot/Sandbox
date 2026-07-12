@@ -3,19 +3,19 @@ description: Analyze Chrome DevTools performance traces with the repo script —
 alwaysApply: true
 ---
 
-# Chrome performance traces
+# Chrome / Safari performance traces
 
-When the user provides a Chrome DevTools Performance / Trace JSON (e.g. `Trace-*.json` under Downloads):
+When the user provides a Chrome DevTools Performance / Trace JSON (e.g. `Trace-*.json`) or a Safari Web Inspector timeline export (e.g. `localhost-recording.json`) under Downloads:
 
 1. **Use the existing script** — do not write a one-off analyzer in `/tmp` or the repo root.
 2. Run:
 
 ```powershell
-python scripts/analyze-chrome-trace.py "C:\Users\…\Trace-….json"
+python3 scripts/analyze-chrome-trace.py "C:\Users\…\Trace-….json"
 ```
 
-Multiple traces can be passed in one invocation.
+Multiple traces can be passed in one invocation. The script auto-detects Chrome (`traceEvents`) vs Safari (`recording.records`).
 
-3. Interpret output in this order: `frameInterval` / implied FPS → `FireAnimationFrame work` vs interval gap → `GPUTask perFrame` → CPU self-time top (ignore `(idle)` / `(program)` noise).
-4. If RAF work ≪ frame interval, the bottleneck is GPU/queue/presentation or waits outside the animation callback — not “make physics faster” first.
+3. Interpret output in this order: `frameInterval` / implied FPS → `FireAnimationFrame work` vs interval gap → `GPUTask perFrame` (Chrome) / `composite` + idle-gap % (Safari) → CPU self-time / sample leaves (ignore `(idle)` / `(program)` noise).
+4. If RAF work ≪ frame interval, the bottleneck is GPU/queue/presentation or waits outside the animation callback — not “make physics faster” first. On Safari, also check `idle gaps >30ms with <1ms script` and the async `simFlush` / `mapAsync` path in `useGame` (GPU readback before draw + next rAF).
 5. Extend `scripts/analyze-chrome-trace.py` when new metrics are needed; keep it in `scripts/`.

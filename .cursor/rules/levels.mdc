@@ -42,7 +42,7 @@ sandbox/src/catalog/levels/
 
 sandbox/src/storage/levelLocalStore.ts
 sandbox/src/menus/levels/LevelSelectModal.tsx
-sandbox/src/globals/sceneManager.ts   switchTo + Digit0 → UI callback; Digit1–4 → test seeds
+sandbox/src/globals/sceneManager.ts   switchTo + Digit1–4 → test seeds; level modal via main menu
 sandbox/src/scenes/common/
   createPlayableScene.ts
   useLevelScene.ts      resolve index → instantiateProp / spawnActor
@@ -52,7 +52,7 @@ sandbox/src/scenes/common/
 ## Session flow
 
 ```
-Digit0 → LevelSelectModal (list local store + multi-import .level)
+Main menu → Load Level → LevelSelectModal (list local store + multi-import .level)
 Digit1–4 → switchTo(testOne|testTwo|testThree|testFour)
   → switchTo(levelId)
   → game.setActiveScene(null)        // sync unload; drop previous Scene

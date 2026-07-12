@@ -5,9 +5,13 @@ export { createEntity, type Entity, type EntityId } from './engine/entity.ts';
 export { COMPONENT_KEYS, type ComponentKey } from './engine/componentKeys.ts';
 export {
   createEngineOptimizationOptions,
+  createEngineOptimizationFromPreset,
+  detectPreferredQualityPreset,
   DEFAULT_ENGINE_OPTIMIZATION,
-  skeletonSkipChanceForDist,
+  RENDER_QUALITY_PRESETS,
+  skeletonLodUpdateInterval,
   type EngineOptimizationOptions,
+  type RenderQualityPresetId,
   type SkeletonLodOptions,
 } from './engine/optimizationOptions.ts';
 

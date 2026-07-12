@@ -122,14 +122,18 @@ const createBasePostPass = (
   };
 };
 
-export const createTonePostPass = (device: GpuDevice): PostProcessDraw =>
-  createBasePostPass(device, toneColorWGSL, [], [], (bytes, w, h) => {
+export const createTonePostPass = (
+  device: GpuDevice,
+  options: { bloom?: boolean } = {},
+): PostProcessDraw => {
+  const bloomAmount = options.bloom === false ? 0 : 1;
+  return createBasePostPass(device, toneColorWGSL, [], [], (bytes, w, h) => {
     bytes[0] = w;
     bytes[1] = h;
-    bytes[2] = 0;
+    bytes[2] = bloomAmount;
     bytes[3] = 0;
   });
-
+};
 export const createAsciiPostPass = (
   device: GpuDevice,
   glyphAtlas: TextureHandle,
