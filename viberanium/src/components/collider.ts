@@ -1,6 +1,6 @@
 import { type EntityId } from '../engine/entity.ts';
 import { type Vec3, v3, v3Copy } from '../math/vec3.ts';
-import { type Quat, q4, q4Copy, q4TransformVec3 } from '../math/quat.ts';
+import { type Quat, q4, q4Copy, q4Normalize, q4TransformVec3 } from '../math/quat.ts';
 import { type Mat4 } from '../math/mat4.ts';
 
 export type Aabb = {
@@ -190,9 +190,19 @@ const transformPointByMat4 = (out: Vec3, m: Mat4, x: number, y: number, z: numbe
 };
 
 const rotationFromMat4 = (out: Quat, m: Mat4) => {
-  const m00 = m[0]!, m01 = m[4]!, m02 = m[8]!;
-  const m10 = m[1]!, m11 = m[5]!, m12 = m[9]!;
-  const m20 = m[2]!, m21 = m[6]!, m22 = m[10]!;
+  const sx = Math.hypot(m[0]!, m[1]!, m[2]!) || 1;
+  const sy = Math.hypot(m[4]!, m[5]!, m[6]!) || 1;
+  const sz = Math.hypot(m[8]!, m[9]!, m[10]!) || 1;
+
+  const m00 = m[0]! / sx;
+  const m01 = m[4]! / sy;
+  const m02 = m[8]! / sz;
+  const m10 = m[1]! / sx;
+  const m11 = m[5]! / sy;
+  const m12 = m[9]! / sz;
+  const m20 = m[2]! / sx;
+  const m21 = m[6]! / sy;
+  const m22 = m[10]! / sz;
   const trace = m00 + m11 + m22;
 
   if (trace > 0) {
@@ -220,6 +230,8 @@ const rotationFromMat4 = (out: Quat, m: Mat4) => {
     out[1] = (m12 + m21) / s;
     out[2] = 0.25 * s;
   }
+
+  q4Normalize(out, out);
 };
 
 export const bakeColliderWorldFromLocal = (collider: Collider, world: Mat4): void => {
@@ -249,6 +261,7 @@ export const bakeColliderWorldFromLocal = (collider: Collider, world: Mat4): voi
     worldShape.rotation[1] = qw * ly - qx * lz + qy * lw + qz * lx;
     worldShape.rotation[2] = qw * lz + qx * ly - qy * lx + qz * lw;
     worldShape.rotation[3] = qw * lw - qx * lx - qy * ly - qz * lz;
+    q4Normalize(worldShape.rotation, worldShape.rotation);
   }
 
   if (worldShape.kind === 'box') {

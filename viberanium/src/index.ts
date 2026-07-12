@@ -209,3 +209,29 @@ export {
   type SkeletalCharacterClipNames,
   collectUrlsFromDef,
 } from './definitions/characters/skeletalCharacterDef.ts';
+export {
+  type LevelNavGridConfig,
+  type SimplePropIndex,
+  type LevelPropKind,
+  type LevelActorKind,
+  type LevelPropInstance,
+  type LevelActorInstance,
+  type LevelColliderShape,
+  type LevelColliderInstance,
+  type LevelPlayerSpawn,
+  type LevelIndex,
+  type LevelComposition,
+  type LevelDefinition,
+  DEFAULT_LEVEL_NAV_GRID,
+  DEFAULT_LEVEL_PLAYER_SPAWN,
+  identityLevelLocal,
+  collectUrlsFromLevel,
+  resolveLevelPropDefinition,
+  resolveLevelActorDefinition,
+  resolveLevelColliderPropDefinition,
+} from './definitions/levels/levelDefinition.ts';
+export {
+  instantiateProp,
+  type PropPlacement,
+  type InstantiatePropOptions,
+} from './spawn/instantiateProp.ts';

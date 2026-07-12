@@ -9,6 +9,7 @@ import {
   type TextureCache,
   type Transform,
   type AnimClip,
+  type SimplePropCollider,
 } from 'viberanium';
 import { type ConstructOrbit } from '../entities/orbit/orbit.ts';
 import { type ConstructOrbitOriginMarker } from '../entities/orbit/orbitOriginMarker.ts';
@@ -26,6 +27,7 @@ import {
   type PropEditorTransformMode,
   createEmptyPropDocument,
 } from '../catalog/props/propDocument.ts';
+import { type LevelDocument, createEmptyLevelDocument } from '../catalog/levels/levelDocument.ts';
 
 export type ConstructTextureVariant = {
   label: string;
@@ -49,6 +51,11 @@ export type ConstructTransformPatch = {
   position?: [number, number, number];
   scale?: [number, number, number];
   rotation?: [number, number, number, number];
+};
+
+export type ConstructLevelSelection = {
+  instanceIds: string[];
+  groupId: string | null;
 };
 
 export type ConstructSession = {
@@ -112,10 +119,52 @@ export type ConstructSession = {
   setActorDocumentListener: (fn: ((doc: ActorDocument) => void) | null) => void;
   getActorBoneNames: () => string[];
   getOrbitAngles: () => { yawRad: number; pitchRad: number };
+  enterLevelMode: () => Promise<LevelDocument>;
+  newLevel: () => Promise<LevelDocument>;
+  getLevelDocument: () => LevelDocument;
+  loadLevelDocument: (doc: LevelDocument) => Promise<LevelDocument>;
+  setLevelDocumentListener: (fn: ((doc: LevelDocument) => void) | null) => void;
+  computeSimplePropCollider: (url: string) => Promise<SimplePropCollider>;
+  addSimpleProp: (
+    url: string,
+    materialPrefix: string,
+    displayName: string,
+    textureVariantUrl?: string | null,
+  ) => Promise<LevelDocument>;
+  addStandardProp: (doc: PropDocument) => Promise<LevelDocument>;
+  addSimpleActor: (
+    url: string,
+    materialPrefix: string,
+    displayName: string,
+    textureVariantUrl?: string | null,
+  ) => Promise<LevelDocument>;
+  addStandardActor: (doc: ActorDocument) => Promise<LevelDocument>;
+  addLevelCollider: (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => LevelDocument;
+  selectLevelInstances: (ids: string[]) => void;
+  selectLevelGroup: (groupId: string | null) => void;
+  selectLevelRoot: () => void;
+  selectLevelPlayerSpawn: () => void;
+  getLevelSelection: () => ConstructLevelSelection;
+  pickLevelInstanceAt: (clientX: number, clientY: number) => string | null;
+  renameLevel: (name: string) => LevelDocument;
+  renameInstance: (instanceId: string, name: string) => LevelDocument;
+  renameGroup: (groupId: string, name: string) => LevelDocument;
+  setInstanceAiPackage: (instanceId: string, aiPackage: ActorAiPackage) => LevelDocument;
+  setSimpleVariant: (instanceId: string, variantUrl: string | null) => Promise<LevelDocument>;
+  removeInstances: (ids: string[]) => LevelDocument;
+  createGroup: (instanceIds: string[], name?: string) => LevelDocument;
+  assignToGroup: (instanceIds: string[], groupId: string) => LevelDocument;
+  ungroup: (groupId: string) => LevelDocument;
+  ungroupInstances: (instanceIds: string[]) => LevelDocument;
+  deleteGroup: (groupId: string, removeMembers: boolean) => LevelDocument;
+  setShowColliders: (show: boolean) => void;
+  setShowBones: (show: boolean) => void;
+  getShowColliders: () => boolean;
+  getShowBones: () => boolean;
   unload: () => void;
 };
 
-export type ConstructEditorMode = 'preview' | 'prop' | 'actor';
+export type ConstructEditorMode = 'preview' | 'prop' | 'actor' | 'level';
 
 export type ConstructSessionDeps = {
   device: GpuDevice;
@@ -129,15 +178,32 @@ export type ConstructSessionDeps = {
   constructAnim: ConstructAnim;
 };
 
+export type ConstructLevelPivotSnapshot = {
+  position: [number, number, number];
+  rotation: [number, number, number, number];
+  scale: [number, number, number];
+};
+
 export type ConstructSessionState = {
   editorMode: ConstructEditorMode;
   propDocument: PropDocument;
   propDocListener: ((doc: PropDocument) => void) | null;
   actorDocument: ActorDocument;
   actorDocListener: ((doc: ActorDocument) => void) | null;
+  levelDocument: LevelDocument;
+  levelDocListener: ((doc: LevelDocument) => void) | null;
+  levelSelection: ConstructLevelSelection;
+  levelGroupPivotPrev: ConstructLevelPivotSnapshot | null;
+  levelMultiPivotPrev: ConstructLevelPivotSnapshot | null;
+  levelPropCounter: number;
+  levelActorCounter: number;
+  levelColliderCounter: number;
+  levelGroupCounter: number;
   partCounter: number;
   attachmentCounter: number;
   colliderCounter: number;
+  showColliders: boolean;
+  showBones: boolean;
   selectionEnt: Entity;
   loadGeneration: number;
   loadedModelUrl: string | null;
@@ -158,9 +224,20 @@ export const createConstructSessionState = (selectionEnt: Entity): ConstructSess
   propDocListener: null,
   actorDocument: createEmptyActorDocument(),
   actorDocListener: null,
+  levelDocument: createEmptyLevelDocument(),
+  levelDocListener: null,
+  levelSelection: { instanceIds: [], groupId: null },
+  levelGroupPivotPrev: null,
+  levelMultiPivotPrev: null,
+  levelPropCounter: 0,
+  levelActorCounter: 0,
+  levelColliderCounter: 0,
+  levelGroupCounter: 0,
   partCounter: 0,
   attachmentCounter: 0,
   colliderCounter: 0,
+  showColliders: true,
+  showBones: true,
   selectionEnt,
   loadGeneration: 0,
   loadedModelUrl: null,

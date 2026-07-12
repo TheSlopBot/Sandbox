@@ -6,7 +6,8 @@ import {
   useGame,
   useScene,
 } from 'viberanium';
-import { createConstructOrbit } from '../entities/orbit/orbit.ts';
+import { CONSTRUCT_KEYS } from '../catalog/keys/components.ts';
+import { type ConstructGizmoMode } from '../entities/gizmos/gizmoMode.ts';import { createConstructOrbit } from '../entities/orbit/orbit.ts';
 import { createConstructOrbitOriginMarker } from '../entities/orbit/orbitOriginMarker.ts';
 import { createConstructAnim } from '../entities/orbit/constructAnim.ts';
 import {
@@ -63,6 +64,40 @@ import {
   updateColliderLocal,
   updateColliderName,
 } from '../session/actorEditor.ts';
+import {
+  addLevelCollider,
+  addSimpleActor,
+  addSimpleProp,
+  addStandardActor,
+  addStandardProp,
+  applyLevelGizmoCommit,
+  refreshLevelGizmoAxisPolicy,
+  assignToGroup,
+  computeSimplePropCollider,
+  createGroup,
+  deleteGroup,
+  enterLevelMode,
+  getLevelDocument,
+  getLevelSelection,
+  loadLevelDocument,
+  newLevel,
+  removeInstances,
+  renameGroup,
+  renameInstance,
+  renameLevel,
+  selectLevelGroup,
+  selectLevelInstances,
+  selectLevelPlayerSpawn,
+  selectLevelRoot,
+  setInstanceAiPackage,
+  setLevelDocumentListener,
+  setShowBones,
+  setShowColliders,
+  setSimpleVariant,
+  ungroup,
+  ungroupInstances,
+} from '../session/levelEditor.ts';
+import { pickNearestLevelInstance } from '../entities/levelEditor/levelPick.ts';
 import { createConstructSessionState, type ConstructSession, type ConstructSessionDeps } from '../session/types.ts';
 
 const installOrbitInput = (
@@ -256,6 +291,10 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
         applyActorGizmoCommit(state, partId, local);
         return;
       }
+      if (state.editorMode === 'level') {
+        applyLevelGizmoCommit(deps, state, partId, local);
+        return;
+      }
       applyPropGizmoCommit(state, partId, local);
     },
   );
@@ -291,7 +330,15 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
     addAssetPart: (url, materialPrefix) => addAssetPart(deps, state, url, materialPrefix),
     addColliderPart: (shape) => addColliderPart(deps, state, shape),
     selectPart: (partId) => selectPart(deps, state, partId),
-    setTransformMode: (mode) => setTransformMode(deps, state, mode),
+    setTransformMode: (mode) => {
+      setTransformMode(deps, state, mode);
+      if (state.editorMode === 'level') {
+        refreshLevelGizmoAxisPolicy(state);
+      } else {
+        const gizmo = state.selectionEnt.components[CONSTRUCT_KEYS.gizmoMode] as ConstructGizmoMode;
+        gizmo.allowedAxes = null;
+      }
+    },
     renameProp: (name) => renameProp(deps, state, name),
     updatePartName: (partId, name) => updatePartName(state, partId, name),
     updatePartTags: (partId, tags) => updatePartTags(state, partId, tags),
@@ -326,6 +373,40 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
     setActorDocumentListener: (fn) => setActorDocumentListener(state, fn),
     getActorBoneNames: () => getActorBoneNames(deps),
     getOrbitAngles: () => ({ yawRad: orbit.yawRad, pitchRad: orbit.pitchRad }),
+    enterLevelMode: () => enterLevelMode(deps, state),
+    newLevel: () => newLevel(deps, state),
+    getLevelDocument: () => getLevelDocument(state),
+    loadLevelDocument: (doc) => loadLevelDocument(deps, state, doc),
+    setLevelDocumentListener: (fn) => setLevelDocumentListener(state, fn),
+    computeSimplePropCollider: (url) => computeSimplePropCollider(deps, url),
+    addSimpleProp: (url, materialPrefix, displayName, textureVariantUrl) =>
+      addSimpleProp(deps, state, url, materialPrefix, displayName, textureVariantUrl ?? null),
+    addStandardProp: (doc) => addStandardProp(deps, state, doc),
+    addSimpleActor: (url, materialPrefix, displayName, textureVariantUrl) =>
+      addSimpleActor(deps, state, url, materialPrefix, displayName, textureVariantUrl ?? null),
+    addStandardActor: (doc) => addStandardActor(deps, state, doc),
+    addLevelCollider: (shape) => addLevelCollider(deps, state, shape),
+    selectLevelInstances: (ids) => selectLevelInstances(deps, state, ids),
+    selectLevelGroup: (groupId) => selectLevelGroup(deps, state, groupId),
+    selectLevelRoot: () => selectLevelRoot(deps, state),
+    selectLevelPlayerSpawn: () => selectLevelPlayerSpawn(deps, state),
+    getLevelSelection: () => getLevelSelection(state),
+    pickLevelInstanceAt: (clientX, clientY) => pickNearestLevelInstance(sceneRegistry, pipeline, canvas, clientX, clientY),
+    renameLevel: (name) => renameLevel(deps, state, name),
+    renameInstance: (instanceId, name) => renameInstance(state, instanceId, name),
+    renameGroup: (groupId, name) => renameGroup(state, groupId, name),
+    setInstanceAiPackage: (instanceId, aiPackage) => setInstanceAiPackage(state, instanceId, aiPackage),
+    setSimpleVariant: (instanceId, variantUrl) => setSimpleVariant(deps, state, instanceId, variantUrl),
+    removeInstances: (ids) => removeInstances(deps, state, ids),
+    createGroup: (instanceIds, name) => createGroup(deps, state, instanceIds, name),
+    assignToGroup: (instanceIds, groupId) => assignToGroup(deps, state, instanceIds, groupId),
+    ungroup: (groupId) => ungroup(deps, state, groupId),
+    ungroupInstances: (instanceIds) => ungroupInstances(deps, state, instanceIds),
+    deleteGroup: (groupId, removeMembers) => deleteGroup(deps, state, groupId, removeMembers),
+    setShowColliders: (show) => setShowColliders(deps, state, show),
+    setShowBones: (show) => setShowBones(deps, state, show),
+    getShowColliders: () => state.showColliders,
+    getShowBones: () => state.showBones,
     unload: () => {
       removeOrbitInput();
       removeOrbitSystem();
@@ -345,6 +426,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
       state.defaultBaseColorTex = null;
       state.propDocListener = null;
       state.actorDocListener = null;
+      state.levelDocListener = null;
 
       textures.destroy();
       gltfCache.clear();

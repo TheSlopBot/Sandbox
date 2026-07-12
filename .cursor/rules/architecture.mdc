@@ -18,25 +18,41 @@ viberanium/                  # Game engine (Viberanium)
     ├── systems/             # install*System processors (movement, physics, animation, …)
     ├── navigation/          # A* pathfinding helpers
     ├── assets/gltf/         # GLB/glTF loader, cache, runtime scene, materials builder
-    ├── definitions/         # Portable Actor/Prop/Skeletal defs + pure helpers (no app coupling)
+    ├── definitions/         # Portable Actor/Prop/Skeletal/Level defs + pure helpers (no app coupling)
+    ├── spawn/               # Engine spawn helpers (instantiateProp) — no gameplay extras
     ├── render/              # WebGPU device, passes, compute, pipeline installer
     └── index.ts             # Public barrel export (package entry only)
 sandbox/                     # Game content
 └── src/
     ├── catalog/             # declarative registries: assets, animations, characters, levels, keys
     ├── entities/            # actor, player, enemies, ground — factories, components, systems
-    ├── scenes/common/       # createPlayableScene, useLevelScene, prop
+    ├── scenes/common/       # createPlayableScene, useLevelScene, prop re-export
+    ├── storage/             # levelLocalStore (shared key with construct)
     ├── globals/             # bootstrap, sceneManager
-    ├── menus/               # React overlay menus (performance, …)
+    ├── menus/               # React overlay menus (performance, levels, …)
     ├── ui/                  # SandboxApp shell + theme CSS
     └── SandboxApp.tsx       # package entry re-export
+construct/                   # Standalone editor (prop / actor / level tools)
+└── src/
+    ├── catalog/             # PropDocument, ActorDocument, LevelDocument, manifest
+    ├── entities/            # propEditor, actorEditor, levelEditor, gizmos, orbit
+    ├── session/             # preview, propEditor, actorEditor, levelEditor slices
+    ├── storage/             # prop/actor/level localStore wrappers
+    ├── ui/                  # ConstructApp shell + explorer/inspector/modals
+    └── …
 ```
 
-Games import the engine via `import { ... } from 'viberanium'`. Gameplay, Kaykit packs, and editor documents never live under `viberanium/definitions/`.
+Games import the engine via `import { ... } from 'viberanium'`. Gameplay, Kaykit packs, and editor documents never live under `viberanium/definitions/`. Construct never imports sandbox; sandbox never imports construct. Levels are a scene specialization: every level loads as a scene; not every scene is a level.
 
 ### `viberanium/definitions` contract
 
 Portable definition shapes and pure data helpers only. Must be understandable with zero knowledge of sandbox or construct. No Kaykit defaults, no `aiPackage`, no spawn/load, no registries, no document parse/serialize.
+
+Includes portable `LevelDefinition` (indexed simple/standard props and actors + composition TRS + `navGrid`). Authoring fields (`version`, groups, instance names, `aiPackage`) live on Construct `LevelDocument` / `.level` files only.
+
+### `viberanium/spawn` contract
+
+Shared spawn helpers such as `instantiateProp(PropDefinition → entities)`. No Construct editor tags, no sandbox gameplay components (`testAi`, player).
 
 ## Game vs Scene Registry
 

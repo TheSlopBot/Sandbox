@@ -102,6 +102,7 @@ export type GizmoSelectionContext = {
   targetId: string;
   mode: PropEditorTransformMode;
   moveOrientation: ConstructGizmoMoveOrientation;
+  allowedAxes: Axis[] | null;
   origin: Vec3;
   frame: GizmoFrame;
   signs: Record<Axis, 1 | -1>;
@@ -124,8 +125,9 @@ export const resolveGizmoSelection = (
   const origin = gizmoOriginForPart(v3(), selected, selectedT);
   const mode = gizmoMode?.mode ?? 'move';
   const moveOrientation = gizmoMode?.moveOrientation ?? 'world';
+  const allowedAxes = gizmoMode?.allowedAxes ?? null;
   const frame = resolveGizmoFrame(registry, selected, moveOrientation, mode);
   const signs = currentSigns(pipeline.camera.position, origin, frame);
 
-  return { selected, targetId, mode, moveOrientation, origin, frame, signs };
+  return { selected, targetId, mode, moveOrientation, allowedAxes, origin, frame, signs };
 };

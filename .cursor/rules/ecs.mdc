@@ -101,7 +101,7 @@ registry.deregister(entity.id);
 - `scene.unload()` deregisters **all** entities (including nav grid and ground) — nothing persists on the registry
 - `game.setActiveScene(null)` drops the active scene; the `Scene` object is discarded after `switchTo` completes
 - Frame loop runs game registry actions first, then active scene registry actions
-
+- Construct **level editor** placements use editor tags (`editableTarget`, level placement) without playable `testAi` / player — playable spawn remains sandbox `useLevelScene`
 ## Nav grid
 
 The nav grid is a first-class scene component — not a hidden cache inside an AI system.

@@ -12,6 +12,7 @@ import {
   createEmptyActorDocument,
 } from '../../catalog/actors/actorDocument.ts';
 import { type PropDocument, createEmptyPropDocument } from '../../catalog/props/propDocument.ts';
+import { type LevelDocument, createEmptyLevelDocument } from '../../catalog/levels/levelDocument.ts';
 
 export const cloneActorDoc = (doc: ActorDocument): ActorDocument => ({
   ...doc,
@@ -35,6 +36,8 @@ export type UseConstructSessionResult = {
   setActorDoc: Dispatch<SetStateAction<ActorDocument>>;
   actorBoneNames: string[];
   setActorBoneNames: Dispatch<SetStateAction<string[]>>;
+  levelDoc: LevelDocument;
+  setLevelDoc: Dispatch<SetStateAction<LevelDocument>>;
 };
 
 export const useConstructSession = (active: boolean): UseConstructSessionResult => {
@@ -44,6 +47,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
   const [propDoc, setPropDoc] = useState<PropDocument>(() => createEmptyPropDocument());
   const [actorDoc, setActorDoc] = useState<ActorDocument>(() => createEmptyActorDocument());
   const [actorBoneNames, setActorBoneNames] = useState<string[]>([]);
+  const [levelDoc, setLevelDoc] = useState<LevelDocument>(() => createEmptyLevelDocument());
   const [sessionReady, setSessionReady] = useState(0);
 
   useEffect(() => {
@@ -73,6 +77,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
 
       session.setPropDocumentListener(null);
       session.setActorDocumentListener(null);
+      session.setLevelDocumentListener(null);
       session.unload();
       sessionRef.current = null;
     };
@@ -89,10 +94,14 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
       setActorDoc(cloneActorDoc(doc));
       setActorBoneNames(session.getActorBoneNames());
     });
+    session.setLevelDocumentListener((doc) => {
+      setLevelDoc(doc);
+    });
 
     return () => {
       session.setPropDocumentListener(null);
       session.setActorDocumentListener(null);
+      session.setLevelDocumentListener(null);
     };
   }, [sessionReady]);
 
@@ -106,5 +115,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
     setActorDoc,
     actorBoneNames,
     setActorBoneNames,
+    levelDoc,
+    setLevelDoc,
   };
 };

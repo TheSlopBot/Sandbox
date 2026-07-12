@@ -22,9 +22,20 @@ export const createPlayer = async (
   device: GpuDevice,
   textures: TextureCache,
   gltfCache: GltfCache,
+  spawn?: {
+    position?: [number, number, number];
+    rotation?: [number, number, number, number];
+  },
 ) => {
   const charT = createTransform();
-  charT.position[1] = 1.6;
+  const position = spawn?.position ?? [0, 1.6, 0];
+  const rotation = spawn?.rotation ?? [0, 0, 0, 1];
+  charT.position[0] = position[0];
+  charT.position[1] = position[1];
+  charT.position[2] = position[2];
+  const siny = 2 * (rotation[3] * rotation[1] + rotation[0] * rotation[2]);
+  const cosy = 1 - 2 * (rotation[1] * rotation[1] + rotation[0] * rotation[0]);
+  charT.yaw = Math.atan2(siny, cosy);
   charT.dirty = true;
 
   const entity = registry.createBare();

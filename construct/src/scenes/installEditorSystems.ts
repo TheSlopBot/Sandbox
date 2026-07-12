@@ -88,6 +88,21 @@ export const ensureActorEditorSystems = (
   }
 };
 
+export const ensureLevelEditorSystems = (
+  registry: Registry,
+  device: GpuDevice,
+  pipeline: RenderPipeline,
+  state: ConstructSessionState,
+) => {
+  if (!state.removeSkeletalSystem) {
+    state.removeSkeletalSystem = installSkeletalCharacterSystems(registry, {
+      device,
+      setPreDrawEncode: pipeline.setPreDrawEncode,
+    });
+  }
+  ensurePropStaticModelSystem(registry, state);
+};
+
 export const stopActorEditorSystems = (state: ConstructSessionState) => {
   if (state.removeSkeletonOverlaySystem) {
     state.removeSkeletonOverlaySystem();

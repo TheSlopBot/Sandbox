@@ -3,6 +3,7 @@ import {
   type Transform,
   type LocalTransform,
   type Collider,
+  type Children,
   type Mat4,
   bakeColliderWorldFromLocal,
   m4,
@@ -14,7 +15,7 @@ import {
 
 export const syncPartLocalToWorld = (
   registry: Registry,
-  selected: { components: Record<string, unknown> },
+  selected: { components: Record<string, unknown>; id?: number },
 ) => {
   const t = selected.components[COMPONENT_KEYS.transform] as Transform | undefined;
   const local = selected.components[COMPONENT_KEYS.localTransform] as LocalTransform | undefined;
@@ -50,5 +51,15 @@ export const syncPartLocalToWorld = (
       if (nodeWorld) m4Mul(r.model, t.world, nodeWorld);
       else m4Copy(r.model, t.world);
     }
+  }
+
+  const children = selected.components[COMPONENT_KEYS.children] as Children | undefined;
+  if (!children) return;
+
+  for (const childId of children.ids) {
+    const child = registry.get(childId);
+    if (!child) continue;
+    if (child.components[COMPONENT_KEYS.boneAttachment]) continue;
+    syncPartLocalToWorld(registry, child);
   }
 };

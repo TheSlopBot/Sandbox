@@ -62,29 +62,40 @@ viberanium/src/
   systems/      install*System processors
   navigation/   A* pathfinding helpers
   assets/       loaders (gltf/)
-  definitions/  portable Actor/Prop/Skeletal defs + pure helpers (no app coupling)
+  definitions/  portable Actor/Prop/Skeletal/Level defs + pure helpers (no app coupling)
+  spawn/        instantiateProp and related engine spawn helpers
   render/       WebGPU pipeline, passes, WGSL shaders, gl/ device helpers
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/
   catalog/      assets, animations, characters, props, levels, keys, ui
   entities/     actor/, player/, enemies/, ground/
-  scenes/common/  createPlayableScene, useLevelScene, prop
+  scenes/common/  createPlayableScene, useLevelScene, prop re-export
+  storage/      levelLocalStore (shared with construct)
   globals/      bootstrap, sceneManager
-  menus/        performance menu, future overlays
+  menus/        performance, levels
   ui/           app/SandboxApp, theme/style.css
+
+construct/src/
+  catalog/      props, actors, levels documents + manifest
+  entities/     propEditor, actorEditor, levelEditor, gizmos, orbit
+  session/      preview, propEditor, actorEditor, levelEditor
+  storage/      prop/actor/level localStore
+  ui/           ConstructApp + explorer/inspector/modals
 ```
 
 Feature code lives in its own slice folder under `entities/`. Do not add logic to `globals/bootstrap.ts` beyond composition wiring.
 
 ### Catalog vs entities vs definitions
 
-- **viberanium/definitions/** — portable `ActorDefinition`, `PropDefinition`, `SkeletalCharacterDef`, pure converters/builders/URL collectors. No Kaykit, no `aiPackage`, no spawn.
-- **sandbox catalog/** — app resource registries (URLs, Kaykit packs, `GameActorDefinition` with `aiPackage`, level spawns). No registry writes.
-- **entities/** — factories (`createPlayer`, `spawnActor`), components, systems.
-- **scenes/common/** — level plumbing (`instantiateProp` from `PropDefinition`, `createPlayableScene`).
+- **viberanium/definitions/** — portable `ActorDefinition`, `PropDefinition`, `SkeletalCharacterDef`, `LevelDefinition`, pure converters/builders/URL collectors. No Kaykit, no `aiPackage`, no spawn, no document parse.
+- **viberanium/spawn/** — `instantiateProp` and related engine spawn (no gameplay extras).
+- **sandbox catalog/** — app resource registries (URLs, Kaykit packs, `GameActorDefinition` with `aiPackage`, level seeds / `levelFile` parse). No registry writes.
+- **construct catalog/** — `PropDocument` / `ActorDocument` / `LevelDocument` parse/serialize and converters to portable defs.
+- **entities/** — factories (`createPlayer`, `spawnActor`), components, systems; Construct `levelEditor` placements are editor-only (no `testAi`).
+- **scenes/common/** — level plumbing (`useLevelScene`, `createPlayableScene`); prop spawn via engine `instantiateProp`.
 
-See `.cursor/rules/sandbox-structure.mdc` for the full layout contract.
+See `.cursor/rules/sandbox-structure.mdc` and `.cursor/rules/construct-structure.mdc` for full layout contracts.
 
 ### Skeletal characters
 
@@ -95,9 +106,10 @@ See `.cursor/rules/sandbox-structure.mdc` for the full layout contract.
 
 ### Levels & assets
 
-- Add levels as `LevelDefinition` entries in `catalog/levels/` (types in `catalog/levels/levelDefinition.ts`)
-- Register in `catalog/levels/registry.ts`
-- Preload via `collectLevelAssetUrls` in `catalog/levels/collectAssetUrls.ts`
+- Portable shape: indexed `LevelDefinition` in viberanium (`simpleProps` / `standardProps` / `simpleActors` / `standardActors` + props/actors/colliders composition + `playerSpawn`)
+- Authoring: Construct `LevelDocument` (`.level`) with groups + `aiPackage` + player spawn; shared localStorage key `construct.levelLocalStore`
+- Sandbox: seed store on boot; Digit0 opens level modal; Digit1–4 load testOne–testFour; each `switchTo` creates a fresh scene
+- Preload via `collectUrlsFromLevel` (index only)
 - `scene.load()` creates level content; `scene.unload()` destroys everything on the scene registry
 
 See `.cursor/rules/levels.mdc`, `.cursor/rules/sandbox-structure.mdc`, and `.cursor/rules/ecs.mdc` for full patterns.

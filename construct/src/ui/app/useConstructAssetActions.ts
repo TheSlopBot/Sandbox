@@ -2,9 +2,16 @@ import { type RefObject } from 'react';
 import { type KaykitManifestEntry } from '../../catalog/manifest/kaykitManifest.ts';
 import { type PropDocument } from '../../catalog/props/propDocument.ts';
 import { type ActorDocument, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
+import { type LevelDocument } from '../../catalog/levels/levelDocument.ts';
 import { type ConstructSession } from '../../globals/bootstrap.ts';
+import { type ConstructLevelSelection } from '../../session/types.ts';
 import { type ConstructMode } from '../menu/AppMenu.tsx';
 import { cloneActorDoc } from './useConstructSession.ts';
+
+const fileBaseName = (path: string) => {
+  const name = path.split('/').slice(-1)[0] ?? path;
+  return name.replace(/\.[^./]+$/, '');
+};
 
 export type UseConstructAssetActionsParams = {
   mode: ConstructMode;
@@ -20,6 +27,8 @@ export type UseConstructAssetActionsParams = {
   setAvailableClipNames: (names: string[]) => void;
   setClipName: (name: string | null) => void;
   setStatus: (status: string) => void;
+  setLevelDoc: (doc: LevelDocument) => void;
+  setLevelSelection: (selection: ConstructLevelSelection) => void;
 };
 
 export const useConstructAssetActions = ({
@@ -36,6 +45,8 @@ export const useConstructAssetActions = ({
   setAvailableClipNames,
   setClipName,
   setStatus,
+  setLevelDoc,
+  setLevelSelection,
 }: UseConstructAssetActionsParams) => {
   const onAddAsset = (filePath: string) => {
     const session = sessionRef.current;
@@ -75,15 +86,48 @@ export const useConstructAssetActions = ({
           setStatus(`Add attachment error: ${String(err)}`);
         }
       })();
+      return;
+    }
+
+    if (mode === 'level') {
+      const displayName = fileBaseName(entry.path);
+      void (async () => {
+        try {
+          const doc = await session.addSimpleProp(url, 'prop', displayName, null);
+          setLevelDoc(doc);
+          setLevelSelection(session.getLevelSelection());
+          setStatus(`Added ${displayName}`);
+        } catch (err) {
+          setStatus(`Add prop error: ${String(err)}`);
+        }
+      })();
     }
   };
 
   const onAddCharacter = (filePath: string) => {
     const session = sessionRef.current;
     const entry = entriesByPath.get(filePath);
-    if (!session || !entry || mode !== 'actor') return;
+    if (!session || !entry) return;
 
     const url = `${import.meta.env.BASE_URL}${entry.url}`;
+
+    if (mode === 'level') {
+      const displayName = fileBaseName(entry.path);
+      void (async () => {
+        try {
+          const doc = await session.addSimpleActor(url, 'character', displayName, null);
+          setLevelDoc(doc);
+          setLevelSelection(session.getLevelSelection());
+          setStatus(`Added ${displayName}`);
+        } catch (err) {
+          setStatus(`Add actor error: ${String(err)}`);
+        }
+      })();
+      return;
+    }
+
+    if (mode !== 'actor') return;
+
     void (async () => {
       try {
         const doc = await session.setActorCharacter(url, 'character');
@@ -102,9 +146,54 @@ export const useConstructAssetActions = ({
     })();
   };
 
+  const onAddStandardProp = (doc: PropDocument) => {
+    const session = sessionRef.current;
+    if (!session || mode !== 'level') return;
+
+    void (async () => {
+      try {
+        const levelDoc = await session.addStandardProp(doc);
+        setLevelDoc(levelDoc);
+        setLevelSelection(session.getLevelSelection());
+        setStatus(`Added ${doc.displayName}`);
+      } catch (err) {
+        setStatus(`Add prop error: ${String(err)}`);
+      }
+    })();
+  };
+
+  const onAddStandardActor = (doc: ActorDocument) => {
+    const session = sessionRef.current;
+    if (!session || mode !== 'level') return;
+
+    if (!doc.character) {
+      setStatus(`${doc.displayName} has no character set — cannot place in level.`);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const levelDoc = await session.addStandardActor(doc);
+        setLevelDoc(levelDoc);
+        setLevelSelection(session.getLevelSelection());
+        setStatus(`Added ${doc.displayName}`);
+      } catch (err) {
+        setStatus(`Add actor error: ${String(err)}`);
+      }
+    })();
+  };
+
   const onAddCollider = (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => {
     const session = sessionRef.current;
     if (!session) return;
+
+    if (mode === 'level') {
+      const doc = session.addLevelCollider(shape);
+      setLevelDoc(doc);
+      setLevelSelection(session.getLevelSelection());
+      setStatus(`Added ${shape} collider`);
+      return;
+    }
 
     if (mode === 'actor') {
       const parent =
@@ -138,7 +227,7 @@ export const useConstructAssetActions = ({
     setStatus(`Added ${shape} collider`);
   };
 
-  return { onAddAsset, onAddCharacter, onAddCollider };
+  return { onAddAsset, onAddCharacter, onAddCollider, onAddStandardProp, onAddStandardActor };
 };
 
 export type UseConstructAssetActionsResult = ReturnType<typeof useConstructAssetActions>;

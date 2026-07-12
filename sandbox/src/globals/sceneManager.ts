@@ -10,7 +10,7 @@ import {
   type EngineOptimizationOptions,
 } from 'viberanium';
 import { collectLevelAssetUrls } from '../catalog/levels/collectAssetUrls.ts';
-import { type LevelDefinition } from '../catalog/levels/levelDefinition.ts';
+import { type LevelBuild } from '../catalog/levels/levelSeed.ts';
 import { type SceneDeps } from '../scenes/common/createPlayableScene.ts';
 import { useLevelScene } from '../scenes/common/useLevelScene.ts';
 
@@ -22,9 +22,10 @@ export type SceneManagerDeps = {
   gltfCache: GltfCache;
   meshes: SharedMeshCache;
   device: GpuDevice;
-  catalog: Record<string, LevelDefinition>;
   optimization: EngineOptimizationOptions;
   setActiveSceneRegistry: (registry: Registry) => void;
+  resolveLevel: (levelId: string) => LevelBuild | null;
+  onRequestLevelSelect: () => void;
 };
 
 export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDeps) => {
@@ -45,19 +46,19 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
   });
 
   const switchTo = async (levelId: string) => {
-    if (switching || currentLevelId === levelId) return;
+    if (switching) return;
 
-    const definition = deps.catalog[levelId];
-    if (!definition) throw new Error(`Unknown level: ${levelId}`);
+    const build = deps.resolveLevel(levelId);
+    if (!build) throw new Error(`Unknown level: ${levelId}`);
 
     switching = true;
 
     deps.game.setActiveScene(null);
     currentLevelId = null;
 
-    await deps.gltfCache.preload(collectLevelAssetUrls(definition));
+    await deps.gltfCache.preload(collectLevelAssetUrls(build.definition));
 
-    const scene = useLevelScene(sceneDeps(), definition);
+    const scene = useLevelScene(sceneDeps(), build.definition, build.aiPackages);
     deps.game.setActiveScene(scene);
     deps.setActiveSceneRegistry(scene.registry);
     currentLevelId = levelId;
@@ -69,9 +70,15 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
 
   removeUpdateAction = gameRegistry.addAction('update', () => {
     if (switching) return;
+
+    if (deps.input.pressed('Digit0')) deps.onRequestLevelSelect();
+
     if (deps.input.pressed('Digit1')) void switchTo('testOne');
+
     if (deps.input.pressed('Digit2')) void switchTo('testTwo');
+
     if (deps.input.pressed('Digit3')) void switchTo('testThree');
+
     if (deps.input.pressed('Digit4')) void switchTo('testFour');
   }, 0);
 

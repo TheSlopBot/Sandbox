@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import {
   type PropDocument,
   parsePropDocument,
@@ -13,6 +13,13 @@ import {
   serializeActorDocument,
 } from '../../catalog/actors/actorDocument.ts';
 import {
+  type LevelDocument,
+  levelNeedsName,
+  parseLevelDocument,
+  serializeLevelDocument,
+} from '../../catalog/levels/levelDocument.ts';
+import { type ConstructLevelSelection } from '../../session/types.ts';
+import {
   getLocalPropEntry,
   listLocalPropEntries,
   removeLocalProp,
@@ -26,6 +33,13 @@ import {
   saveLocalActor,
   type ActorLocalStoreEntry,
 } from '../../storage/actorLocalStore.ts';
+import {
+  getLocalLevelEntry,
+  listLocalLevelEntries,
+  removeLocalLevel,
+  saveLocalLevel,
+  type LevelLocalStoreEntry,
+} from '../../storage/levelLocalStore.ts';
 import { type ConstructSession } from '../../globals/bootstrap.ts';
 import { type ConstructMode } from '../menu/AppMenu.tsx';
 import { cloneActorDoc } from './useConstructSession.ts';
@@ -54,6 +68,17 @@ const downloadActorDocument = (doc: ActorDocument) => {
   return a.download;
 };
 
+const downloadLevelDocument = (doc: LevelDocument) => {
+  const blob = new Blob([serializeLevelDocument(doc)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${doc.id || 'untitled'}.level`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return a.download;
+};
+
 export type UseConstructDocumentActionsParams = {
   mode: ConstructMode;
   sessionRef: RefObject<ConstructSession | null>;
@@ -62,6 +87,9 @@ export type UseConstructDocumentActionsParams = {
   actorDoc: ActorDocument;
   setActorDoc: (doc: ActorDocument) => void;
   setActorBoneNames: (names: string[]) => void;
+  levelDoc: LevelDocument;
+  setLevelDoc: (doc: LevelDocument) => void;
+  setLevelSelection: (selection: ConstructLevelSelection) => void;
   setSelectedPartId: (id: string | null) => void;
   setActorSelection: (selection: ActorEditorSelection) => void;
   setStatus: (status: string) => void;
@@ -76,6 +104,9 @@ export const useConstructDocumentActions = ({
   actorDoc,
   setActorDoc,
   setActorBoneNames,
+  levelDoc,
+  setLevelDoc,
+  setLevelSelection,
   setSelectedPartId,
   setActorSelection,
   setStatus,
@@ -86,12 +117,15 @@ export const useConstructDocumentActions = ({
   const [confirmNewOpen, setConfirmNewOpen] = useState(false);
   const [loadPropModalOpen, setLoadPropModalOpen] = useState(false);
   const [loadActorModalOpen, setLoadActorModalOpen] = useState(false);
+  const [loadLevelModalOpen, setLoadLevelModalOpen] = useState(false);
   const [localPropEntries, setLocalPropEntries] = useState<PropLocalStoreEntry[]>([]);
   const [localActorEntries, setLocalActorEntries] = useState<ActorLocalStoreEntry[]>([]);
+  const [localLevelEntries, setLocalLevelEntries] = useState<LevelLocalStoreEntry[]>([]);
   const [renameIntent, setRenameIntent] = useState<RenameIntent | null>(null);
 
   const currentPropDoc = () => sessionRef.current?.getPropDocument() ?? propDoc;
   const currentActorDoc = () => sessionRef.current?.getActorDocument() ?? actorDoc;
+  const currentLevelDoc = () => sessionRef.current?.getLevelDocument() ?? levelDoc;
 
   const applyRenamedProp = (name: string) => {
     const session = sessionRef.current;
@@ -125,6 +159,22 @@ export const useConstructDocumentActions = ({
     return doc;
   };
 
+  const applyRenamedLevel = (name: string) => {
+    const session = sessionRef.current;
+    if (!session) return null;
+
+    const previousId = session.getLevelDocument().id;
+    const doc = session.renameLevel(name);
+    setLevelDoc(doc);
+
+    if (previousId !== doc.id && getLocalLevelEntry(previousId)) {
+      removeLocalLevel(previousId);
+      saveLocalLevel(doc);
+    }
+
+    return doc;
+  };
+
   const persistLocalProp = (doc: PropDocument) => {
     const entry = saveLocalProp(doc);
     setStatus(`Saved ${entry.displayName} to local storage`);
@@ -135,6 +185,11 @@ export const useConstructDocumentActions = ({
     setStatus(`Saved ${entry.displayName} to local storage`);
   };
 
+  const persistLocalLevel = (doc: LevelDocument) => {
+    const entry = saveLocalLevel(doc);
+    setStatus(`Saved ${entry.displayName} to local storage`);
+  };
+
   const exportPropFile = (doc: PropDocument) => {
     const filename = downloadPropDocument(doc);
     setStatus(`Exported ${filename}`);
@@ -142,6 +197,11 @@ export const useConstructDocumentActions = ({
 
   const exportActorFile = (doc: ActorDocument) => {
     const filename = downloadActorDocument(doc);
+    setStatus(`Exported ${filename}`);
+  };
+
+  const exportLevelFile = (doc: LevelDocument) => {
+    const filename = downloadLevelDocument(doc);
     setStatus(`Exported ${filename}`);
   };
 
@@ -163,12 +223,22 @@ export const useConstructDocumentActions = ({
       setActorBoneNames([]);
       setActorSelection(null);
       setStatus('New actor document.');
+      return;
+    }
+
+    if (mode === 'level') {
+      void (async () => {
+        const doc = await session.newLevel();
+        setLevelDoc(doc);
+        setLevelSelection({ instanceIds: [], groupId: null });
+        setStatus('New level document.');
+      })();
     }
   };
 
   const onNew = () => {
-    if (mode !== 'prop' && mode !== 'actor') {
-      setStatus('New is available in Prop or Actor mode.');
+    if (mode !== 'prop' && mode !== 'actor' && mode !== 'level') {
+      setStatus('New is available in Prop, Actor, or Level mode.');
       return;
     }
     setConfirmNewOpen(true);
@@ -195,12 +265,34 @@ export const useConstructDocumentActions = ({
       return;
     }
 
-    setStatus('Save is available in Prop or Actor mode.');
+    if (mode === 'level') {
+      const doc = currentLevelDoc();
+      if (levelNeedsName(doc)) {
+        setRenameIntent('save');
+        return;
+      }
+      persistLocalLevel(doc);
+      return;
+    }
+
+    setStatus('Save is available in Prop, Actor, or Level mode.');
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      if (e.code !== 'KeyS') return;
+      e.preventDefault();
+      onSave();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mode]);
+
   const onSaveAs = () => {
-    if (mode !== 'prop' && mode !== 'actor') {
-      setStatus('Save As is available in Prop or Actor mode.');
+    if (mode !== 'prop' && mode !== 'actor' && mode !== 'level') {
+      setStatus('Save As is available in Prop, Actor, or Level mode.');
       return;
     }
     setRenameIntent('saveAs');
@@ -219,12 +311,18 @@ export const useConstructDocumentActions = ({
       return;
     }
 
-    setStatus('Load is available in Prop or Actor mode.');
+    if (mode === 'level') {
+      setLocalLevelEntries(listLocalLevelEntries());
+      setLoadLevelModalOpen(true);
+      return;
+    }
+
+    setStatus('Load is available in Prop, Actor, or Level mode.');
   };
 
   const onImport = () => {
-    if (mode !== 'prop' && mode !== 'actor') {
-      setStatus('Import is available in Prop or Actor mode.');
+    if (mode !== 'prop' && mode !== 'actor' && mode !== 'level') {
+      setStatus('Import is available in Prop, Actor, or Level mode.');
       return;
     }
     fileInputRef.current?.click();
@@ -251,11 +349,21 @@ export const useConstructDocumentActions = ({
       return;
     }
 
-    setStatus('Export is available in Prop or Actor mode.');
+    if (mode === 'level') {
+      const doc = currentLevelDoc();
+      if (levelNeedsName(doc)) {
+        setRenameIntent('export');
+        return;
+      }
+      exportLevelFile(doc);
+      return;
+    }
+
+    setStatus('Export is available in Prop, Actor, or Level mode.');
   };
 
   const onRenameDocument = () => {
-    if (mode !== 'prop' && mode !== 'actor') return;
+    if (mode !== 'prop' && mode !== 'actor' && mode !== 'level') return;
     setRenameIntent('edit');
   };
 
@@ -307,6 +415,29 @@ export const useConstructDocumentActions = ({
         return;
       }
       setStatus(`Renamed actor to ${doc.displayName}`);
+      return;
+    }
+
+    if (mode === 'level') {
+      if (intent === 'saveAs') {
+        const session = sessionRef.current;
+        if (!session) return;
+        const doc = session.renameLevel(name);
+        setLevelDoc(doc);
+        persistLocalLevel(doc);
+        return;
+      }
+      const doc = applyRenamedLevel(name);
+      if (!doc) return;
+      if (intent === 'save') {
+        persistLocalLevel(doc);
+        return;
+      }
+      if (intent === 'export') {
+        exportLevelFile(doc);
+        return;
+      }
+      setStatus(`Renamed level to ${doc.displayName}`);
     }
   };
 
@@ -359,6 +490,29 @@ export const useConstructDocumentActions = ({
     setStatus(`Deleted ${entry.displayName} from local storage`);
   };
 
+  const onLoadLevelEntry = (entry: LevelLocalStoreEntry) => {
+    setLoadLevelModalOpen(false);
+    const session = sessionRef.current;
+    if (!session) return;
+
+    void (async () => {
+      try {
+        const loaded = await session.loadLevelDocument(entry.document);
+        setLevelDoc(loaded);
+        setLevelSelection({ instanceIds: [], groupId: null });
+        setStatus(`Loaded ${entry.displayName}`);
+      } catch (err) {
+        setStatus(`Load error: ${String(err)}`);
+      }
+    })();
+  };
+
+  const onDeleteLocalLevelEntry = (entry: LevelLocalStoreEntry) => {
+    removeLocalLevel(entry.id);
+    setLocalLevelEntries(listLocalLevelEntries());
+    setStatus(`Deleted ${entry.displayName} from local storage`);
+  };
+
   const onFileInputChange = (file: File | null) => {
     if (!file) return;
 
@@ -375,6 +529,15 @@ export const useConstructDocumentActions = ({
           setActorBoneNames(session.getActorBoneNames());
           setActorSelection(loaded.character ? { kind: 'actor' } : null);
           resetAnimationPreview();
+          setStatus(`Imported ${file.name}`);
+          return;
+        }
+
+        if (mode === 'level') {
+          const doc = parseLevelDocument(text);
+          const loaded = await session.loadLevelDocument(doc);
+          setLevelDoc(loaded);
+          setLevelSelection({ instanceIds: [], groupId: null });
           setStatus(`Imported ${file.name}`);
           return;
         }
@@ -399,8 +562,11 @@ export const useConstructDocumentActions = ({
     setLoadPropModalOpen,
     loadActorModalOpen,
     setLoadActorModalOpen,
+    loadLevelModalOpen,
+    setLoadLevelModalOpen,
     localPropEntries,
     localActorEntries,
+    localLevelEntries,
     renameIntent,
     setRenameIntent,
     onNew,
@@ -416,6 +582,8 @@ export const useConstructDocumentActions = ({
     onDeleteLocalPropEntry,
     onLoadActorEntry,
     onDeleteLocalActorEntry,
+    onLoadLevelEntry,
+    onDeleteLocalLevelEntry,
     onFileInputChange,
   };
 };

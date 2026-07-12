@@ -242,9 +242,10 @@ export const installConstructGizmoPose = (
       }
 
       const wantVisible =
-        (ctx.mode === 'move' && h.gizmo === 'move') ||
-        (ctx.mode === 'rotate' && h.gizmo === 'rotate') ||
-        (ctx.mode === 'scale' && h.gizmo === 'scale');
+        ((ctx.mode === 'move' && h.gizmo === 'move') ||
+          (ctx.mode === 'rotate' && h.gizmo === 'rotate') ||
+          (ctx.mode === 'scale' && h.gizmo === 'scale')) &&
+        (!ctx.allowedAxes || ctx.allowedAxes.includes(h.axis));
 
       renderable.visible = wantVisible;
       if (!wantVisible) {

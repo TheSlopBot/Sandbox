@@ -8,16 +8,21 @@ export type ViewerAnimHudProps = {
   textureVariants?: KaykitTextureVariant[];
   textureVariantUrl?: string | null;
   onTextureVariantChange?: (url: string | null) => void;
-  canAnimate: boolean;
-  animPackUrl: string | null;
-  compatibleAnimPacks: KaykitManifestEntry[];
-  onAnimPackChange: (url: string | null) => void;
-  clipName: string | null;
-  availableClipNames: string[];
-  onClipChange: (clip: string | null) => void;
-  animPaused: boolean;
-  onPlayPause: () => void;
-  onReset: () => void;
+  canAnimate?: boolean;
+  animPackUrl?: string | null;
+  compatibleAnimPacks?: KaykitManifestEntry[];
+  onAnimPackChange?: (url: string | null) => void;
+  clipName?: string | null;
+  availableClipNames?: string[];
+  onClipChange?: (clip: string | null) => void;
+  animPaused?: boolean;
+  onPlayPause?: () => void;
+  onReset?: () => void;
+  showColliders?: boolean;
+  onShowCollidersChange?: (show: boolean) => void;
+  showBones?: boolean;
+  onShowBonesChange?: (show: boolean) => void;
+  showAnimControls?: boolean;
 };
 
 export const ViewerAnimHud = ({
@@ -28,16 +33,21 @@ export const ViewerAnimHud = ({
   textureVariants = [],
   textureVariantUrl = null,
   onTextureVariantChange,
-  canAnimate,
-  animPackUrl,
-  compatibleAnimPacks,
+  canAnimate = false,
+  animPackUrl = null,
+  compatibleAnimPacks = [],
   onAnimPackChange,
-  clipName,
-  availableClipNames,
+  clipName = null,
+  availableClipNames = [],
   onClipChange,
-  animPaused,
+  animPaused = false,
   onPlayPause,
   onReset,
+  showColliders,
+  onShowCollidersChange,
+  showBones,
+  onShowBonesChange,
+  showAnimControls = true,
 }: ViewerAnimHudProps) => {
   const playbackEnabled = canAnimate && !!clipName;
   const playPauseLabel = animPaused ? 'Play' : 'Pause';
@@ -48,6 +58,7 @@ export const ViewerAnimHud = ({
   const sortedClipNames = [...availableClipNames].sort((a, b) =>
     a.localeCompare(b, undefined, { sensitivity: 'base' }),
   );
+  const showOverlayToggles = onShowCollidersChange !== undefined || onShowBonesChange !== undefined;
 
   return (
     <div className="construct-viewerHud">
@@ -78,7 +89,7 @@ export const ViewerAnimHud = ({
             <label>Animation pack</label>
             <select
               value={animPackUrl ?? ''}
-              onChange={(e) => onAnimPackChange(e.target.value || null)}
+              onChange={(e) => onAnimPackChange?.(e.target.value || null)}
             >
               <option value="">(none)</option>
               {sortedAnimPacks.map((p) => (
@@ -93,7 +104,7 @@ export const ViewerAnimHud = ({
             <select
               disabled={sortedClipNames.length === 0}
               value={clipName ?? ''}
-              onChange={(e) => onClipChange(e.target.value || null)}
+              onChange={(e) => onClipChange?.(e.target.value || null)}
             >
               <option value="">(none)</option>
               {sortedClipNames.map((n) => (
@@ -105,34 +116,60 @@ export const ViewerAnimHud = ({
           </div>
         </>
       ) : null}
+      {showOverlayToggles ? (
+        <div className="construct-hudChecks">
+          {onShowCollidersChange !== undefined ? (
+            <label className="construct-hudCheck">
+              <span>Show colliders</span>
+              <input
+                type="checkbox"
+                checked={!!showColliders}
+                onChange={(e) => onShowCollidersChange(e.target.checked)}
+              />
+            </label>
+          ) : null}
+          {onShowBonesChange !== undefined ? (
+            <label className="construct-hudCheck">
+              <span>Show bones</span>
+              <input
+                type="checkbox"
+                checked={!!showBones}
+                onChange={(e) => onShowBonesChange(e.target.checked)}
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
       {showTextureVariant && !canSwitchTexture ? (
         <div className="mutedNote">Texture variants unavailable for this asset.</div>
       ) : null}
-      <div className="construct-hudFooter">
-        <div className="construct-hudActions">
-          <button
-            type="button"
-            className="construct-hudIconBtn"
-            title={playPauseLabel}
-            aria-label={playPauseLabel}
-            disabled={!playbackEnabled}
-            onClick={onPlayPause}
-          >
-            {animPaused ? (
-              <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-                <path fill="currentColor" d="M3.5 2.2v11.6L13.5 8 3.5 2.2Z" />
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-                <path fill="currentColor" d="M3.5 2.5h3v11h-3v-11Zm6 0h3v11h-3v-11Z" />
-              </svg>
-            )}
-          </button>
-          <button type="button" className="construct-hudResetBtn" onClick={onReset}>
-            Reset
-          </button>
+      {showAnimControls ? (
+        <div className="construct-hudFooter">
+          <div className="construct-hudActions">
+            <button
+              type="button"
+              className="construct-hudIconBtn"
+              title={playPauseLabel}
+              aria-label={playPauseLabel}
+              disabled={!playbackEnabled}
+              onClick={onPlayPause}
+            >
+              {animPaused ? (
+                <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                  <path fill="currentColor" d="M3.5 2.2v11.6L13.5 8 3.5 2.2Z" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                  <path fill="currentColor" d="M3.5 2.5h3v11h-3v-11Zm6 0h3v11h-3v-11Z" />
+                </svg>
+              )}
+            </button>
+            <button type="button" className="construct-hudResetBtn" onClick={onReset}>
+              Reset
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 };

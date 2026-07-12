@@ -366,6 +366,7 @@ export const installConstructGizmoInput = (
     const scale = gizmoWorldScale();
     const axis = pickHandle(pipeline, canvas, e.clientX, e.clientY, ctx.origin, ctx.mode, scale, ctx.signs, ctx.frame);
     if (!axis) return;
+    if (ctx.allowedAxes && !ctx.allowedAxes.includes(axis)) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -387,7 +388,8 @@ export const installConstructGizmoInput = (
     }
 
     const scale = gizmoWorldScale();
-    hoverAxis = pickHandle(pipeline, canvas, e.clientX, e.clientY, ctx.origin, ctx.mode, scale, ctx.signs, ctx.frame);
+    const axis = pickHandle(pipeline, canvas, e.clientX, e.clientY, ctx.origin, ctx.mode, scale, ctx.signs, ctx.frame);
+    hoverAxis = axis && (!ctx.allowedAxes || ctx.allowedAxes.includes(axis)) ? axis : null;
   };
 
   const onWindowPointerMove = (e: PointerEvent) => {

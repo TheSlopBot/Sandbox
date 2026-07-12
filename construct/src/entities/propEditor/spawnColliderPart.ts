@@ -23,6 +23,7 @@ export const spawnColliderPartEntity = (
   registry: Registry,
   rootId: number,
   part: PropDocumentColliderPart,
+  showColliders = true,
 ) => {
   const root = registry.get(rootId);
   if (!root) return null;
@@ -54,6 +55,7 @@ export const spawnColliderPartEntity = (
     material: resources.material,
     castShadow: false,
     overlay: true,
+    visible: showColliders,
   };
   child.onDeregister.push(() => destroyMesh(device, mesh));
 

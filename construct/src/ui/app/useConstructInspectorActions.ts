@@ -1,7 +1,9 @@
 import { type RefObject } from 'react';
 import { type PropDocument } from '../../catalog/props/propDocument.ts';
 import { type ActorAiPackage, type ActorDocument, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
+import { type LevelDocument } from '../../catalog/levels/levelDocument.ts';
 import { type ConstructSession } from '../../globals/bootstrap.ts';
+import { type ConstructLevelSelection } from '../../session/types.ts';
 import { cloneActorDoc } from './useConstructSession.ts';
 
 export type UseConstructInspectorActionsParams = {
@@ -11,6 +13,8 @@ export type UseConstructInspectorActionsParams = {
   setActorDoc: (doc: ActorDocument) => void;
   setSelectedPartId: (id: string | null) => void;
   setActorSelection: (selection: ActorEditorSelection) => void;
+  setLevelDoc: (doc: LevelDocument) => void;
+  setLevelSelection: (selection: ConstructLevelSelection) => void;
   setStatus: (status: string) => void;
 };
 
@@ -21,6 +25,8 @@ export const useConstructInspectorActions = ({
   setActorDoc,
   setSelectedPartId,
   setActorSelection,
+  setLevelDoc,
+  setLevelSelection,
   setStatus,
 }: UseConstructInspectorActionsParams) => {
   const propInspectorActions = {
@@ -161,7 +167,76 @@ export const useConstructInspectorActions = ({
     },
   };
 
-  return { propInspectorActions, actorInspectorActions };
+  const levelInspectorActions = {
+    onRenameInstance: (instanceId: string, name: string) => {
+      const doc = sessionRef.current?.renameInstance(instanceId, name);
+      if (doc) setLevelDoc(doc);
+    },
+    onRenameGroup: (groupId: string, name: string) => {
+      const doc = sessionRef.current?.renameGroup(groupId, name);
+      if (doc) setLevelDoc(doc);
+    },
+    onSetInstanceAiPackage: (instanceId: string, aiPackage: ActorAiPackage) => {
+      const doc = sessionRef.current?.setInstanceAiPackage(instanceId, aiPackage);
+      if (doc) setLevelDoc(doc);
+    },
+    onSetSimpleVariant: (instanceId: string, url: string | null) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      void (async () => {
+        try {
+          const doc = await session.setSimpleVariant(instanceId, url);
+          setLevelDoc(doc);
+        } catch (err) {
+          setStatus(`Texture variant error: ${String(err)}`);
+        }
+      })();
+    },
+    onRemoveInstances: (ids: string[]) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const doc = session.removeInstances(ids);
+      setLevelDoc(doc);
+      setLevelSelection(session.getLevelSelection());
+    },
+    onCreateGroup: (instanceIds: string[], name?: string) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const doc = session.createGroup(instanceIds, name);
+      setLevelDoc(doc);
+      setLevelSelection(session.getLevelSelection());
+    },
+    onAssignToGroup: (instanceIds: string[], groupId: string) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const doc = session.assignToGroup(instanceIds, groupId);
+      setLevelDoc(doc);
+      setLevelSelection(session.getLevelSelection());
+    },
+    onUngroup: (groupId: string) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const doc = session.ungroup(groupId);
+      setLevelDoc(doc);
+      setLevelSelection(session.getLevelSelection());
+    },
+    onUngroupInstances: (instanceIds: string[]) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const doc = session.ungroupInstances(instanceIds);
+      setLevelDoc(doc);
+      setLevelSelection(session.getLevelSelection());
+    },
+    onDeleteGroup: (groupId: string, removeMembers: boolean) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const doc = session.deleteGroup(groupId, removeMembers);
+      setLevelDoc(doc);
+      setLevelSelection(session.getLevelSelection());
+    },
+  };
+
+  return { propInspectorActions, actorInspectorActions, levelInspectorActions };
 };
 
 export type UseConstructInspectorActionsResult = ReturnType<typeof useConstructInspectorActions>;

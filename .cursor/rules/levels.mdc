@@ -1,6 +1,6 @@
 ---
 description: Level catalog, asset caching, and ephemeral scene load/unload lifecycle
-globs: sandbox/src/catalog/**,sandbox/src/globals/**,sandbox/src/scenes/**,viberanium/src/assets/**
+globs: sandbox/src/catalog/**,sandbox/src/globals/**,sandbox/src/scenes/**,sandbox/src/menus/levels/**,sandbox/src/storage/**,viberanium/src/assets/**,viberanium/src/definitions/levels/**,viberanium/src/spawn/**
 alwaysApply: false
 ---
 
@@ -8,121 +8,78 @@ alwaysApply: false
 
 ## Principles
 
-- **Catalog is cheap; scenes are ephemeral** — level metadata stays in memory; `Scene` objects are created on entry and discarded on exit
+- **Levels are a scene specialization** — a level is always loaded as a scene; not every scene is a level
+- **Catalog / local store is cheap; scenes are ephemeral** — level documents stay in localStorage; each `switchTo` creates a new `Scene` and destroys the previous
 - **Only the active level owns runtime state** — one scene registry, one nav grid, one set of entities at a time
 - **Parsed assets are cached; GL meshes are not** — `GltfCache` dedupes fetch/parse by URL across level visits; each spawn still builds its own GPU meshes
 - **Transitions are async** — preload assets, then `load()`; gate input with `switching`
 
+## Portable vs authoring shapes
+
+| Shape | Package | Contents |
+|-------|---------|----------|
+| `LevelDefinition` | `viberanium/definitions/levels/` | Indexed `simpleProps` / `standardProps` / `simpleActors` / `standardActors` + composition props/actors/colliders + `playerSpawn`. No `aiPackage`, groups, parse/serialize |
+| `LevelDocument` / `.level` | Construct `catalog/levels/` | `version: 1`, same index/composition (plus collider instances + player spawn), instance names, actor `aiPackage`, groups |
+| `levelFile` parse | Sandbox `catalog/levels/levelFile.ts` | Parses the same JSON → portable `LevelDefinition` + `aiPackages` map (ignores groups at runtime) |
+
+Index entries are unique; composition instances reference `indexId` + kind. Shared localStorage key: `construct.levelLocalStore`.
+
 ## Layout
 
 ```
-sandbox/src/catalog/
-  assets/           # glTF/texture URL constants (kaykit.ts)
-  animations/       # anim pack + clip maps (kaykitMedium.ts)
-  characters/       # characterDef.ts types + SkeletalCharacterDef entries
-  props/            # PropDefinition entries + PROP_CATALOG
-  levels/           # levelDefinition.ts types, test.ts, alt.ts, registry.ts, collectAssetUrls.ts
-  keys/             # GAME_COMPONENT_KEYS
+viberanium/src/
+  definitions/levels/   LevelDefinition, collectUrlsFromLevel, resolveLevel*
+  spawn/instantiateProp.ts
 
-sandbox/src/entities/actor/
-  loadSkeletalCharacter.ts   # async load — no registry writes
-  spawnSkeletalCharacter.ts  # attach components + bone-attachment children
-  spawnActor.ts              # generic skeletal entity spawn
+sandbox/src/catalog/levels/
+  levelDefinition.ts    re-export portable types
+  levelFile.ts          parse .level JSON
+  levelSeed.ts          seed documents for first boot
+  helpers.ts            placement builders
+  testOne.ts …          indexed LevelBuild seeds
+  registry.ts           LEVEL_SEED_DOCUMENTS
+  collectAssetUrls.ts   wraps collectUrlsFromLevel
 
-sandbox/src/globals/
-  bootstrap.ts         # game + pipeline + session caches; delegates to scene manager
-  sceneManager.ts      # switchTo(levelId) — unload, preload, create scene, load
-
+sandbox/src/storage/levelLocalStore.ts
+sandbox/src/menus/levels/LevelSelectModal.tsx
+sandbox/src/globals/sceneManager.ts   switchTo + Digit0 → UI callback; Digit1–4 → test seeds
 sandbox/src/scenes/common/
-  createPlayableScene.ts  # generic factory: systems, load/unload lifecycle
-  useLevelScene.ts        # catalog entry → createPlayableScene
-  prop.ts                 # instantiateProp — hierarchical PropDefinition spawn (not catalog)
-
-sandbox/src/entities/ground/
-  spawnGround.ts          # ground entity with groundPlane component
+  createPlayableScene.ts
+  useLevelScene.ts      resolve index → instantiateProp / spawnActor
+  prop.ts               re-export instantiateProp from viberanium
 ```
 
-## Level catalog
-
-Levels are **data** in `catalog/levels/`. Shapes live in `catalog/levels/levelDefinition.ts`:
-
-```typescript
-export type LevelPropPlacement = {
-  propId: string;
-  x: number;
-  y?: number;
-  z: number;
-  yaw?: number;
-  scale?: number;
-};
-
-export type LevelDefinition = {
-  id: string;
-  displayName: string;
-  navGrid: LevelNavGridConfig;
-  props: LevelPropPlacement[];
-  robots?: LevelRobotSpawn[];
-  combatMechs?: LevelCombatMechSpawn[];
-  dummies?: LevelDummySpawn[];
-};
-```
-
-Add entries to `LEVEL_CATALOG` in `catalog/levels/registry.ts`. `collectLevelAssetUrls(definition)` in `catalog/levels/collectAssetUrls.ts` gathers glTF URLs from character catalogs plus prop definitions referenced by placements.
-
-Custom scripted levels can call `createPlayableScene` directly; catalog-driven levels use `useLevelScene(deps, definition)`.
-
-## Session asset caches (bootstrap)
-
-Created once in `globals/bootstrap.ts`, shared across all levels:
-
-| Cache | Location | Caches |
-|-------|----------|--------|
-| `GltfCache` | `viberanium/assets/gltf/cache.ts` | Parsed `LoadedGltf` by URL |
-| `TextureCache` | `viberanium/render/gl/texture.ts` | GPU textures by image URI |
-
-Pass both through `SceneDeps`. Load glTF via `gltfCache.getOrLoad(url)` — never bare `loadGltf()` in game code.
-
-## Scene transition flow
+## Session flow
 
 ```
-switchTo(levelId)
+Digit0 → LevelSelectModal (list local store + multi-import .level)
+Digit1–4 → switchTo(testOne|testTwo|testThree|testFour)
+  → switchTo(levelId)
   → game.setActiveScene(null)        // sync unload; drop previous Scene
-  → gltfCache.preload(urls)          // fetch/parse; hits cache on revisit
-  → scene = useLevelScene(deps, def) // new registry + systems
+  → gltfCache.preload(collectUrlsFromLevel(def))
+  → scene = useLevelScene(deps, def, aiPackages)  // NEW registry
   → game.setActiveScene(scene)
-  → setActiveSceneRegistry(scene.registry)
-  → await scene.load()               // nav grid, ground, props, NPCs, player
+  → await scene.load()
 ```
 
-`installSceneManager` owns transition policy. Bootstrap wires caches and calls `switchTo` for the initial level before `game.start()`.
+Bootstrap seeds `construct.levelLocalStore` from `LEVEL_SEED_DOCUMENTS` when empty, then `switchTo` the first available id.
 
-## load() / unload() contract
-
-`createPlayableScene` installs systems once per scene instance. Level content is created in `load()` and destroyed in `unload()`:
+## load() / unload()
 
 | Phase | Creates / destroys |
-|-------|-------------------|
-| `load()` | nav grid entity, ground entity (`groundPlane`), props, colliders, NPCs, player |
-| `unload()` | deregisters **all** entities (including nav grid and ground) |
+|-------|--------------------|
+| `load()` | nav grid, ground, props + level colliders from index, actors from index (+ `testAi` when aiPackage), player at `playerSpawn` |
+| `unload()` | deregisters **all** entities; clears static prop batcher |
 
-Nav grid is **not** persistent across load/unload cycles. `markNavGridDirty(registry)` is called when colliders change during an active level; `unload()` destroys the grid entirely.
+## Prop / actor resolve
 
-## Adding a new level
-
-1. Add spawn data to `catalog/levels/<id>.ts` as a `LevelDefinition`
-2. Register in `catalog/levels/registry.ts`
-3. Wire entry point in `globals/sceneManager.ts` (keyboard, level picker, portal, etc.)
-4. No new scene TypeScript file required unless the level needs custom spawn logic
-
-## GL cleanup on unload
-
-Static prop render entities register `onDeregister` handlers that call `destroyMesh(gl, mesh)`. Extend this pattern for skinned entities when adding new spawn paths.
+- Props: `resolveLevelPropDefinition` → `instantiateProp` (engine spawn)
+- Actors: `resolveLevelActorDefinition` → `actorDefinitionToSkeletalDef` → `spawnActor` + optional `createTestAi`
 
 ## Forbidden
 
-- Creating all level scenes at bootstrap — use `switchTo` + ephemeral `useLevelScene`
-- Bare `loadGltf()` in sandbox spawn code — use `gltfCache.getOrLoad`
-- Caching GPU meshes in `GltfCache` — cache parsed glTF only
-- Keeping nav grid entities across `unload()` — grid is level content
-- Blocking the main thread with sync fetch — preload before `scene.load()`
-- Putting spawn factories (`instantiateProp`, `spawnActor`) in `catalog/`
+- Reusing one Scene object across level ids — always create fresh via `useLevelScene`
+- Kaykit-only `robots[]` / `dummies[]` arrays as the canonical level shape (legacy — migrated to indexed actors)
+- Preloading entire `ACTOR_CATALOG` — walk the level index only
+- Putting `aiPackage` / groups / `.level` parse under `viberanium/definitions`
+- Construct importing sandbox or sandbox importing construct

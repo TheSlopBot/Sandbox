@@ -1,12 +1,5 @@
-import {
-  type LevelCombatMechSpawn,
-  type LevelDefinition,
-  type LevelDummySpawn,
-  type LevelNavGridConfig,
-  type LevelPropPlacement,
-  type LevelRobotSpawn,
-} from './levelDefinition.ts';
-import { type DummyVariant } from '../actors/kaykitActors.ts';
+import { type LevelActorInstance, type LevelNavGridConfig, type LevelPropInstance } from './levelDefinition.ts';
+import { type LevelAiPackage } from './levelFile.ts';
 
 export const GROUND_HALF_EXTENT = 60;
 
@@ -36,9 +29,7 @@ export const MIXED_NAV_GRID: LevelNavGridConfig = {
   cellSize: 1.5,
 };
 
-const DUMMY_VARIANTS: readonly DummyVariant[] = ['primary', 'altA', 'altB', 'altC'];
-
-const createSeededRng = (seed: number) => {
+export const createSeededRng = (seed: number) => {
   let state = seed >>> 0;
 
   return () => {
@@ -47,11 +38,7 @@ const createSeededRng = (seed: number) => {
   };
 };
 
-const randomPointInNavGrid = (
-  rng: () => number,
-  navGrid: LevelNavGridConfig,
-  margin: number,
-) => {
+const randomPointInNavGrid = (rng: () => number, navGrid: LevelNavGridConfig, margin: number) => {
   const minX = navGrid.minX + margin;
   const maxX = navGrid.maxX - margin;
   const minZ = navGrid.minZ + margin;
@@ -63,81 +50,107 @@ const randomPointInNavGrid = (
   };
 };
 
-export const buildCombatMechPerfSpawns = (
+export const yawQuat = (yaw: number): [number, number, number, number] => {
+  const half = yaw / 2;
+  return [0, Math.sin(half), 0, Math.cos(half)];
+};
+
+export const indexById = <T extends { id: string }>(items: readonly T[]): Record<string, T> =>
+  Object.fromEntries(items.map((item) => [item.id, item]));
+
+export const propInstance = (
+  id: string,
+  indexId: string,
+  x: number,
+  z: number,
+  opts: { y?: number; yaw?: number; scale?: number } = {},
+): LevelPropInstance => ({
+  id,
+  kind: 'standardProp',
+  indexId,
+  position: [x, opts.y ?? 0, z],
+  rotation: yawQuat(opts.yaw ?? 0),
+  scale: [opts.scale ?? 1, opts.scale ?? 1, opts.scale ?? 1],
+});
+
+export const actorInstance = (id: string, indexId: string, x: number, z: number, y = 1.6): LevelActorInstance => ({
+  id,
+  kind: 'standardActor',
+  indexId,
+  position: [x, y, z],
+  rotation: [0, 0, 0, 1],
+  scale: [1, 1, 1],
+});
+
+export const withTestAi = (instances: readonly LevelActorInstance[]): Record<string, LevelAiPackage> =>
+  Object.fromEntries(instances.map((instance) => [instance.id, 'testAi' as const]));
+
+export const buildCombatMechPerfInstances = (
   count: number,
+  indexIds: { primary: string; alt: string },
   navGrid: LevelNavGridConfig = DEFAULT_NAV_GRID,
   seed = 20260708,
-): LevelCombatMechSpawn[] => {
+): LevelActorInstance[] => {
   const rng = createSeededRng(seed);
-  const mechs: LevelCombatMechSpawn[] = [];
+  const instances: LevelActorInstance[] = [];
 
   for (let i = 0; i < count; i++) {
-    mechs.push({
-      ...randomPointInNavGrid(rng, navGrid, 1.5),
-      variant: i >= count / 2 ? 'alt' : 'primary',
-    });
+    const { x, z } = randomPointInNavGrid(rng, navGrid, 1.5);
+    instances.push(actorInstance(`combatMech${i}`, i >= count / 2 ? indexIds.alt : indexIds.primary, x, z));
   }
 
-  return mechs;
+  return instances;
 };
 
-export const buildRobotPerfSpawns = (
+export const buildRobotPerfInstances = (
   count: number,
+  indexIds: { one: string; ome: string },
   navGrid: LevelNavGridConfig = DEFAULT_NAV_GRID,
   seed = 20260711,
-): LevelRobotSpawn[] => {
+): LevelActorInstance[] => {
   const rng = createSeededRng(seed);
-  const robots: LevelRobotSpawn[] = [];
+  const instances: LevelActorInstance[] = [];
 
   for (let i = 0; i < count; i++) {
-    robots.push({
-      ...randomPointInNavGrid(rng, navGrid, 1.5),
-      variant: i >= count / 2 ? 'ome' : 'one',
-    });
+    const { x, z } = randomPointInNavGrid(rng, navGrid, 1.5);
+    instances.push(actorInstance(`robot${i}`, i >= count / 2 ? indexIds.ome : indexIds.one, x, z));
   }
 
-  return robots;
+  return instances;
 };
 
-export const buildDummyPerfSpawns = (
+export const buildDummyPerfInstances = (
   count: number,
+  indexIds: readonly string[],
   navGrid: LevelNavGridConfig = DEFAULT_NAV_GRID,
   seed = 20260712,
-): LevelDummySpawn[] => {
+): LevelActorInstance[] => {
   const rng = createSeededRng(seed);
-  const dummies: LevelDummySpawn[] = [];
+  const instances: LevelActorInstance[] = [];
 
   for (let i = 0; i < count; i++) {
-    dummies.push({
-      ...randomPointInNavGrid(rng, navGrid, 1.5),
-      variant: DUMMY_VARIANTS[Math.floor((i * DUMMY_VARIANTS.length) / count) % DUMMY_VARIANTS.length],
-    });
+    const { x, z } = randomPointInNavGrid(rng, navGrid, 1.5);
+    const indexId = indexIds[Math.floor((i * indexIds.length) / count) % indexIds.length]!;
+    instances.push(actorInstance(`dummy${i}`, indexId, x, z));
   }
 
-  return dummies;
+  return instances;
 };
 
-type LevelPoint2 = { x: number; z: number };
+type OccupiedCircle = { x: number; z: number; radius: number };
 
-type OccupiedCircle = {
-  pos: LevelPoint2;
-  radius: number;
-};
+const isSpawnClear = (pos: { x: number; z: number }, radius: number, occupied: OccupiedCircle[], gap: number) =>
+  occupied.every((circle) => Math.hypot(pos.x - circle.x, pos.z - circle.z) >= radius + circle.radius + gap);
 
-const dist2 = (a: LevelPoint2, b: LevelPoint2) => Math.hypot(a.x - b.x, a.z - b.z);
-
-const isSpawnClear = (pos: LevelPoint2, radius: number, occupied: OccupiedCircle[], gap: number) =>
-  occupied.every((circle) => dist2(pos, circle.pos) >= radius + circle.radius + gap);
-
-export const buildDummySpawns = (
-  props: LevelPropPlacement[],
-  robots: LevelRobotSpawn[] | undefined,
-  combatMechs: LevelCombatMechSpawn[] | undefined,
-  dummies: LevelDummySpawn[] | undefined,
+export const buildDummySpawnInstances = (
+  props: readonly LevelPropInstance[],
+  robots: readonly LevelActorInstance[],
+  combatMechs: readonly LevelActorInstance[],
+  dummyIndexIds: readonly string[],
   count: number,
   seed: number,
   navGrid: LevelNavGridConfig = DEFAULT_NAV_GRID,
-): LevelDummySpawn[] => {
+): LevelActorInstance[] => {
   const rng = createSeededRng(seed);
   const margin = 1.5;
   const minX = navGrid.minX + margin;
@@ -146,101 +159,82 @@ export const buildDummySpawns = (
   const maxZ = navGrid.maxZ - margin;
   const npcRadius = 1.2;
   const gap = 0.8;
-  const occupied: OccupiedCircle[] = [{ pos: { x: 0, z: 0 }, radius: npcRadius }];
+  const occupied: OccupiedCircle[] = [{ x: 0, z: 0, radius: npcRadius }];
 
   for (const prop of props) {
-    const radius = prop.propId === 'cube_large' ? 2.5 : 1.5;
-    occupied.push({ pos: { x: prop.x, z: prop.z }, radius });
+    occupied.push({
+      x: prop.position[0],
+      z: prop.position[2],
+      radius: prop.indexId === 'cube_large' ? 2.5 : 1.5,
+    });
   }
 
-  for (const robot of robots ?? []) {
-    occupied.push({ pos: { x: robot.x, z: robot.z }, radius: npcRadius });
-  }
+  for (const robot of robots) occupied.push({ x: robot.position[0], z: robot.position[2], radius: npcRadius });
+  for (const mech of combatMechs) occupied.push({ x: mech.position[0], z: mech.position[2], radius: npcRadius });
 
-  for (const mech of combatMechs ?? []) {
-    occupied.push({ pos: { x: mech.x, z: mech.z }, radius: npcRadius });
-  }
-
-  for (const dummy of dummies ?? []) {
-    occupied.push({ pos: { x: dummy.x, z: dummy.z }, radius: npcRadius });
-  }
-
-  const spawns: LevelDummySpawn[] = [];
+  const instances: LevelActorInstance[] = [];
 
   for (let i = 0; i < count; i++) {
     for (let attempt = 0; attempt < 500; attempt++) {
-      const pos = {
-        x: minX + rng() * (maxX - minX),
-        z: minZ + rng() * (maxZ - minZ),
-      };
+      const x = minX + rng() * (maxX - minX);
+      const z = minZ + rng() * (maxZ - minZ);
+      if (!isSpawnClear({ x, z }, npcRadius, occupied, gap)) continue;
 
-      if (!isSpawnClear(pos, npcRadius, occupied, gap)) continue;
-
-      spawns.push({
-        x: pos.x,
-        z: pos.z,
-        variant: DUMMY_VARIANTS[i % DUMMY_VARIANTS.length],
-      });
-      occupied.push({ pos, radius: npcRadius });
+      const indexId = dummyIndexIds[i % dummyIndexIds.length]!;
+      instances.push(actorInstance(`dummy${i}`, indexId, x, z));
+      occupied.push({ x, z, radius: npcRadius });
       break;
     }
   }
 
-  return spawns;
+  return instances;
 };
 
-export const buildScatteredPropSpawns = (
-  propIds: readonly string[],
+export const buildScatteredPropInstances = (
+  indexIds: readonly string[],
   countPerProp: number,
   halfExtent: number,
   seed: number,
   margin = 2,
-): LevelPropPlacement[] => {
+): LevelPropInstance[] => {
   const rng = createSeededRng(seed);
   const min = -halfExtent + margin;
   const max = halfExtent - margin;
-  const props: LevelPropPlacement[] = [];
+  const instances: LevelPropInstance[] = [];
+  let n = 0;
 
-  for (const propId of propIds) {
+  for (const indexId of indexIds) {
     for (let i = 0; i < countPerProp; i++) {
-      props.push({
-        propId,
-        x: min + rng() * (max - min),
-        z: min + rng() * (max - min),
-        yaw: rng() * Math.PI * 2,
-      });
+      const x = min + rng() * (max - min);
+      const z = min + rng() * (max - min);
+      instances.push(propInstance(`prop${n}`, indexId, x, z, { yaw: rng() * Math.PI * 2 }));
+      n++;
     }
   }
 
-  return props;
+  return instances;
 };
 
-export const buildScatteredPropSpawnsTotal = (
-  propIds: readonly string[],
+export const buildScatteredPropInstancesTotal = (
+  indexIds: readonly string[],
   totalCount: number,
   halfExtent: number,
   seed: number,
   margin = 2,
-): LevelPropPlacement[] => {
+): LevelPropInstance[] => {
   const rng = createSeededRng(seed);
   const min = -halfExtent + margin;
   const max = halfExtent - margin;
-  const props: LevelPropPlacement[] = [];
+  const instances: LevelPropInstance[] = [];
 
   for (let i = 0; i < totalCount; i++) {
-    const propId = propIds[i % propIds.length];
+    const indexId = indexIds[i % indexIds.length];
+    if (!indexId) continue;
 
-    if (!propId) continue;
-
-    props.push({
-      propId,
-      x: min + rng() * (max - min),
-      z: min + rng() * (max - min),
-      yaw: rng() * Math.PI * 2,
-    });
+    const x = min + rng() * (max - min);
+    const z = min + rng() * (max - min);
+    instances.push(propInstance(`prop${i}`, indexId, x, z, { yaw: rng() * Math.PI * 2 }));
   }
 
-  return props;
+  return instances;
 };
-
-export type { LevelDefinition };

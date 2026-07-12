@@ -17,7 +17,8 @@
 }
 
 .construct-bodyProp,
-.construct-bodyActor {
+.construct-bodyActor,
+.construct-bodyLevel {
   grid-template-columns: minmax(280px, 420px) 1fr minmax(280px, 420px);
 }
 
@@ -97,6 +98,16 @@
   padding: 6px 10px;
   border-radius: 4px;
   cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+}
+
+.construct-menuShortcut {
+  color: rgba(217, 226, 234, 0.45);
+  font-size: 11px;
 }
 
 .construct-menuDropdownItem:hover {
@@ -269,8 +280,17 @@
   cursor: default;
 }
 
+.construct-toolBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .construct-toolBtnActive {
   background: rgba(74, 158, 192, 0.35);
+}
+
+.construct-toolBtnActive:disabled {
+  background: transparent;
 }
 
 .treeRowAdd {
@@ -361,8 +381,37 @@
   z-index: 2;
 }
 
-.construct-viewerHud select {
+.construct-viewerHud select,
+.construct-viewerHud input {
   pointer-events: auto;
+}
+
+.construct-hudChecks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  pointer-events: auto;
+}
+
+.construct-hudCheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #d9e2ea;
+  cursor: default;
+  pointer-events: auto;
+}
+
+.construct-explorerFooter {
+  display: flex;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.construct-explorerFooter .construct-modalBtn {
+  width: 100%;
 }
 
 .construct-hudFooter {
@@ -634,6 +683,12 @@
   padding-top: 12px;
 }
 
+.construct-detailsFooterSplit {
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
 .construct-detailsDelete {
   appearance: none;
   border: 1px solid rgba(220, 90, 90, 0.45);
@@ -849,9 +904,47 @@
   opacity: 1;
 }
 
+.construct-levelExplorerTabs {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 8px 10px 0;
+}
+
+.construct-levelExplorerTab {
+  appearance: none;
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.03);
+  color: #d9e2ea;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 0;
+  cursor: default;
+}
+
+.construct-levelExplorerTab:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.construct-levelExplorerTabActive {
+  background: rgba(74, 158, 192, 0.22);
+  border-color: rgba(74, 158, 192, 0.4);
+  font-weight: 600;
+}
+
 .construct-elementsTree {
   display: grid;
   gap: 2px;
+}
+
+.construct-elementsGroupHeader {
+  opacity: 0.65;
+  font-weight: 600;
+  cursor: default;
+  pointer-events: none;
 }
 
 .construct-elementsRow {

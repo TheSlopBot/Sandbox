@@ -1,18 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { mapTextureVariants, resolveManifestEntryForAssetUrl } from '../../catalog/manifest/manifestLookup.ts';
 import { AppMenu } from '../menu/AppMenu.tsx';
 import { AssetExplorer } from '../explorer/AssetExplorer.tsx';
+import { LevelExplorer } from '../explorer/LevelExplorer.tsx';
 import { PropInspector } from '../inspector/PropInspector.tsx';
 import { PropDetails } from '../inspector/PropDetails.tsx';
 import { ActorInspector } from '../inspector/ActorInspector.tsx';
 import { ActorDetails } from '../inspector/ActorDetails.tsx';
+import { LevelInspector } from '../inspector/LevelInspector.tsx';
+import { LevelDetails } from '../inspector/LevelDetails.tsx';
 import { OrientationCube } from '../orientation/OrientationCube.tsx';
 import { ViewerAnimHud } from '../viewer/ViewerAnimHud.tsx';
 import { ConfirmModal } from '../modals/ConfirmModal.tsx';
 import { LoadPropModal } from '../modals/LoadPropModal.tsx';
 import { LoadActorModal } from '../modals/LoadActorModal.tsx';
+import { LoadLevelModal } from '../modals/LoadLevelModal.tsx';
+import { GroupModal } from '../modals/GroupModal.tsx';
 import { RenamePropModal } from '../modals/RenamePropModal.tsx';
 import { collectPropDocumentTags } from '../../catalog/props/propDocument.ts';
+import { parseActorDocument } from '../../catalog/actors/actorDocument.ts';
+import { parsePropDocument } from '../../catalog/props/propDocument.ts';
+import { listLocalPropEntries, type PropLocalStoreEntry } from '../../storage/propLocalStore.ts';
+import { listLocalActorEntries, type ActorLocalStoreEntry } from '../../storage/actorLocalStore.ts';
 import { useConstructSession } from './useConstructSession.ts';
 import { useManifestExplorer } from './useManifestExplorer.ts';
 import { useConstructViewer } from './useConstructViewer.ts';
@@ -31,8 +40,30 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
   const [fileOpen, setFileOpen] = useState(false);
   const [status, setStatus] = useState<string>('Loading manifest…');
 
-  const { canvasRef, sessionRef, sessionReady, propDoc, setPropDoc, actorDoc, setActorDoc, actorBoneNames, setActorBoneNames } =
-    useConstructSession(active);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [levelStandardPropEntries, setLevelStandardPropEntries] = useState<PropLocalStoreEntry[]>([]);
+  const [levelStandardActorEntries, setLevelStandardActorEntries] = useState<ActorLocalStoreEntry[]>([]);
+  const [showColliders, setShowColliders] = useState(true);
+  const [showBones, setShowBones] = useState(true);
+
+  const refreshLevelStandardEntries = () => {
+    setLevelStandardPropEntries(listLocalPropEntries());
+    setLevelStandardActorEntries(listLocalActorEntries());
+  };
+
+  const {
+    canvasRef,
+    sessionRef,
+    sessionReady,
+    propDoc,
+    setPropDoc,
+    actorDoc,
+    setActorDoc,
+    actorBoneNames,
+    setActorBoneNames,
+    levelDoc,
+    setLevelDoc,
+  } = useConstructSession(active);
 
   const {
     manifest,
@@ -57,11 +88,20 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setColliderExpanded,
   } = useManifestExplorer({ active, setStatus });
 
-  const { selectedPartId, setSelectedPartId, actorSelection, setActorSelection } = useConstructSelection();
+  const { selectedPartId, setSelectedPartId, actorSelection, setActorSelection, levelSelection, setLevelSelection } =
+    useConstructSelection();
+
+  const levelScaleAllowed =
+    !levelSelection.groupId &&
+    levelSelection.instanceIds.length > 0 &&
+    levelSelection.instanceIds.every((id) =>
+      levelDoc.composition.colliders.some((c) => c.id === id),
+    );
 
   const { mode, setMode, transformMode, setTransformMode } = useConstructMode({
     active,
     sessionRef,
+    levelScaleAllowed,
     setPropDoc,
     setActorDoc,
     setActorBoneNames,
@@ -71,6 +111,8 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setAvailableClipNames: (names) => setAvailableClipNames(names),
     setClipName: (name) => setClipName(name),
     setStatus,
+    setLevelDoc,
+    setLevelSelection,
   });
 
   const {
@@ -116,8 +158,11 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setLoadPropModalOpen,
     loadActorModalOpen,
     setLoadActorModalOpen,
+    loadLevelModalOpen,
+    setLoadLevelModalOpen,
     localPropEntries,
     localActorEntries,
+    localLevelEntries,
     renameIntent,
     setRenameIntent,
     onNew,
@@ -133,6 +178,8 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     onDeleteLocalPropEntry,
     onLoadActorEntry,
     onDeleteLocalActorEntry,
+    onLoadLevelEntry,
+    onDeleteLocalLevelEntry,
     onFileInputChange,
   } = useConstructDocumentActions({
     mode,
@@ -142,23 +189,28 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     actorDoc,
     setActorDoc,
     setActorBoneNames,
+    levelDoc,
+    setLevelDoc,
+    setLevelSelection,
     setSelectedPartId,
     setActorSelection,
     setStatus,
     resetAnimationPreview: handleAnimReset,
   });
 
-  const { propInspectorActions, actorInspectorActions } = useConstructInspectorActions({
+  const { propInspectorActions, actorInspectorActions, levelInspectorActions } = useConstructInspectorActions({
     sessionRef,
     actorDoc,
     setPropDoc,
     setActorDoc,
     setSelectedPartId,
     setActorSelection,
+    setLevelDoc,
+    setLevelSelection,
     setStatus,
   });
 
-  const { onAddAsset, onAddCharacter, onAddCollider } = useConstructAssetActions({
+  const { onAddAsset, onAddCharacter, onAddCollider, onAddStandardProp, onAddStandardActor } = useConstructAssetActions({
     mode,
     sessionRef,
     entriesByPath,
@@ -172,7 +224,21 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     setAvailableClipNames,
     setClipName,
     setStatus,
+    setLevelDoc,
+    setLevelSelection,
   });
+
+  useEffect(() => {
+    if (mode !== 'level') return;
+    refreshLevelStandardEntries();
+  }, [mode]);
+
+  useEffect(() => {
+    const session = sessionRef.current;
+    if (!session || !sessionReady) return;
+    setShowColliders(session.getShowColliders());
+    setShowBones(session.getShowBones());
+  }, [mode, sessionReady, sessionRef]);
 
   useEffect(() => {
     if (!fileOpen) return;
@@ -231,12 +297,151 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
     return [];
   }, [actorSelection, actorDoc, entriesByPath]);
 
+  const levelSinglePropInstance =
+    levelSelection.instanceIds.length === 1
+      ? levelDoc.composition.props.find((p) => p.id === levelSelection.instanceIds[0]) ?? null
+      : null;
+  const levelSingleActorInstance =
+    levelSelection.instanceIds.length === 1
+      ? levelDoc.composition.actors.find((a) => a.id === levelSelection.instanceIds[0]) ?? null
+      : null;
+
+  const levelDetailVariants = useMemo(() => {
+    if (levelSinglePropInstance?.kind === 'simpleProp') {
+      const entry = levelDoc.index.simpleProps[levelSinglePropInstance.indexId];
+      if (!entry) return [];
+      return mapTextureVariants(resolveManifestEntryForAssetUrl(entry.url, entriesByPath));
+    }
+
+    if (levelSingleActorInstance?.kind === 'simpleActor') {
+      const entry = levelDoc.index.simpleActors[levelSingleActorInstance.indexId];
+      if (!entry?.character) return [];
+      return mapTextureVariants(resolveManifestEntryForAssetUrl(entry.character.url, entriesByPath));
+    }
+
+    return [];
+  }, [levelSinglePropInstance, levelSingleActorInstance, levelDoc, entriesByPath]);
+
+  const selectLevelInstances = (ids: string[]) => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.selectLevelInstances(ids);
+    setLevelSelection(session.getLevelSelection());
+  };
+
+  const handleSelectLevelInstance = (id: string, additive: boolean) => {
+    if (additive) {
+      const current = levelSelection.instanceIds;
+      const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+      selectLevelInstances(next);
+      return;
+    }
+    selectLevelInstances([id]);
+  };
+
+  const handleSelectLevelGroup = (groupId: string) => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.selectLevelGroup(groupId);
+    setLevelSelection(session.getLevelSelection());
+  };
+
+  const handleSelectLevelRoot = () => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.selectLevelRoot();
+    setLevelSelection(session.getLevelSelection());
+  };
+
+  const handleSelectLevelPlayerSpawn = () => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.selectLevelPlayerSpawn();
+    setLevelSelection(session.getLevelSelection());
+  };
+
+  const handleShowCollidersChange = (show: boolean) => {
+    setShowColliders(show);
+    sessionRef.current?.setShowColliders(show);
+  };
+
+  const handleShowBonesChange = (show: boolean) => {
+    setShowBones(show);
+    sessionRef.current?.setShowBones(show);
+  };
+
+  const handleCanvasClick = (e: ReactMouseEvent<HTMLCanvasElement>) => {
+    if (mode !== 'level') return;
+    const session = sessionRef.current;
+    if (!session) return;
+
+    const hitId = session.pickLevelInstanceAt(e.clientX, e.clientY);
+    if (!hitId) return;
+
+    const additive = e.shiftKey || e.ctrlKey;
+    handleSelectLevelInstance(hitId, additive);
+  };
+
+  const handleImportStandardFiles = (files: FileList) => {
+    void (async () => {
+      for (const file of Array.from(files)) {
+        try {
+          const text = await file.text();
+          if (file.name.endsWith('.actor')) {
+            onAddStandardActor(parseActorDocument(text));
+            continue;
+          }
+          if (file.name.endsWith('.prop')) {
+            onAddStandardProp(parsePropDocument(text));
+            continue;
+          }
+          try {
+            onAddStandardProp(parsePropDocument(text));
+          } catch {
+            onAddStandardActor(parseActorDocument(text));
+          }
+        } catch (err) {
+          setStatus(`Import error (${file.name}): ${String(err)}`);
+        }
+      }
+    })();
+  };
+
   const bodyClass =
     mode === 'prop'
       ? 'construct-body construct-bodyProp'
       : mode === 'actor'
         ? 'construct-body construct-bodyActor'
-        : 'construct-body';
+        : mode === 'level'
+          ? 'construct-body construct-bodyLevel'
+          : 'construct-body';
+
+  const levelExplorer = (
+    <LevelExplorer
+      query={explorerQueryInput}
+      onQueryChange={setExplorerQueryInput}
+      onQueryClear={() => setExplorerQuery('')}
+      assetTree={assetTree}
+      characterTree={characterTree}
+      expanded={expanded}
+      onToggleDir={onToggleDir}
+      onAddSimpleProp={onAddAsset}
+      onAddSimpleActor={onAddCharacter}
+      onAddCollider={onAddCollider}
+      assetsExpanded={assetsExpanded}
+      onAssetsExpandedChange={setAssetsExpanded}
+      charactersExpanded={charactersExpanded}
+      onCharactersExpandedChange={setCharactersExpanded}
+      colliderExpanded={colliderExpanded}
+      onColliderExpandedChange={setColliderExpanded}
+      loading={!manifest}
+      localPropEntries={levelStandardPropEntries}
+      localActorEntries={levelStandardActorEntries}
+      onAddStandardProp={(entry) => onAddStandardProp(entry.document)}
+      onAddStandardActor={(entry) => onAddStandardActor(entry.document)}
+      onImportFiles={handleImportStandardFiles}
+    />
+  );
 
   const explorer = (
     <AssetExplorer
@@ -300,7 +505,13 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
       <input
         ref={fileInputRef}
         type="file"
-        accept={mode === 'actor' ? '.actor,application/json' : '.prop,application/json'}
+        accept={
+          mode === 'actor'
+            ? '.actor,application/json'
+            : mode === 'level'
+              ? '.level,application/json'
+              : '.prop,application/json'
+        }
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0] ?? null;
@@ -311,11 +522,13 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
 
       {confirmNewOpen ? (
         <ConfirmModal
-          title={mode === 'actor' ? 'New actor' : 'New prop'}
+          title={mode === 'actor' ? 'New actor' : mode === 'level' ? 'New level' : 'New prop'}
           message={
             mode === 'actor'
               ? 'Create a new actor? Unsaved changes will be lost.'
-              : 'Create a new prop? Unsaved changes will be lost.'
+              : mode === 'level'
+                ? 'Create a new level? Unsaved changes will be lost.'
+                : 'Create a new prop? Unsaved changes will be lost.'
           }
           confirmLabel="Create"
           onCancel={() => setConfirmNewOpen(false)}
@@ -344,21 +557,65 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
         />
       ) : null}
 
+      {loadLevelModalOpen ? (
+        <LoadLevelModal
+          entries={localLevelEntries}
+          onCancel={() => setLoadLevelModalOpen(false)}
+          onSelect={onLoadLevelEntry}
+          onDelete={onDeleteLocalLevelEntry}
+        />
+      ) : null}
+
+      {groupModalOpen ? (
+        <GroupModal
+          groups={levelDoc.groups}
+          selectedCount={levelSelection.instanceIds.length}
+          showExistingGroups={levelSelection.instanceIds.every((id) => {
+            const prop = levelDoc.composition.props.find((p) => p.id === id);
+            const actor = levelDoc.composition.actors.find((a) => a.id === id);
+            const collider = levelDoc.composition.colliders.find((c) => c.id === id);
+            const groupId = prop?.groupId ?? actor?.groupId ?? collider?.groupId ?? null;
+            return !groupId;
+          })}
+          onCancel={() => setGroupModalOpen(false)}
+          onCreate={(name) => {
+            setGroupModalOpen(false);
+            levelInspectorActions.onCreateGroup(levelSelection.instanceIds, name);
+          }}
+          onAssign={(groupId) => {
+            setGroupModalOpen(false);
+            levelInspectorActions.onAssignToGroup(levelSelection.instanceIds, groupId);
+          }}
+          onUngroup={() => {
+            setGroupModalOpen(false);
+            levelInspectorActions.onUngroupInstances(levelSelection.instanceIds);
+          }}
+        />
+      ) : null}
+
       {renameIntent ? (
         <RenamePropModal
-          initialName={mode === 'actor' ? actorDoc.displayName : propDoc.displayName}
+          initialName={
+            mode === 'actor' ? actorDoc.displayName : mode === 'level' ? levelDoc.displayName : propDoc.displayName
+          }
           title={
             renameIntent === 'edit'
               ? mode === 'actor'
                 ? 'Rename actor'
-                : 'Rename prop'
+                : mode === 'level'
+                  ? 'Rename level'
+                  : 'Rename prop'
               : renameIntent === 'saveAs'
                 ? mode === 'actor'
                   ? 'Save actor as'
-                  : 'Save prop as'
+                  : mode === 'level'
+                    ? 'Save level as'
+                    : 'Save prop as'
                 : mode === 'actor'
                   ? 'Name actor'
-                  : 'Name prop'
+                  : mode === 'level'
+                    ? 'Name level'
+                    : 'Name prop'
           }
           confirmLabel={
             renameIntent === 'save' || renameIntent === 'saveAs'
@@ -373,10 +630,10 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
       ) : null}
 
       <div className={bodyClass}>
-        <div className="construct-panelLeft">{explorer}</div>
+        <div className="construct-panelLeft">{mode === 'level' ? levelExplorer : explorer}</div>
 
         <div className="construct-viewer">
-          <canvas ref={canvasRef} className="construct-canvas" />
+          <canvas ref={canvasRef} className="construct-canvas" onClick={handleCanvasClick} />
           {mode === 'preview' ? (
             <ViewerAnimHud
               title={viewerTitle}
@@ -412,27 +669,56 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               animPaused={animPaused}
               onPlayPause={handleAnimPlayPause}
               onReset={handleAnimReset}
+              showColliders={showColliders}
+              onShowCollidersChange={handleShowCollidersChange}
+              showBones={showBones}
+              onShowBonesChange={handleShowBonesChange}
             />
           ) : null}
-          {mode === 'prop' || mode === 'actor' ? (
+          {mode === 'prop' ? (
+            <ViewerAnimHud
+              title={propDoc.displayName || 'Prop'}
+              status={status}
+              canAnimate={false}
+              showAnimControls={false}
+              showColliders={showColliders}
+              onShowCollidersChange={handleShowCollidersChange}
+            />
+          ) : null}
+          {mode === 'level' ? (
+            <ViewerAnimHud
+              title={levelDoc.displayName || 'Level'}
+              status={status}
+              canAnimate={false}
+              showAnimControls={false}
+              showColliders={showColliders}
+              onShowCollidersChange={handleShowCollidersChange}
+            />
+          ) : null}
+          {mode === 'prop' || mode === 'actor' || mode === 'level' ? (
             <div className="construct-toolRail">
-              {TRANSFORM_MODES.map((tool) => (
-                <button
-                  key={tool}
-                  type="button"
-                  className={
-                    transformMode === tool
-                      ? 'construct-toolBtn construct-toolBtnActive'
-                      : 'construct-toolBtn'
-                  }
-                  onClick={() => {
-                    setTransformMode(tool);
-                    sessionRef.current?.setTransformMode(tool);
-                  }}
-                >
-                  {tool === 'move' ? 'Move' : tool === 'scale' ? 'Scale' : 'Rotate'}
-                </button>
-              ))}
+              {TRANSFORM_MODES.map((tool) => {
+                const scaleDisabled = mode === 'level' && tool === 'scale' && !levelScaleAllowed;
+                return (
+                  <button
+                    key={tool}
+                    type="button"
+                    disabled={scaleDisabled}
+                    className={
+                      transformMode === tool
+                        ? 'construct-toolBtn construct-toolBtnActive'
+                        : 'construct-toolBtn'
+                    }
+                    onClick={() => {
+                      if (scaleDisabled) return;
+                      setTransformMode(tool);
+                      sessionRef.current?.setTransformMode(tool);
+                    }}
+                  >
+                    {tool === 'move' ? 'Move' : tool === 'scale' ? 'Scale' : 'Rotate'}
+                  </button>
+                );
+              })}
             </div>
           ) : null}
           {active ? (
@@ -486,6 +772,34 @@ export const ConstructApp = ({ active }: ConstructAppProps) => {
               textureVariants={actorDetailVariants}
               onRenameActor={onRenameDocument}
               {...actorInspectorActions}
+            />
+          </div>
+        ) : null}
+
+        {mode === 'level' ? (
+          <div className="construct-panelRightProp">
+            <LevelInspector
+              doc={levelDoc}
+              selection={levelSelection}
+              documentLabel={`${levelDoc.id}.level`}
+              onSelectRoot={handleSelectLevelRoot}
+              onSelectInstance={handleSelectLevelInstance}
+              onSelectGroup={handleSelectLevelGroup}
+              onSelectPlayerSpawn={handleSelectLevelPlayerSpawn}
+            />
+            <LevelDetails
+              doc={levelDoc}
+              selection={levelSelection}
+              textureVariants={levelDetailVariants}
+              onRenameLevel={onRenameDocument}
+              onRenameInstance={levelInspectorActions.onRenameInstance}
+              onRenameGroup={levelInspectorActions.onRenameGroup}
+              onSetInstanceAiPackage={levelInspectorActions.onSetInstanceAiPackage}
+              onSetSimpleVariant={levelInspectorActions.onSetSimpleVariant}
+              onRemoveInstances={levelInspectorActions.onRemoveInstances}
+              onOpenGroupModal={() => setGroupModalOpen(true)}
+              onUngroup={levelInspectorActions.onUngroup}
+              onDeleteGroup={levelInspectorActions.onDeleteGroup}
             />
           </div>
         ) : null}

@@ -42,6 +42,7 @@ export const spawnActorCollider = (
   characterEntityId: number,
   bodyScene: RuntimeScene,
   collider: ActorDocumentCollider,
+  showColliders = true,
 ): number | null => {
   const character = registry.get(characterEntityId);
   if (!character) return null;
@@ -82,6 +83,7 @@ export const spawnActorCollider = (
     material: resources.material,
     castShadow: false,
     overlay: true,
+    visible: showColliders,
   };
   entity.onDeregister.push(() => destroyMesh(device, resources.mesh));
 

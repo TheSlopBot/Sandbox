@@ -18,7 +18,7 @@ sandbox/src/
 │   ├── animations/         # anim pack + clip name maps (e.g. kaykitMedium)
 │   ├── characters/         # SkeletalCharacterDef entries + characterDef.ts types
 │   ├── props/              # PropDefinition entries + propDefinition.ts types, PROP_CATALOG
-│   ├── levels/             # level spawn data, levelDefinition.ts types, LEVEL_CATALOG
+│   ├── levels/             # indexed level seeds, levelFile parse, collectAssetUrls
 │   ├── keys/               # GAME_COMPONENT_KEYS, attachment tag maps
 │   └── ui/                 # theme tokens (loading colors, etc.)
 ├── entities/               # factories, components, systems
@@ -27,9 +27,10 @@ sandbox/src/
 │   ├── enemies/            # robot, combatMech, dummy + testAi
 │   └── ground/             # spawnGround — groundPlane entity
 ├── scenes/
-│   └── common/             # createPlayableScene, useLevelScene, prop
+│   └── common/             # createPlayableScene, useLevelScene, prop (re-export instantiateProp)
+├── storage/                # levelLocalStore (shared key construct.levelLocalStore)
 ├── globals/                # bootstrap, sceneManager (session autoloads)
-├── menus/                  # standalone React overlays (performance menu, …)
+├── menus/                  # performance, levels LevelSelectModal
 └── ui/
     ├── app/                # SandboxApp shell
     └── theme/              # style.css + design tokens
@@ -44,14 +45,16 @@ A file belongs in `catalog/` when it is **primarily declarative data** consumed 
 | URL/path constants | `loadSkeletalCharacter`, `spawnActor` |
 | `Record<id, Definition>` maps | `installTestAiSystem` |
 | Clip name maps | `createPlayer` |
-| `SkeletalCharacterDef` instances | `instantiateProp` |
-| `PropDefinition` / `PROP_CATALOG` | Component `createX()` factories |
-| `GAME_COMPONENT_KEYS` | Scene `load()` / `unload()` |
-| Level spawn layouts (`LevelPropPlacement`) | — |
+| `SkeletalCharacterDef` instances | Component `createX()` factories |
+| `PropDefinition` / `PROP_CATALOG` | Scene `load()` / `unload()` |
+| `GAME_COMPONENT_KEYS` | — |
+| Level seeds / `levelFile` parse / indexed layouts | — |
 
 `catalog/` may import `catalog/*` and `viberanium` types. **`catalog/` must not import from `entities/`, `scenes/`, or `globals/`.**
 
-Types live in the same folder as the data or helpers they describe — e.g. `catalog/characters/characterDef.ts`, `catalog/levels/levelDefinition.ts`. Do not add a shared `catalog/types/` folder.
+Levels use portable indexed `LevelDefinition` from viberanium (re-exported). `.level` authoring JSON is parsed in `levelFile.ts`. `instantiateProp` lives in `viberanium/spawn` — sandbox `scenes/common/prop.ts` re-exports it.
+
+Types live in the same folder as the data or helpers they describe. Do not add a shared `catalog/types/` folder.
 
 Engine `COMPONENT_KEYS` stays in `viberanium`. Sandbox-specific keys live in `catalog/keys/components.ts`.
 
@@ -68,27 +71,28 @@ New enemies follow `entities/enemies/spider/` with `createSpider.ts`, `component
 ## Scenes rule
 
 - `scenes/common/createPlayableScene.ts` — installs scene systems once; `load()` / `unload()` lifecycle
-- `scenes/common/useLevelScene.ts` — maps `LevelDefinition` → playable scene
-- `scenes/common/prop.ts` — `instantiateProp` (hierarchical PropDefinition spawn; **not** catalog)
+- `scenes/common/useLevelScene.ts` — maps indexed `LevelDefinition` + aiPackages → playable scene
+- `scenes/common/prop.ts` — re-export engine `instantiateProp`
 - `entities/ground/spawnGround.ts` — ground entity with `groundPlane` component
 
-Per-level custom logic: add `scenes/<levelId>/` only when catalog data is insufficient.
+Digit0 opens `menus/levels/LevelSelectModal`; Digit1–4 load `testOne`–`testFour`; each `switchTo` creates a **fresh** scene (never reuse one scene across levels).
 
 ## Globals rule
 
-`globals/bootstrap.ts` and `globals/sceneManager.ts` are session composition only — no entity factories, no level spawn data.
+`globals/bootstrap.ts` and `globals/sceneManager.ts` are session composition only — no entity factories, no level spawn data. Bootstrap seeds level local store when empty.
 
 ## UI / menus rule
 
 - `ui/app/SandboxApp.tsx` — React shell; imports `globals/bootstrap`
-- `menus/` — overlay components (e.g. `menus/performance/PerformanceMenu.tsx`)
+- `menus/` — overlay components (`menus/performance/`, `menus/levels/`)
 - Master CSS: `ui/theme/style.css`; feature CSS colocated with components
 
 ## Forbidden
 
 - Barrel `index.ts` anywhere under `sandbox/src/`
-- `catalog/types/` — colocate types with their catalog folder (`characterDef.ts`, `levelDefinition.ts`, …)
+- `catalog/types/` — colocate types with their catalog folder
 - Catalog files with registry writes or `install*System`
 - `startup/`, `levels/`, `character/`, `npcs/`, `world/` paths (removed — use structure above)
 - Component key strings outside `catalog/keys/` (except `viberanium` `COMPONENT_KEYS`)
-- `staticProps.ts` — use `scenes/common/prop.ts` + `instantiateProp`
+- `staticProps.ts` — use engine `instantiateProp` via `scenes/common/prop.ts`
+- Importing `construct` from sandbox

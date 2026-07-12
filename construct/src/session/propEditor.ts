@@ -91,7 +91,7 @@ export const enterPropMode = async (
 
   for (const part of state.propDocument.parts) {
     if (part.kind === 'collider') {
-      spawnColliderPartEntity(deps.device, deps.registry, rootId, part);
+      spawnColliderPartEntity(deps.device, deps.registry, rootId, part, state.showColliders);
     } else {
       await spawnAssetPartEntity(deps.device, deps.registry, deps.textures, deps.gltfCache, rootId, part);
     }
@@ -131,7 +131,7 @@ export const loadPropDocument = async (
 
   for (const part of state.propDocument.parts) {
     if (part.kind === 'collider') {
-      spawnColliderPartEntity(deps.device, deps.registry, rootId, part);
+      spawnColliderPartEntity(deps.device, deps.registry, rootId, part, state.showColliders);
     } else {
       await spawnAssetPartEntity(deps.device, deps.registry, deps.textures, deps.gltfCache, rootId, part);
     }
@@ -179,7 +179,7 @@ export const addColliderPart = (
   state.partCounter += 1;
   const part = defaultColliderPart(shape, `col_${state.partCounter}`);
   state.propDocument = { ...state.propDocument, parts: [...state.propDocument.parts, part] };
-  spawnColliderPartEntity(deps.device, deps.registry, rootId, part);
+  spawnColliderPartEntity(deps.device, deps.registry, rootId, part, state.showColliders);
 
   ensureSelectionEntity(deps, state);
   const sel = state.selectionEnt.components[CONSTRUCT_KEYS.editorSelection] as ConstructEditorSelection;

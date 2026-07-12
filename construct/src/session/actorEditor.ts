@@ -49,6 +49,7 @@ import {
   ensureActorEditorSystems,
   stopActorEditorSystems,
 } from '../scenes/installEditorSystems.ts';
+import { applyShowBonesVisibility } from './levelEditor.ts';
 import { ensureSelectionEntity, resetEditorScene } from '../scenes/editorScene.ts';
 import {
   type ConstructSessionDeps,
@@ -104,6 +105,7 @@ const respawnActorContent = async (deps: ConstructSessionDeps, state: ConstructS
     state.actorDocument.character,
   );
   spawnSkeletonOverlay(deps.device, deps.registry, spawned.bodyScene, spawned.boneNames);
+  applyShowBonesVisibility(deps, state.showBones);
 
   for (const attachment of state.actorDocument.attachments) {
     await spawnActorAttachment(
@@ -118,7 +120,7 @@ const respawnActorContent = async (deps: ConstructSessionDeps, state: ConstructS
   }
 
   for (const collider of state.actorDocument.colliders) {
-    spawnActorCollider(deps.device, deps.registry, spawned.entityId, spawned.bodyScene, collider);
+    spawnActorCollider(deps.device, deps.registry, spawned.entityId, spawned.bodyScene, collider, state.showColliders);
   }
 };
 
@@ -544,7 +546,7 @@ export const addActorCollider = (
     colliders: [...state.actorDocument.colliders, collider],
   };
 
-  spawnActorCollider(deps.device, deps.registry, characterEntity.id, bodyScene, collider);
+  spawnActorCollider(deps.device, deps.registry, characterEntity.id, bodyScene, collider, state.showColliders);
 
   selectActor(deps, state, { kind: 'collider', colliderId: collider.id });
   notifyActorDoc(state);

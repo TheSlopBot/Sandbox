@@ -17,7 +17,7 @@ const MODES: { id: ConstructMode; label: string; enabled: boolean }[] = [
   { id: 'preview', label: 'Preview', enabled: true },
   { id: 'prop', label: 'Prop', enabled: true },
   { id: 'actor', label: 'Actor', enabled: true },
-  { id: 'level', label: 'Level', enabled: false },
+  { id: 'level', label: 'Level', enabled: true },
 ];
 
 export const AppMenu = ({
@@ -32,7 +32,7 @@ export const AppMenu = ({
   onImport,
   onExport,
 }: AppMenuProps) => {
-  const propFileActionsEnabled = mode === 'prop' || mode === 'actor';
+  const propFileActionsEnabled = mode === 'prop' || mode === 'actor' || mode === 'level';
 
   return (
   <div className="construct-menuBar">
@@ -61,7 +61,7 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -69,12 +69,13 @@ export const AppMenu = ({
             }}
           >
             Save
+            <span className="construct-menuShortcut">Ctrl+S</span>
           </button>
           <button
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -87,7 +88,7 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -100,7 +101,7 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -113,7 +114,7 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop or Actor mode'}
+            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -149,3 +150,4 @@ export const AppMenu = ({
   </div>
   );
 };
+

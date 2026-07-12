@@ -9,6 +9,7 @@ import {
   type EngineOptimizationOptions,
   type SharedMeshCache,
   type StaticPropBatcher,
+  type PropDefinition,
   useRegistry,
   installMovementSystem,
   installNavGridSystem,
@@ -23,7 +24,6 @@ import {
   markNavGridDirty,
 } from 'viberanium';
 import { type LevelNavGridConfig } from '../../catalog/levels/levelDefinition.ts';
-import { getPropDefinition } from '../../catalog/props/registry.ts';
 import { createPlayer } from '../../entities/player/createPlayer.ts';
 import { installTestAiSystem } from '../../entities/enemies/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../../entities/player/systems/playerInputSystem.ts';
@@ -42,7 +42,7 @@ export type SceneDeps = {
   setSimFlush: (fn: (() => Promise<void>) | null) => void;
 };
 
-export type AddProp = (propId: string, placement?: PropPlacement) => Promise<void>;
+export type AddProp = (def: PropDefinition, placement?: PropPlacement) => Promise<void>;
 
 export type SpawnNpcs = (registry: Registry, deps: SceneDeps) => Promise<void>;
 
@@ -51,6 +51,10 @@ export const createPlayableScene = (
   navGridConfig: LevelNavGridConfig,
   spawnProps: (addProp: AddProp) => Promise<void>,
   spawnNpcs?: SpawnNpcs,
+  playerSpawn?: {
+    position: [number, number, number];
+    rotation: [number, number, number, number];
+  },
 ): Scene => {
   const registry = useRegistry();
   let loaded = false;
@@ -71,8 +75,7 @@ export const createPlayableScene = (
   });
   installStaticModelSystem(registry);
 
-  const addProp: AddProp = async (propId, placement = {}) => {
-    const def = getPropDefinition(propId);
+  const addProp: AddProp = async (def, placement = {}) => {
     await instantiateProp(deps.device, registry, deps.textures, deps.gltfCache, def, placement, {
       meshes: deps.meshes,
       markNavDirty: false,
@@ -92,7 +95,7 @@ export const createPlayableScene = (
     await spawnProps(addProp);
     markNavGridDirty(registry);
     if (spawnNpcs) await spawnNpcs(registry, deps);
-    await createPlayer(registry, deps.device, deps.textures, deps.gltfCache);
+    await createPlayer(registry, deps.device, deps.textures, deps.gltfCache, playerSpawn);
   };
 
   const unload = () => {

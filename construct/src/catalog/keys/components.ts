@@ -20,6 +20,10 @@ export const CONSTRUCT_KEYS = {
   actorCollider: `${COMPONENT_KEYS.transform}.constructActorCollider`,
   actorSelection: `${COMPONENT_KEYS.transform}.constructActorSelection`,
   skeletonOverlay: `${COMPONENT_KEYS.transform}.constructSkeletonOverlay`,
+  levelRoot: `${COMPONENT_KEYS.transform}.constructLevelRoot`,
+  levelOriginMarker: `${COMPONENT_KEYS.transform}.constructLevelOriginMarker`,
+  levelPlacement: `${COMPONENT_KEYS.transform}.constructLevelPlacement`,
+  levelPivot: `${COMPONENT_KEYS.transform}.constructLevelPivot`,
 } as const;
 
 export type ConstructComponentKey = (typeof CONSTRUCT_KEYS)[keyof typeof CONSTRUCT_KEYS];
