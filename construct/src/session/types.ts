@@ -80,7 +80,7 @@ export type ConstructSession = {
   getPropDocument: () => PropDocument;
   loadPropDocument: (doc: PropDocument) => Promise<PropDocument>;
   addAssetPart: (url: string, materialPrefix?: string) => Promise<PropDocument>;
-  addColliderPart: (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => PropDocument;
+  addColliderPart: (shape: 'box' | 'cylinder' | 'sphere') => PropDocument;
   selectPart: (partId: string | null) => void;
   setTransformMode: (mode: PropEditorTransformMode) => void;
   renameProp: (name: string) => PropDocument;
@@ -140,7 +140,7 @@ export type ConstructSession = {
     textureVariantUrl?: string | null,
   ) => Promise<LevelDocument>;
   addStandardActor: (doc: ActorDocument) => Promise<LevelDocument>;
-  addLevelCollider: (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => Promise<LevelDocument>;
+  addLevelCollider: (shape: 'box' | 'cylinder' | 'sphere') => Promise<LevelDocument>;
   selectLevelInstances: (ids: string[]) => void;
   selectLevelGroup: (groupId: string | null) => void;
   selectLevelRoot: () => void;

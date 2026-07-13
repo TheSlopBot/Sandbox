@@ -85,7 +85,7 @@ export const ensurePropOriginMarker = (
 };
 
 export const defaultColliderPart = (
-  shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
+  shape: 'box' | 'cylinder' | 'sphere',
   id: string,
 ): PropDocumentColliderPart => {
   const local = identityPartLocal();
@@ -106,17 +106,6 @@ export const defaultColliderPart = (
       kind: 'collider',
       shape: 'cylinder',
       radius: 0.35,
-      halfHeight: 0.5,
-      ...local,
-    };
-  }
-  if (shape === 'capsule') {
-    return {
-      id,
-      name: id,
-      kind: 'collider',
-      shape: 'capsule',
-      radius: 0.3,
       halfHeight: 0.5,
       ...local,
     };

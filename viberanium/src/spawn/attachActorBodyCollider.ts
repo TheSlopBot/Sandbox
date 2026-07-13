@@ -4,42 +4,42 @@ import { bakeColliderWorldFromLocal } from '../components/collider.ts';
 import { colliderFromShape } from '../components/colliderFromShape.ts';
 import {
   characterFootOffset,
-  readCharacterBodyCapsule,
+  readCharacterBodyCylinder,
 } from '../components/characterController.ts';
 import { type SkeletalModel } from '../components/skeletalModel.ts';
 import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type ActorColliderDef } from '../definitions/actors/actorDefinition.ts';
-import { DEFAULT_CHARACTER_BODY_CAPSULE } from '../definitions/actors/defaultCharacterBodyCapsule.ts';
+import { DEFAULT_CHARACTER_BODY_CYLINDER } from '../definitions/actors/defaultCharacterBodyCylinder.ts';
 
-export const pickActorBodyCapsule = (
+export const pickActorBodyCylinder = (
   colliders: readonly ActorColliderDef[],
 ): ActorColliderDef | null =>
   colliders.find(
-    (c) => c.collision !== false && c.shape === 'capsule' && c.parent.kind === 'character',
+    (c) => c.collision !== false && c.shape === 'cylinder' && c.parent.kind === 'character',
   ) ??
-  colliders.find((c) => c.collision !== false && c.shape === 'capsule') ??
+  colliders.find((c) => c.collision !== false && c.shape === 'cylinder') ??
   null;
 
 export const attachActorBodyCollider = (
   entity: Entity,
   colliders: readonly ActorColliderDef[],
 ): void => {
-  const bodyDef = pickActorBodyCapsule(colliders);
+  const bodyDef = pickActorBodyCylinder(colliders);
   if (!bodyDef) return;
 
   const scaleX = Math.abs(bodyDef.scale[0] || 1);
   const scaleY = Math.abs(bodyDef.scale[1] || 1);
-  const radius = (bodyDef.radius ?? DEFAULT_CHARACTER_BODY_CAPSULE.radius) * scaleX;
-  const halfHeight = (bodyDef.halfHeight ?? DEFAULT_CHARACTER_BODY_CAPSULE.halfHeight) * scaleY;
+  const radius = (bodyDef.radius ?? DEFAULT_CHARACTER_BODY_CYLINDER.radius!) * scaleX;
+  const halfHeight = (bodyDef.halfHeight ?? DEFAULT_CHARACTER_BODY_CYLINDER.halfHeight!) * scaleY;
 
   const collider = colliderFromShape({
-    shape: 'capsule',
+    shape: 'cylinder',
     radius,
     halfHeight,
     isStatic: false,
   });
 
-  if (bodyDef.parent.kind === 'character' && collider.localShape?.kind === 'capsule') {
+  if (bodyDef.parent.kind === 'character' && collider.localShape?.kind === 'cylinder') {
     collider.localShape.center[0] = bodyDef.position[0];
     collider.localShape.center[1] = bodyDef.position[1];
     collider.localShape.center[2] = bodyDef.position[2];
@@ -53,7 +53,7 @@ export const attachActorBodyCollider = (
 
   entity.components[COMPONENT_KEYS.collider] = collider;
 
-  const body = readCharacterBodyCapsule(collider);
+  const body = readCharacterBodyCylinder(collider);
   const model = entity.components[COMPONENT_KEYS.skeletalModel] as SkeletalModel | undefined;
   if (body && model) model.visualYOffset = -characterFootOffset(body);
 };

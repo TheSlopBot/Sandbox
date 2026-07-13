@@ -19,7 +19,7 @@ export type CharacterController = {
   jumpBufferRemaining: number;
 };
 
-export type CharacterBodyCapsule = {
+export type CharacterBodyCylinder = {
   radius: number;
   halfHeight: number;
 };
@@ -41,18 +41,26 @@ export const createCharacterController = (): CharacterController => ({
   jumpBufferRemaining: 0,
 });
 
-export const characterFootOffset = (body: CharacterBodyCapsule): number =>
-  body.halfHeight + body.radius;
+export const characterFootOffset = (body: CharacterBodyCylinder): number => body.halfHeight;
 
-export const characterHeadOffset = (body: CharacterBodyCapsule): number =>
-  body.halfHeight + body.radius;
+export const characterHeadOffset = (body: CharacterBodyCylinder): number => body.halfHeight;
 
-export const readCharacterBodyCapsule = (
+export const readCharacterBodyCylinder = (
   collider: Collider | undefined,
-): CharacterBodyCapsule | null => {
+): CharacterBodyCylinder | null => {
   const shape = collider?.localShape ?? collider?.shape;
-  if (!shape || shape.kind !== 'capsule') return null;
+  if (!shape || shape.kind !== 'cylinder') return null;
   if (!(shape.radius > 0) || !(shape.halfHeight > 0)) return null;
 
-  return { radius: shape.radius, halfHeight: shape.halfHeight };
+  return {
+    radius: shape.radius,
+    halfHeight: shape.halfHeight,
+  };
 };
+
+export const characterBodyToSolver = (
+  body: CharacterBodyCylinder,
+): { radius: number; halfHeight: number } => ({
+  radius: body.radius,
+  halfHeight: Math.max(1e-4, body.halfHeight - body.radius),
+});

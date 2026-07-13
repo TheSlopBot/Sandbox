@@ -16,7 +16,7 @@ export type PropAssetPart = PropPartLocal & {
 export type PropColliderPart = PropPartLocal & {
   id: string;
   kind: 'collider';
-  shape: 'box' | 'cylinder' | 'sphere' | 'capsule';
+  shape: 'box' | 'cylinder' | 'sphere';
   halfExtents?: [number, number, number];
   radius?: number;
   halfHeight?: number;

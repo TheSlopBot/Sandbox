@@ -1,14 +1,13 @@
 import { v3 } from '../math/vec3.ts';
 import {
   createBoxCollider,
-  createCapsuleCollider,
   createCylinderCollider,
   createSphereCollider,
   type Collider,
 } from '../components/collider.ts';
 
 export type ColliderShapeSpec = {
-  shape: 'box' | 'cylinder' | 'sphere' | 'capsule';
+  shape: 'box' | 'cylinder' | 'sphere';
   halfExtents?: [number, number, number];
   radius?: number;
   halfHeight?: number;
@@ -32,14 +31,6 @@ export const colliderFromShape = (spec: ColliderShapeSpec): Collider => {
   if (spec.shape === 'cylinder') {
     return createCylinderCollider({
       radius: spec.radius ?? 0.35,
-      halfHeight: spec.halfHeight ?? 0.5,
-      isStatic,
-    });
-  }
-
-  if (spec.shape === 'capsule') {
-    return createCapsuleCollider({
-      radius: spec.radius ?? 0.3,
       halfHeight: spec.halfHeight ?? 0.5,
       isStatic,
     });

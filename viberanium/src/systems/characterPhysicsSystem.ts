@@ -5,17 +5,18 @@ import { type Transform } from '../components/transform.ts';
 import { type Aabb, type Collider } from '../components/collider.ts';
 import {
   type CharacterController,
-  readCharacterBodyCapsule,
+  characterBodyToSolver,
+  readCharacterBodyCylinder,
 } from '../components/characterController.ts';
 import {
-  type CapsuleY,
+  type BodyY,
   applySlideVelocity,
-  resolveCapsuleMoveAndSlide,
+  resolveCylinderMoveAndSlide,
   SLIDE_ACCEL_TIME_SEC,
   SLIDE_INPUT_COYOTE_SEC,
   SLIDE_MAX_SPEED_FACTOR,
   SLIDE_START_SPEED_FACTOR,
-} from '../collision/capsule.ts';
+} from '../collision/characterCollision.ts';
 import { isCollisionBroadphaseDirty } from '../collision/collisionBroadphase.ts';
 import { getNearbyObstacles, getObstacles } from './collisionObstacles.ts';
 import { readGroundPlaneY } from './readGroundPlaneY.ts';
@@ -58,7 +59,7 @@ export const installCharacterPhysicsSystem = (
 
         const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
         const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-        const body = readCharacterBodyCapsule(
+        const body = readCharacterBodyCylinder(
           e.components[COMPONENT_KEYS.collider] as Collider | undefined,
         );
         if (!t || !cc || !body) continue;
@@ -69,6 +70,7 @@ export const installCharacterPhysicsSystem = (
           cc.velocity[2] * cc.velocity[2];
         if (speed2 < 1e-10 && cc.onGround && !cc.sliding) continue;
 
+        const solver = characterBodyToSolver(body);
         const queryRadius = Math.max(
           2,
           body.radius * 8 + Math.hypot(cc.velocity[0], cc.velocity[2]) * 0.1,
@@ -100,16 +102,16 @@ export const installCharacterPhysicsSystem = (
           t.position[1] += cc.velocity[1] * step;
           t.position[2] += cc.velocity[2] * step;
 
-          const capsule: CapsuleY = {
+          const bodyY: BodyY = {
             x: t.position[0],
             y: t.position[1],
             z: t.position[2],
-            radius: body.radius,
-            halfHeight: body.halfHeight,
+            radius: solver.radius,
+            halfHeight: solver.halfHeight,
           };
 
-          const result = resolveCapsuleMoveAndSlide(
-            capsule,
+          const result = resolveCylinderMoveAndSlide(
+            bodyY,
             cc.velocity,
             obstacles,
             groundY,
@@ -119,9 +121,9 @@ export const installCharacterPhysicsSystem = (
             _box,
           );
 
-          t.position[0] = result.capsule.x;
-          t.position[1] = result.capsule.y;
-          t.position[2] = result.capsule.z;
+          t.position[0] = result.body.x;
+          t.position[1] = result.body.y;
+          t.position[2] = result.body.z;
 
           if (result.sliding) {
             const start = cc.moveSpeed * SLIDE_START_SPEED_FACTOR;

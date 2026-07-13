@@ -18,7 +18,7 @@ export type ActorCharacterDef = {
   textureVariantUrl?: string | null;
 };
 
-export type ActorColliderShape = 'box' | 'cylinder' | 'sphere' | 'capsule';
+export type ActorColliderShape = 'box' | 'cylinder' | 'sphere';
 
 export type ActorColliderParent =
   | { kind: 'character' }

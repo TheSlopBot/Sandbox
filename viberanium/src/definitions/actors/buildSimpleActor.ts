@@ -3,7 +3,7 @@ import {
   type ActorAttachmentDef,
   type ActorDefinition,
 } from './actorDefinition.ts';
-import { DEFAULT_CHARACTER_BODY_CAPSULE } from './defaultCharacterBodyCapsule.ts';
+import { DEFAULT_CHARACTER_BODY_CYLINDER } from './defaultCharacterBodyCylinder.ts';
 
 export type SimpleActorAttachment = {
   id: string;
@@ -61,7 +61,7 @@ export const buildSimpleActor = (
     textureVariantUrl: opts.textureVariantUrl,
   },
   attachments: (opts.attachments ?? []).map(buildAttachment),
-  colliders: opts.colliders ?? [{ ...DEFAULT_CHARACTER_BODY_CAPSULE }],
+  colliders: opts.colliders ?? [{ ...DEFAULT_CHARACTER_BODY_CYLINDER }],
   animPack: opts.animPack,
   clips: opts.clips,
   ...(opts.baseColorTextureUrl ? { baseColorTextureUrl: opts.baseColorTextureUrl } : {}),

@@ -5,7 +5,6 @@ import {
   CHARACTER_STATE_FLOATS,
   CHARACTER_STATE_STRIDE,
   COLLIDER_KIND_BOX,
-  COLLIDER_KIND_CAPSULE,
   COLLIDER_KIND_CYLINDER,
   COLLIDER_KIND_ELLIPSOID,
   COLLIDER_KIND_SPHERE,
@@ -46,21 +45,6 @@ export type CollisionPass = {
   destroy: () => void;
 };
 
-const kindOf = (collider: Collider): number => {
-  switch (collider.shape.kind) {
-    case 'box':
-      return COLLIDER_KIND_BOX;
-    case 'cylinder':
-      return COLLIDER_KIND_CYLINDER;
-    case 'capsule':
-      return COLLIDER_KIND_CAPSULE;
-    case 'sphere':
-      return COLLIDER_KIND_SPHERE;
-    case 'ellipsoid':
-      return COLLIDER_KIND_ELLIPSOID;
-  }
-};
-
 const packCollider = (out: Float32Array, offset: number, collider: Collider) => {
   const shape = collider.shape;
   const amin = collider.aabb.min;
@@ -82,13 +66,13 @@ const packCollider = (out: Float32Array, offset: number, collider: Collider) => 
     return;
   }
 
-  if (shape.kind === 'cylinder' || shape.kind === 'capsule') {
+  if (shape.kind === 'cylinder') {
     packStaticCollider(
       out,
       offset,
       amin,
       amax,
-      kindOf(collider),
+      COLLIDER_KIND_CYLINDER,
       shape.center,
       shape.radius,
       shape.halfHeight,

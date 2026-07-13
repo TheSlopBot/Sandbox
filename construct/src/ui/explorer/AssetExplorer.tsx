@@ -44,7 +44,7 @@ export type AssetExplorerProps = {
   onCharactersExpandedChange?: (expanded: boolean) => void;
   colliderExpanded?: boolean;
   onColliderExpandedChange?: (expanded: boolean) => void;
-  onAddCollider?: (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => void;
+  onAddCollider?: (shape: 'box' | 'cylinder' | 'sphere') => void;
   assetAddEnabled?: boolean;
   characterAddEnabled?: boolean;
   colliderAddEnabled?: boolean;
@@ -196,7 +196,6 @@ export const AssetExplorer = ({
                         ['box', 'Rectangle'],
                         ['cylinder', 'Cylinder'],
                         ['sphere', 'Sphere'],
-                        ['capsule', 'Capsule'],
                       ] as const
                     ).map(([shape, label]) => (
                       <div key={shape} className="treeRowWithAdd" style={{ paddingLeft: 12 }}>

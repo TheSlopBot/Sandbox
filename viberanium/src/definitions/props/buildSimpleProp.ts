@@ -3,7 +3,6 @@ import { identityPartLocal, type PropColliderPart, type PropDefinition } from '.
 export type SimplePropCollider =
   | { shape: 'box'; halfExtents: [number, number, number]; position?: [number, number, number] }
   | { shape: 'cylinder'; radius: number; halfHeight: number; position?: [number, number, number] }
-  | { shape: 'capsule'; radius: number; halfHeight: number; position?: [number, number, number] }
   | { shape: 'sphere'; radius: number; position?: [number, number, number] };
 
 const buildColliderPart = (id: string, collider: SimplePropCollider): PropColliderPart => {
@@ -18,10 +17,6 @@ const buildColliderPart = (id: string, collider: SimplePropCollider): PropCollid
 
   if (collider.shape === 'cylinder') {
     return { ...base, shape: 'cylinder', radius: collider.radius, halfHeight: collider.halfHeight };
-  }
-
-  if (collider.shape === 'capsule') {
-    return { ...base, shape: 'capsule', radius: collider.radius, halfHeight: collider.halfHeight };
   }
 
   return { ...base, shape: 'sphere', radius: collider.radius };

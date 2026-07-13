@@ -36,9 +36,9 @@ export {
   makeAabb,
 } from './collision/aabb.ts';
 export {
-  type CapsuleY,
-  capsuleToAabb,
-  resolveCapsuleMoveAndSlide,
+  type BodyY,
+  bodyToAabb,
+  resolveCylinderMoveAndSlide,
   pointBlocksNav,
   classifyContact,
   isSlideSlope,
@@ -47,11 +47,11 @@ export {
   SLIDE_START_SPEED_FACTOR,
   SLIDE_MAX_SPEED_FACTOR,
   SLIDE_ACCEL_TIME_SEC,
-} from './collision/capsule.ts';
+} from './collision/characterCollision.ts';
 export {
-  type CapsuleContact,
-  contactCapsuleVsCollider,
-} from './collision/capsuleContact.ts';
+  type BodyContact,
+  contactBodyVsCollider,
+} from './collision/characterContact.ts';
 
 export { createTransform, updateWorldMatrix, type Transform } from './components/transform.ts';
 export { type Renderable } from './components/renderable.ts';
@@ -64,7 +64,6 @@ export {
   aabb,
   createBoxCollider,
   createCylinderCollider,
-  createCapsuleCollider,
   createSphereCollider,
   createEllipsoidCollider,
   updateColliderAabbFromShape,
@@ -85,9 +84,10 @@ export {
   createCharacterController,
   characterFootOffset,
   characterHeadOffset,
-  readCharacterBodyCapsule,
+  characterBodyToSolver,
+  readCharacterBodyCylinder,
   type CharacterController,
-  type CharacterBodyCapsule,
+  type CharacterBodyCylinder,
 } from './components/characterController.ts';
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
 export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
@@ -205,7 +205,7 @@ export {
   type BuildSimpleActorOpts,
   type SimpleActorAttachment,
 } from './definitions/actors/buildSimpleActor.ts';
-export { DEFAULT_CHARACTER_BODY_CAPSULE } from './definitions/actors/defaultCharacterBodyCapsule.ts';
+export { DEFAULT_CHARACTER_BODY_CYLINDER } from './definitions/actors/defaultCharacterBodyCylinder.ts';
 export {
   type PropPartLocal,
   type PropAssetPart,
@@ -256,4 +256,4 @@ export {
   type PropPlacement,
   type InstantiatePropOptions,
 } from './spawn/instantiateProp.ts';
-export { attachActorBodyCollider, pickActorBodyCapsule } from './spawn/attachActorBodyCollider.ts';
+export { attachActorBodyCollider, pickActorBodyCylinder } from './spawn/attachActorBodyCollider.ts';

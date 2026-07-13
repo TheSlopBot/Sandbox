@@ -1,5 +1,6 @@
 import {
   identityAttachmentLocal as engineIdentityAttachmentLocal,
+  DEFAULT_CHARACTER_BODY_CYLINDER,
   type ActorAttachmentDef,
   type ActorCharacterDef,
   type ActorColliderDef,
@@ -182,8 +183,7 @@ const normalizeCollider = (raw: unknown): ActorDocumentCollider => {
   if (
     part.shape !== 'box' &&
     part.shape !== 'cylinder' &&
-    part.shape !== 'sphere' &&
-    part.shape !== 'capsule'
+    part.shape !== 'sphere'
   ) {
     throw new Error('Invalid .actor collider shape');
   }
@@ -332,11 +332,15 @@ export const defaultActorCollider = (
   }
 
   if (shape === 'cylinder') {
+    if (parent.kind === 'character') {
+      return {
+        ...base,
+        shape: 'cylinder',
+        radius: DEFAULT_CHARACTER_BODY_CYLINDER.radius ?? 0.39323,
+        halfHeight: DEFAULT_CHARACTER_BODY_CYLINDER.halfHeight ?? 1.09563,
+      };
+    }
     return { ...base, shape: 'cylinder', radius: 0.35, halfHeight: 0.5 };
-  }
-
-  if (shape === 'capsule') {
-    return { ...base, shape: 'capsule', radius: 0.3, halfHeight: 0.5 };
   }
 
   return { ...base, shape: 'sphere', radius: 0.5 };

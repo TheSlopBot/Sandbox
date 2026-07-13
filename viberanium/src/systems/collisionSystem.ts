@@ -4,7 +4,8 @@ import { type Collider } from '../components/collider.ts';
 import { type Transform } from '../components/transform.ts';
 import {
   type CharacterController,
-  readCharacterBodyCapsule,
+  characterBodyToSolver,
+  readCharacterBodyCylinder,
 } from '../components/characterController.ts';
 import { type Entity } from '../engine/entity.ts';
 import { type GpuDevice } from '../render/gl/device.ts';
@@ -88,7 +89,7 @@ export const installCollisionSystem = (
       for (const e of registry.view(COMPONENT_KEYS.character)) {
         const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
         const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-        const body = readCharacterBodyCapsule(
+        const body = readCharacterBodyCylinder(
           e.components[COMPONENT_KEYS.collider] as Collider | undefined,
         );
         if (!t || !cc || !body) continue;
@@ -99,12 +100,13 @@ export const installCollisionSystem = (
           cc.velocity[2] * cc.velocity[2];
         if (speed2 < 1e-10 && cc.onGround && !cc.sliding) continue;
 
+        const solver = characterBodyToSolver(body);
         entities.push(e);
         inputs.push({
           pos: t.position,
           vel: cc.velocity,
-          radius: body.radius,
-          halfHeight: body.halfHeight,
+          radius: solver.radius,
+          halfHeight: solver.halfHeight,
           gravity: cc.gravity,
           onGround: cc.onGround,
           active: true,

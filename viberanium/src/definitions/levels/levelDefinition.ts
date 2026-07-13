@@ -41,7 +41,7 @@ export type LevelActorInstance = {
   scale: [number, number, number];
 };
 
-export type LevelColliderShape = 'box' | 'cylinder' | 'sphere' | 'capsule';
+export type LevelColliderShape = 'box' | 'cylinder' | 'sphere';
 
 export type LevelColliderInstance = {
   id: string;
@@ -206,8 +206,6 @@ export const resolveLevelPropDefinition = (
       if (c.shape === 'box') parts.push({ ...base, shape: 'box' as const, halfExtents: c.halfExtents });
       else if (c.shape === 'cylinder') {
         parts.push({ ...base, shape: 'cylinder' as const, radius: c.radius, halfHeight: c.halfHeight });
-      } else if (c.shape === 'capsule') {
-        parts.push({ ...base, shape: 'capsule' as const, radius: c.radius, halfHeight: c.halfHeight });
       } else {
         parts.push({ ...base, shape: 'sphere' as const, radius: c.radius });
       }
@@ -262,21 +260,6 @@ export const resolveLevelColliderPropDefinition = (
           ...base,
           shape: 'cylinder',
           radius: instance.radius ?? 0.35,
-          halfHeight: instance.halfHeight ?? 0.5,
-        },
-      ],
-    };
-  }
-
-  if (instance.shape === 'capsule') {
-    return {
-      id: instance.id,
-      displayName: instance.id,
-      parts: [
-        {
-          ...base,
-          shape: 'capsule',
-          radius: instance.radius ?? 0.3,
           halfHeight: instance.halfHeight ?? 0.5,
         },
       ],

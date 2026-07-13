@@ -2,19 +2,19 @@ import { type Aabb, type Collider } from '../components/collider.ts';
 import { type Vec3, v3, v3Set } from '../math/vec3.ts';
 import { aabbIntersects } from './aabb.ts';
 import {
-  type CapsuleContact,
-  type CapsuleY,
-  contactCapsuleVsCollider,
+  type BodyContact,
+  type BodyY,
+  contactBodyVsCollider,
   footprintOverlapsShape,
   projectOutOfNormal,
-  separateCapsuleVsBoxVolume,
-} from './capsuleContact.ts';
+  separateBodyVsBoxVolume,
+} from './characterContact.ts';
 
-export type { CapsuleY, CapsuleContact } from './capsuleContact.ts';
+export type { BodyY, BodyContact } from './characterContact.ts';
 
 export const DEFAULT_FLOOR_MAX_ANGLE = (50 * Math.PI) / 180;
 export const FLOOR_SNAP_DISTANCE = 0.32;
-export const STEP_HEIGHT = 0.25;
+export const STEP_HEIGHT = 0.35;
 export const SLIDE_START_SPEED_FACTOR = 1.35;
 export const SLIDE_MAX_SPEED_FACTOR = 3.5;
 export const SLIDE_ACCEL_TIME_SEC = 0.55;
@@ -35,14 +35,14 @@ const _box: Aabb = {
 const _groundNormal = v3(0, 1, 0);
 const _downhill = v3();
 
-export const capsuleToAabb = (capsule: CapsuleY, out: Aabb): Aabb => {
-  const extY = capsule.halfHeight + capsule.radius;
-  out.min[0] = capsule.x - capsule.radius;
-  out.min[1] = capsule.y - extY;
-  out.min[2] = capsule.z - capsule.radius;
-  out.max[0] = capsule.x + capsule.radius;
-  out.max[1] = capsule.y + extY;
-  out.max[2] = capsule.z + capsule.radius;
+export const bodyToAabb = (body: BodyY, out: Aabb): Aabb => {
+  const extY = body.halfHeight + body.radius;
+  out.min[0] = body.x - body.radius;
+  out.min[1] = body.y - extY;
+  out.min[2] = body.z - body.radius;
+  out.max[0] = body.x + body.radius;
+  out.max[1] = body.y + extY;
+  out.max[2] = body.z + body.radius;
   return out;
 };
 
@@ -83,20 +83,20 @@ export const pointBlocksNav = (
 };
 
 const findDeepestBoxVolumeContact = (
-  capsule: CapsuleY,
+  body: BodyY,
   obstacles: Collider[],
   outBox: Aabb,
-): CapsuleContact | null => {
-  capsuleToAabb(capsule, outBox);
-  let best: CapsuleContact | null = null;
+): BodyContact | null => {
+  bodyToAabb(body, outBox);
+  let best: BodyContact | null = null;
 
   for (const s of obstacles) {
     if (!s.isStatic) continue;
     if (!aabbIntersects(outBox, s.aabb)) continue;
     if (s.shape.kind !== 'box') continue;
 
-    const contact = separateCapsuleVsBoxVolume(
-      capsule,
+    const contact = separateBodyVsBoxVolume(
+      body,
       s.shape.center,
       s.shape.halfExtents,
       s.shape.rotation,
@@ -104,7 +104,7 @@ const findDeepestBoxVolumeContact = (
     if (!contact || contact.depth <= 0) continue;
 
     const h = Math.hypot(contact.nx, contact.nz);
-    const flat: CapsuleContact =
+    const flat: BodyContact =
       h > 1e-8
         ? { nx: contact.nx / h, ny: 0, nz: contact.nz / h, depth: contact.depth, shapeKind: 'box' }
         : { ...contact, shapeKind: 'box' };
@@ -116,23 +116,23 @@ const findDeepestBoxVolumeContact = (
 };
 
 const findDeepestContact = (
-  capsule: CapsuleY,
+  body: BodyY,
   obstacles: Collider[],
   outBox: Aabb,
-  predicate: (contact: CapsuleContact, floorMaxAngle: number) => boolean,
+  predicate: (contact: BodyContact, floorMaxAngle: number) => boolean,
   floorMaxAngle: number,
-): CapsuleContact | null => {
-  capsuleToAabb(capsule, outBox);
-  let best: CapsuleContact | null = null;
+): BodyContact | null => {
+  bodyToAabb(body, outBox);
+  let best: BodyContact | null = null;
 
   for (const s of obstacles) {
     if (!s.isStatic) continue;
     if (!aabbIntersects(outBox, s.aabb)) continue;
 
-    const hit = contactCapsuleVsCollider(capsule, s);
+    const hit = contactBodyVsCollider(body, s);
     if (!hit || hit.depth <= 0) continue;
 
-    const contact: CapsuleContact = { ...hit, shapeKind: s.shape.kind };
+    const contact: BodyContact = { ...hit, shapeKind: s.shape.kind };
     if (!predicate(contact, floorMaxAngle)) continue;
     if (!best || contact.depth > best.depth) best = contact;
   }
@@ -140,46 +140,46 @@ const findDeepestContact = (
   return best;
 };
 
-const isFloorContact = (contact: CapsuleContact, floorMaxAngle: number) => {
+const isFloorContact = (contact: BodyContact, floorMaxAngle: number) => {
   if (classifyContact(contact.ny, floorMaxAngle) === 'floor') return true;
   if (contact.shapeKind === 'box') return false;
   return contact.ny > SLIDE_MIN_NORMAL_Y;
 };
 
-const isBlockingContact = (contact: CapsuleContact, floorMaxAngle: number) =>
+const isBlockingContact = (contact: BodyContact, floorMaxAngle: number) =>
   !isFloorContact(contact, floorMaxAngle);
 
-const applyContactPush = (capsule: CapsuleY, contact: CapsuleContact): CapsuleY => ({
-  ...capsule,
-  x: capsule.x + contact.nx * contact.depth,
-  y: capsule.y + contact.ny * contact.depth,
-  z: capsule.z + contact.nz * contact.depth,
+const applyContactPush = (body: BodyY, contact: BodyContact): BodyY => ({
+  ...body,
+  x: body.x + contact.nx * contact.depth,
+  y: body.y + contact.ny * contact.depth,
+  z: body.z + contact.nz * contact.depth,
 });
 
-const applyFloorPush = (capsule: CapsuleY, contact: CapsuleContact): CapsuleY => {
+const applyFloorPush = (body: BodyY, contact: BodyContact): BodyY => {
   if (contact.ny > 0.15) {
     return {
-      ...capsule,
-      y: capsule.y + contact.depth / contact.ny,
+      ...body,
+      y: body.y + contact.depth / contact.ny,
     };
   }
 
-  return applyContactPush(capsule, contact);
+  return applyContactPush(body, contact);
 };
 
-const applyWallPush = (capsule: CapsuleY, contact: CapsuleContact): CapsuleY => {
+const applyWallPush = (body: BodyY, contact: BodyContact): BodyY => {
   const h = Math.hypot(contact.nx, contact.nz);
-  if (h < 1e-8) return applyContactPush(capsule, contact);
+  if (h < 1e-8) return applyContactPush(body, contact);
 
   const scale = contact.depth / h;
   return {
-    ...capsule,
-    x: capsule.x + contact.nx * scale,
-    z: capsule.z + contact.nz * scale,
+    ...body,
+    x: body.x + contact.nx * scale,
+    z: body.z + contact.nz * scale,
   };
 };
 
-const slideVelocityOnWall = (velocity: Vec3, contact: CapsuleContact) => {
+const slideVelocityOnWall = (velocity: Vec3, contact: BodyContact) => {
   const h = Math.hypot(contact.nx, contact.nz);
   if (h < 1e-8) {
     projectOutOfNormal(velocity, contact);
@@ -228,7 +228,7 @@ const downhillFromNormal = (
   return v3Set(out, sx * inv, sy * inv, sz * inv);
 };
 
-const stopOnWalkableFloor = (velocity: Vec3, contact: CapsuleContact) => {
+const stopOnWalkableFloor = (velocity: Vec3, contact: BodyContact) => {
   projectOutOfNormal(velocity, contact);
 
   const horiz = Math.hypot(velocity[0], velocity[2]);
@@ -249,92 +249,161 @@ const stopOnWalkableFloor = (velocity: Vec3, contact: CapsuleContact) => {
 };
 
 const trySurfaceSnap = (
-  capsule: CapsuleY,
+  body: BodyY,
   obstacles: Collider[],
   groundY: number,
   floorMaxAngle: number,
   outBox: Aabb,
-): { capsule: CapsuleY; contact: CapsuleContact } | null => {
-  const foot = capsule.y - capsule.halfHeight - capsule.radius;
-  const ext = capsule.halfHeight + capsule.radius;
+): { body: BodyY; contact: BodyContact } | null => {
+  const foot = body.y - body.halfHeight - body.radius;
+  const ext = body.halfHeight + body.radius;
 
   let bestY = -Infinity;
-  let bestCapsule: CapsuleY | null = null;
-  let bestContact: CapsuleContact | null = null;
+  let bestBody: BodyY | null = null;
+  let bestContact: BodyContact | null = null;
 
-  const consider = (surfaceY: number, contact: CapsuleContact) => {
+  const consider = (surfaceY: number, contact: BodyContact) => {
     if (surfaceY > foot + SURFACE_EPS) return;
     if (foot - surfaceY > FLOOR_SNAP_DISTANCE + SURFACE_EPS) return;
     if (surfaceY <= bestY + 1e-4) return;
 
     bestY = surfaceY;
     bestContact = contact;
-    bestCapsule = { ...capsule, y: surfaceY + ext };
+    bestBody = { ...body, y: surfaceY + ext };
   };
 
   if (foot - groundY <= FLOOR_SNAP_DISTANCE + SURFACE_EPS) {
     consider(groundY, { nx: 0, ny: 1, nz: 0, depth: 0 });
   }
 
-  const probe: CapsuleY = { ...capsule, y: capsule.y - FLOOR_SNAP_DISTANCE };
+  const probe: BodyY = { ...body, y: body.y - FLOOR_SNAP_DISTANCE };
   const contact = findDeepestContact(probe, obstacles, outBox, isFloorContact, floorMaxAngle);
   if (contact) {
     const snapped = applyFloorPush(probe, contact);
     consider(snapped.y - snapped.halfHeight - snapped.radius, contact);
   }
 
-  if (!bestCapsule || !bestContact) return null;
+  if (!bestBody || !bestContact) return null;
 
-  return { capsule: bestCapsule, contact: bestContact };
+  return { body: bestBody, contact: bestContact };
 };
 
-const isCeilingContact = (contact: CapsuleContact, floorMaxAngle: number) =>
+const isCeilingContact = (contact: BodyContact, floorMaxAngle: number) =>
   classifyContact(contact.ny, floorMaxAngle) === 'ceiling';
 
+const footOnWalkableSupport = (
+  body: BodyY,
+  obstacles: Collider[],
+  groundY: number,
+  floorMaxAngle: number,
+  outBox: Aabb,
+): boolean => {
+  const foot = body.y - body.halfHeight - body.radius;
+  if (foot <= groundY + SURFACE_EPS) return true;
+
+  const floor = findDeepestContact(body, obstacles, outBox, isFloorContact, floorMaxAngle);
+  if (!floor) return false;
+
+  const pushed = applyFloorPush(body, floor);
+  const surfaceY = pushed.y - body.halfHeight - body.radius;
+  return foot <= surfaceY + SURFACE_EPS;
+};
+
 const tryStepUp = (
-  capsule: CapsuleY,
+  body: BodyY,
   velocity: Vec3,
   obstacles: Collider[],
   floorMaxAngle: number,
   outBox: Aabb,
-): { capsule: CapsuleY; contact: CapsuleContact } | null => {
-  if (Math.hypot(velocity[0], velocity[2]) < 1e-8) return null;
+): { body: BodyY; contact: BodyContact } | null => {
+  const speed = Math.hypot(velocity[0], velocity[2]);
+  if (speed < 1e-8) return null;
 
-  const foot = capsule.y - capsule.halfHeight - capsule.radius;
-  const raised: CapsuleY = { ...capsule, y: capsule.y + STEP_HEIGHT };
+  const foot = body.y - body.halfHeight - body.radius;
+  const ext = body.halfHeight + body.radius;
+  const fwdX = velocity[0] / speed;
+  const fwdZ = velocity[2] / speed;
+  const raised: BodyY = { ...body, y: body.y + STEP_HEIGHT };
 
   if (findDeepestContact(raised, obstacles, outBox, isCeilingContact, floorMaxAngle)) return null;
 
-  const floor = findDeepestContact(raised, obstacles, outBox, isFloorContact, floorMaxAngle);
-  if (!floor) return null;
+  let bestY = -Infinity;
+  let bestBody: BodyY | null = null;
+  let bestContact: BodyContact | null = null;
 
-  const stepped = applyFloorPush(raised, floor);
-  const steppedFoot = stepped.y - stepped.halfHeight - stepped.radius;
-  if (steppedFoot <= foot + SURFACE_EPS) return null;
-  if (steppedFoot > foot + STEP_HEIGHT + SURFACE_EPS) return null;
+  const consider = (surfaceY: number, contact: BodyContact, at: BodyY) => {
+    if (surfaceY <= foot + SURFACE_EPS) return;
+    if (surfaceY > foot + STEP_HEIGHT + SURFACE_EPS) return;
+    if (surfaceY <= bestY + 1e-4) return;
 
-  const wall = findDeepestContact(stepped, obstacles, outBox, isBlockingContact, floorMaxAngle);
-  if (
-    wall &&
-    !isCeilingContact(wall, floorMaxAngle) &&
-    !(wall.shapeKind === 'box' && isSlideSlope(wall.ny, floorMaxAngle)) &&
-    wall.depth > 0.05
-  ) {
-    return null;
+    bestY = surfaceY;
+    bestContact = contact;
+    bestBody = { ...at, y: surfaceY + ext };
+  };
+
+  const floorRaised = findDeepestContact(raised, obstacles, outBox, isFloorContact, floorMaxAngle);
+  if (floorRaised) {
+    const snapped = applyFloorPush(raised, floorRaised);
+    consider(snapped.y - ext, floorRaised, snapped);
   }
 
-  return { capsule: stepped, contact: floor };
+  const probeX = body.x + fwdX * body.radius * 0.35;
+  const probeZ = body.z + fwdZ * body.radius * 0.35;
+
+  outBox.min[0] = Math.min(body.x, probeX) - body.radius;
+  outBox.min[1] = foot;
+  outBox.min[2] = Math.min(body.z, probeZ) - body.radius;
+  outBox.max[0] = Math.max(body.x, probeX) + body.radius;
+  outBox.max[1] = foot + STEP_HEIGHT;
+  outBox.max[2] = Math.max(body.z, probeZ) + body.radius;
+
+  for (const s of obstacles) {
+    if (!s.isStatic) continue;
+    if (!aabbIntersects(outBox, s.aabb)) continue;
+
+    const top = s.aabb.max[1];
+    if (top <= foot + SURFACE_EPS || top > foot + STEP_HEIGHT + SURFACE_EPS) continue;
+
+    const onFootprint =
+      footprintOverlapsShape(s.shape, body.x, body.z, body.radius) ||
+      footprintOverlapsShape(s.shape, probeX, probeZ, body.radius);
+    if (!onFootprint) continue;
+
+    const midX = (s.aabb.min[0] + s.aabb.max[0]) * 0.5;
+    const midZ = (s.aabb.min[2] + s.aabb.max[2]) * 0.5;
+    const toMidX = midX - probeX;
+    const toMidZ = midZ - probeZ;
+    const toMidLen = Math.hypot(toMidX, toMidZ);
+    const pull = toMidLen > 1e-8 ? Math.min(toMidLen, body.radius * 0.35) : 0;
+    const landX = toMidLen > 1e-8 ? probeX + (toMidX / toMidLen) * pull : probeX;
+    const landZ = toMidLen > 1e-8 ? probeZ + (toMidZ / toMidLen) * pull : probeZ;
+
+    const landed: BodyY = {
+      ...body,
+      x: landX,
+      z: landZ,
+      y: top + ext,
+    };
+
+    if (findDeepestContact(landed, obstacles, outBox, isCeilingContact, floorMaxAngle)) continue;
+
+    consider(top, { nx: 0, ny: 1, nz: 0, depth: 0, shapeKind: s.shape.kind }, landed);
+  }
+
+  if (!bestBody || !bestContact) return null;
+
+  return { body: bestBody, contact: bestContact };
 };
 
 export type MoveAndSlideResult = {
-  capsule: CapsuleY;
+  body: BodyY;
   onGround: boolean;
   groundNormal: Vec3;
   sliding: boolean;
 };
 
-export const resolveCapsuleMoveAndSlide = (
-  capsule: CapsuleY,
+export const resolveCylinderMoveAndSlide = (
+  body: BodyY,
   velocity: Vec3,
   obstacles: Collider[],
   groundY: number,
@@ -343,13 +412,13 @@ export const resolveCapsuleMoveAndSlide = (
   alreadyOnGround = false,
   outBox: Aabb = _box,
 ): MoveAndSlideResult => {
-  let next = capsule;
+  let next = body;
   let onGround = false;
   let sliding = false;
   v3Set(_groundNormal, 0, 1, 0);
 
   const foot = next.y - next.halfHeight - next.radius;
-  if (foot < groundY) {
+  if (foot <= groundY + 1e-4) {
     next = { ...next, y: groundY + next.halfHeight + next.radius };
     if (velocity[1] < 0) velocity[1] = 0;
     onGround = true;
@@ -365,7 +434,11 @@ export const resolveCapsuleMoveAndSlide = (
     if (!volume && !wall && !floor) break;
 
     const startSlopeSlide =
-      !!steepBox && (alreadySliding || sliding || !(alreadyOnGround || onGround));
+      !!steepBox &&
+      !floor &&
+      (alreadySliding ||
+        sliding ||
+        (!(alreadyOnGround || onGround) && velocity[1] <= 0));
 
     const blocking = steepBox
       ? steepBox
@@ -386,14 +459,14 @@ export const resolveCapsuleMoveAndSlide = (
         onGround = false;
         v3Set(_groundNormal, blocking.nx, blocking.ny, blocking.nz);
         projectOutOfNormal(velocity, blocking);
-      } else {
+      } else if (!floor) {
         const step =
-          (alreadyOnGround || onGround) && !sliding
+          !sliding && footOnWalkableSupport(next, obstacles, groundY, floorMaxAngle, outBox)
             ? tryStepUp(next, velocity, obstacles, floorMaxAngle, outBox)
             : null;
 
         if (step) {
-          next = step.capsule;
+          next = step.body;
           onGround = true;
           sliding = false;
           v3Set(_groundNormal, step.contact.nx, step.contact.ny, step.contact.nz);
@@ -417,7 +490,7 @@ export const resolveCapsuleMoveAndSlide = (
   if (!sliding && velocity[1] < SNAP_MAX_UP_SPEED) {
     const snap = trySurfaceSnap(next, obstacles, groundY, floorMaxAngle, outBox);
     if (snap) {
-      next = snap.capsule;
+      next = snap.body;
       onGround = true;
       sliding = false;
       v3Set(_groundNormal, snap.contact.nx, snap.contact.ny, snap.contact.nz);
@@ -426,7 +499,7 @@ export const resolveCapsuleMoveAndSlide = (
   }
 
   return {
-    capsule: next,
+    body: next,
     onGround,
     sliding,
     groundNormal: v3(_groundNormal[0], _groundNormal[1], _groundNormal[2]),
@@ -447,5 +520,3 @@ export const applySlideVelocity = (
   velocity[1] = down[1] * slideSpeed;
   velocity[2] = down[2] * slideSpeed;
 };
-
-export { projectOutOfNormal };

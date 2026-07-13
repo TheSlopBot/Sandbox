@@ -75,5 +75,5 @@ Opaque non-batched items are sorted by material/mesh affinity. Transparent items
 ## Sync rules
 
 - Skinning / bone attachments: GPU-only between compute pose and draw
-- Character capsules: CPU broadphase + resolve, or optional GPU resolve with compact root SoA readback only
+- Character bodies: CPU broadphase + cylinder resolve, or optional GPU resolve with compact root SoA readback only
 - Never require per-frame full joint-tree readback for rendering

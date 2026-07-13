@@ -173,7 +173,7 @@ export const addAssetPart = async (
 export const addColliderPart = (
   deps: ConstructSessionDeps,
   state: ConstructSessionState,
-  shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
+  shape: 'box' | 'cylinder' | 'sphere',
 ): PropDocument => {
   const rootId = ensurePropRootWithOrigin(deps, state);
   state.partCounter += 1;

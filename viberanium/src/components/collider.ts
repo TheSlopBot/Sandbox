@@ -11,7 +11,6 @@ export type Aabb = {
 export type ColliderShape =
   | { kind: 'box'; center: Vec3; halfExtents: Vec3; rotation: Quat }
   | { kind: 'cylinder'; center: Vec3; radius: number; halfHeight: number; rotation: Quat }
-  | { kind: 'capsule'; center: Vec3; radius: number; halfHeight: number; rotation: Quat }
   | { kind: 'sphere'; center: Vec3; radius: number }
   | { kind: 'ellipsoid'; center: Vec3; radii: Vec3; rotation: Quat };
 
@@ -125,7 +124,7 @@ export const updateColliderAabbFromShape = (collider: Collider): void => {
   const ay = Math.abs(_rotated[1]);
   const az = Math.abs(_rotated[2]);
   const r = shape.radius;
-  const hh = shape.kind === 'capsule' ? shape.halfHeight + shape.radius : shape.halfHeight;
+  const hh = shape.halfHeight;
   const ex = hh * ax + r * Math.sqrt(Math.max(0, 1 - ax * ax));
   const ey = hh * ay + r * Math.sqrt(Math.max(0, 1 - ay * ay));
   const ez = hh * az + r * Math.sqrt(Math.max(0, 1 - az * az));
@@ -150,16 +149,6 @@ const cloneShape = (shape: ColliderShape): ColliderShape => {
   if (shape.kind === 'cylinder') {
     return {
       kind: 'cylinder',
-      center: v3(shape.center[0], shape.center[1], shape.center[2]),
-      radius: shape.radius,
-      halfHeight: shape.halfHeight,
-      rotation: q4(shape.rotation[0], shape.rotation[1], shape.rotation[2], shape.rotation[3]),
-    };
-  }
-
-  if (shape.kind === 'capsule') {
-    return {
-      kind: 'capsule',
       center: v3(shape.center[0], shape.center[1], shape.center[2]),
       radius: shape.radius,
       halfHeight: shape.halfHeight,
@@ -249,7 +238,6 @@ export const bakeColliderWorldFromLocal = (collider: Collider, world: Mat4): voi
   if (
     worldShape.kind === 'box' ||
     worldShape.kind === 'cylinder' ||
-    worldShape.kind === 'capsule' ||
     worldShape.kind === 'ellipsoid'
   ) {
     const localRot = local.kind === 'sphere' ? q4() : local.rotation;
@@ -273,10 +261,7 @@ export const bakeColliderWorldFromLocal = (collider: Collider, world: Mat4): voi
     worldShape.halfExtents[2] = local.kind === 'box' ? local.halfExtents[2] * sz : worldShape.halfExtents[2];
   }
 
-  if (
-    (worldShape.kind === 'cylinder' && local.kind === 'cylinder') ||
-    (worldShape.kind === 'capsule' && local.kind === 'capsule')
-  ) {
+  if (worldShape.kind === 'cylinder' && local.kind === 'cylinder') {
     const sx = Math.hypot(world[0]!, world[1]!, world[2]!);
     const sy = Math.hypot(world[4]!, world[5]!, world[6]!);
     worldShape.radius = local.radius * sx;
@@ -365,32 +350,6 @@ export const createCylinderCollider = (opts: {
   return collider;
 };
 
-export const createCapsuleCollider = (opts: {
-  center?: Vec3;
-  radius: number;
-  halfHeight: number;
-  rotation?: Quat;
-  isStatic?: boolean;
-}): Collider => {
-  const shape: ColliderShape = {
-    kind: 'capsule',
-    center: opts.center ? v3(opts.center[0], opts.center[1], opts.center[2]) : v3(),
-    radius: opts.radius,
-    halfHeight: opts.halfHeight,
-    rotation: opts.rotation
-      ? q4(opts.rotation[0], opts.rotation[1], opts.rotation[2], opts.rotation[3])
-      : q4(),
-  };
-  const collider: Collider = {
-    aabb: aabb(0, 0, 0, 0, 0, 0),
-    isStatic: opts.isStatic ?? true,
-    shape,
-    localShape: cloneShape(shape),
-  };
-  updateColliderAabbFromShape(collider);
-  return collider;
-};
-
 export const createSphereCollider = (opts: {
   center?: Vec3;
   radius: number;
@@ -441,10 +400,6 @@ export const copyColliderShape = (dst: ColliderShape, src: ColliderShape): void 
     v3Copy(dst.halfExtents, src.halfExtents);
     q4Copy(dst.rotation, src.rotation);
   } else if (dst.kind === 'cylinder' && src.kind === 'cylinder') {
-    dst.radius = src.radius;
-    dst.halfHeight = src.halfHeight;
-    q4Copy(dst.rotation, src.rotation);
-  } else if (dst.kind === 'capsule' && src.kind === 'capsule') {
     dst.radius = src.radius;
     dst.halfHeight = src.halfHeight;
     q4Copy(dst.rotation, src.rotation);

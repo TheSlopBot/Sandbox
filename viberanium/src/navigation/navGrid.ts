@@ -1,5 +1,5 @@
 import { type Collider } from '../components/collider.ts';
-import { pointBlocksNav } from '../collision/capsule.ts';
+import { pointBlocksNav } from '../collision/characterCollision.ts';
 
 export type NavGrid = {
   minX: number;

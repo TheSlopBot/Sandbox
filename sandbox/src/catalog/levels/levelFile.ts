@@ -128,10 +128,17 @@ const toPropDefinition = (raw: unknown): PropDefinition => {
           scale: readNumericTriple(p.scale) ?? [1, 1, 1],
         };
       }
+      if (
+        p.shape !== 'box' &&
+        p.shape !== 'cylinder' &&
+        p.shape !== 'sphere'
+      ) {
+        throw new Error('Invalid prop collider shape in .level');
+      }
       return {
         id: String(p.id),
         kind: 'collider' as const,
-        shape: p.shape as 'box' | 'cylinder' | 'sphere' | 'capsule',
+        shape: p.shape,
         halfExtents: readNumericTriple(p.halfExtents) ?? undefined,
         radius: typeof p.radius === 'number' ? p.radius : undefined,
         halfHeight: typeof p.halfHeight === 'number' ? p.halfHeight : undefined,
@@ -222,8 +229,7 @@ const normalizeColliderInstance = (raw: unknown): LevelColliderInstance => {
   if (
     inst.shape !== 'box' &&
     inst.shape !== 'cylinder' &&
-    inst.shape !== 'sphere' &&
-    inst.shape !== 'capsule'
+    inst.shape !== 'sphere'
   ) {
     throw new Error('Invalid collider shape');
   }

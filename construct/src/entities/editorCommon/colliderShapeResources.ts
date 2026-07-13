@@ -33,7 +33,7 @@ export const applyActorColliderWireColor = (
   material.baseColorFactor[3] = color[3];
 };
 
-const wireMaterial = (shape: 'box' | 'cylinder' | 'sphere' | 'capsule'): Material => ({
+const wireMaterial = (shape: 'box' | 'cylinder' | 'sphere'): Material => ({
   name: `construct-collider-wire-${shape}`,
   baseColorTex: null,
   baseColorFactor: [...ACTOR_COLLIDER_ROLE_COLORS.collision],
@@ -42,7 +42,7 @@ const wireMaterial = (shape: 'box' | 'cylinder' | 'sphere' | 'capsule'): Materia
 });
 
 export const createActorColliderWireMaterial = (
-  shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
+  shape: 'box' | 'cylinder' | 'sphere',
   collision: boolean,
   hitbox: boolean,
 ): Material => ({
@@ -168,63 +168,6 @@ const createCylinderProxyMesh = (
   return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
 };
 
-const createCapsuleProxyMesh = (
-  device: GpuDevice,
-  radius: number,
-  halfHeight: number,
-  seg = 14,
-  hemiSeg = 6,
-) => {
-  const v: number[] = [];
-  const idx: number[] = [];
-  const rings: number[][] = [];
-
-  const pushRing = (y: number, ringR: number, ny: number, xzScale: number) => {
-    const ring: number[] = [];
-    for (let i = 0; i <= seg; i++) {
-      const a = (i / seg) * Math.PI * 2;
-      const c = Math.cos(a);
-      const s = Math.sin(a);
-      ring.push(v.length / 8);
-      pushVert(v, c * ringR, y, s * ringR, c * xzScale, ny, s * xzScale);
-    }
-    rings.push(ring);
-  };
-
-  pushRing(-(halfHeight + radius), 0, -1, 0);
-  for (let i = 1; i < hemiSeg; i++) {
-    const t = i / hemiSeg;
-    const angle = -Math.PI * 0.5 + t * (Math.PI * 0.5);
-    const y = -halfHeight + Math.sin(angle) * radius;
-    const ringR = Math.cos(angle) * radius;
-    const ny = Math.sin(angle);
-    const xz = Math.cos(angle);
-    pushRing(y, ringR, ny, xz);
-  }
-  pushRing(-halfHeight, radius, 0, 1);
-  pushRing(halfHeight, radius, 0, 1);
-  for (let i = 1; i < hemiSeg; i++) {
-    const t = i / hemiSeg;
-    const angle = t * (Math.PI * 0.5);
-    const y = halfHeight + Math.sin(angle) * radius;
-    const ringR = Math.cos(angle) * radius;
-    const ny = Math.sin(angle);
-    const xz = Math.cos(angle);
-    pushRing(y, ringR, ny, xz);
-  }
-  pushRing(halfHeight + radius, 0, 1, 0);
-
-  for (let r = 0; r < rings.length - 1; r++) {
-    const a = rings[r]!;
-    const b = rings[r + 1]!;
-    for (let i = 0; i < seg; i++) {
-      idx.push(a[i]!, b[i]!, a[i + 1]!, a[i + 1]!, b[i]!, b[i + 1]!);
-    }
-  }
-
-  return createInterleavedMesh(device, new Float32Array(v), new Uint32Array(idx));
-};
-
 export type ColliderShapeResources = {
   collider: Collider;
   mesh: ReturnType<typeof createBoxProxyMesh>;
@@ -233,7 +176,7 @@ export type ColliderShapeResources = {
 
 export const createColliderShapeResources = (
   device: GpuDevice,
-  shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
+  shape: 'box' | 'cylinder' | 'sphere',
   opts: {
     halfExtents?: [number, number, number];
     radius?: number;
@@ -265,16 +208,6 @@ export const createColliderShapeResources = (
       collider: colliderFromShape({ shape: 'cylinder', radius, halfHeight, isStatic: true }),
       mesh: createCylinderProxyMesh(device, radius, halfHeight),
       material: roleMaterial ?? wireMaterial('cylinder'),
-    };
-  }
-
-  if (shape === 'capsule') {
-    const radius = opts.radius ?? 0.3;
-    const halfHeight = opts.halfHeight ?? 0.5;
-    return {
-      collider: colliderFromShape({ shape: 'capsule', radius, halfHeight, isStatic: true }),
-      mesh: createCapsuleProxyMesh(device, radius, halfHeight),
-      material: roleMaterial ?? wireMaterial('capsule'),
     };
   }
 

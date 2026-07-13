@@ -17,7 +17,6 @@ import {
 } from 'viberanium';
 import { GAME_COMPONENT_KEYS } from '../../catalog/keys/components.ts';
 import {
-  createCapsuleMesh,
   createUnitBoxMesh,
   createUnitCylinderMesh,
   createUnitSphereMesh,
@@ -48,10 +47,7 @@ const shapeMeshKey = (collider: Collider): string => {
   if (shape.kind === 'ellipsoid') {
     return `ellipsoid:${shape.radii[0].toFixed(4)}:${shape.radii[1].toFixed(4)}:${shape.radii[2].toFixed(4)}`;
   }
-  if (shape.kind === 'cylinder') {
-    return `cylinder:${shape.radius.toFixed(4)}:${shape.halfHeight.toFixed(4)}`;
-  }
-  return `capsule:${shape.radius.toFixed(4)}:${shape.halfHeight.toFixed(4)}`;
+  return `cylinder:${shape.radius.toFixed(4)}:${shape.halfHeight.toFixed(4)}`;
 };
 
 export const installColliderDebugSystem = (
@@ -62,7 +58,6 @@ export const installColliderDebugSystem = (
   const unitBox = createUnitBoxMesh(device);
   const unitSphere = createUnitSphereMesh(device);
   const unitCylinder = createUnitCylinderMesh(device);
-  const capsuleCache = new Map<string, Mesh>();
   const ownedMeshes: Mesh[] = [unitBox, unitSphere, unitCylinder];
   const entries = new Map<Collider, DebugEntry>();
   const seen = new Set<Collider>();
@@ -73,15 +68,7 @@ export const installColliderDebugSystem = (
 
     if (shape.kind === 'box') return { mesh: unitBox, key };
     if (shape.kind === 'sphere' || shape.kind === 'ellipsoid') return { mesh: unitSphere, key };
-    if (shape.kind === 'cylinder') return { mesh: unitCylinder, key };
-
-    let mesh = capsuleCache.get(key);
-    if (!mesh) {
-      mesh = createCapsuleMesh(device, shape.radius, shape.halfHeight);
-      capsuleCache.set(key, mesh);
-      ownedMeshes.push(mesh);
-    }
-    return { mesh, key };
+    return { mesh: unitCylinder, key };
   };
 
   const writeModel = (out: Float32Array, collider: Collider) => {
@@ -111,17 +98,9 @@ export const installColliderDebugSystem = (
       return;
     }
 
-    if (shape.kind === 'cylinder') {
-      _scale[0] = shape.radius;
-      _scale[1] = shape.halfHeight;
-      _scale[2] = shape.radius;
-      m4FromTRSQuat(out, shape.center, shape.rotation, _scale);
-      return;
-    }
-
-    _scale[0] = 1;
-    _scale[1] = 1;
-    _scale[2] = 1;
+    _scale[0] = shape.radius;
+    _scale[1] = shape.halfHeight;
+    _scale[2] = shape.radius;
     m4FromTRSQuat(out, shape.center, shape.rotation, _scale);
   };
 
@@ -196,6 +175,5 @@ export const installColliderDebugSystem = (
     removeUpdate();
     clearEntries();
     for (const mesh of ownedMeshes) destroyMesh(device, mesh);
-    capsuleCache.clear();
   };
 };

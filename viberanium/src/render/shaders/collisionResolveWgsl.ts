@@ -90,7 +90,7 @@ fn aabbIntersects(amin: vec3f, amax: vec3f, bmin: vec3f, bmax: vec3f) -> bool {
     && amin.z <= bmax.z && amax.z >= bmin.z;
 }
 
-fn capsuleAabb(pos: vec3f, radius: f32, halfHeight: f32) -> Aabb {
+fn bodyAabb(pos: vec3f, radius: f32, halfHeight: f32) -> Aabb {
   let extY = halfHeight + radius;
   var box: Aabb;
   box.mn = vec3f(pos.x - radius, pos.y - extY, pos.z - radius);
@@ -184,7 +184,7 @@ fn footprintOverlaps(col: StaticCollider, x: f32, z: f32, radius: f32) -> bool {
     let hz = col.p2 + radius;
     return abs(rel.x) <= hx && abs(rel.y) <= hz;
   }
-  if (kind == 1u || kind == 2u || kind == 3u) {
+  if (kind == 1u || kind == 3u) {
     let dx = x - center.x;
     let dz = z - center.z;
     return dx * dx + dz * dz <= (col.p0 + radius) * (col.p0 + radius);
@@ -205,7 +205,7 @@ fn resolveHorizontalVsCollider(
   if (kind == 0u) {
     return resolveCircleVsOrientedBoxXZ(x, z, radius, center, col.p0, col.p2, rot);
   }
-  if (kind == 1u || kind == 2u || kind == 3u) {
+  if (kind == 1u || kind == 3u) {
     return resolveCircleVsCircleXZ(x, z, radius, center.x, center.z, col.p0);
   }
   let yaw = yawFromQuat(rot);
@@ -310,7 +310,7 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
     ch.posZ += ch.velZ * step;
 
     var pos = vec3f(ch.posX, ch.posY, ch.posZ);
-    var box = capsuleAabb(pos, ch.radius, ch.halfHeight);
+    var box = bodyAabb(pos, ch.radius, ch.halfHeight);
     var candidates: array<u32, 64>;
     var candCount = gatherCandidates(box.mn, box.mx, &candidates);
 
@@ -332,11 +332,11 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
       ch.posX = resolved.x;
       ch.posZ = resolved.y;
       pos = vec3f(ch.posX, ch.posY, ch.posZ);
-      box = capsuleAabb(pos, ch.radius, ch.halfHeight);
+      box = bodyAabb(pos, ch.radius, ch.halfHeight);
     }
 
     pos = vec3f(ch.posX, ch.posY, ch.posZ);
-    box = capsuleAabb(pos, ch.radius, ch.halfHeight);
+    box = bodyAabb(pos, ch.radius, ch.halfHeight);
     candCount = gatherCandidates(box.mn, box.mx, &candidates);
 
     let footY = ch.posY - foot;
@@ -376,7 +376,7 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
     ch.onGround = 0.0;
 
     pos = vec3f(ch.posX, ch.posY, ch.posZ);
-    box = capsuleAabb(pos, ch.radius, ch.halfHeight);
+    box = bodyAabb(pos, ch.radius, ch.halfHeight);
     candCount = gatherCandidates(box.mn, box.mx, &candidates);
     let ext = ch.halfHeight + ch.radius;
 
@@ -404,7 +404,7 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
         ch.velY = 0.0;
       }
       pos = vec3f(ch.posX, ch.posY, ch.posZ);
-      box = capsuleAabb(pos, ch.radius, ch.halfHeight);
+      box = bodyAabb(pos, ch.radius, ch.halfHeight);
     }
 
     if (ch.posY - foot < params.groundY) {

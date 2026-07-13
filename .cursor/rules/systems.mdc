@@ -132,4 +132,4 @@ Sandbox `createPlayableScene` installs `installSkeletalCharacterSystems` (not a 
 | `installAnimationFsmSystem` | update | `animationStateMachine` state + timers |
 | `installSkeletalGpuPoseSystem` | postUpdate gather; draw encode | GPU joint palettes + mesh/attachment models |
 
-Install `installCharacterStateSystem` and `installMovementSystem` separately on the scene registry. Character collision is CPU via `installCharacterPhysicsSystem` (broadphase query + capsule resolve); GPU pose/cull/render stay unchanged.
+Install `installCharacterStateSystem` and `installMovementSystem` separately on the scene registry. Character collision is CPU via `installCharacterPhysicsSystem` (broadphase query + cylinder resolve); GPU pose/cull/render stay unchanged.

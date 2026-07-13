@@ -214,8 +214,8 @@ const rayShapeDistance = (
     return hit.t;
   }
 
-  if (shape.kind === 'cylinder' || shape.kind === 'capsule') {
-    const he = v3(shape.radius, shape.halfHeight + (shape.kind === 'capsule' ? shape.radius : 0), shape.radius);
+  if (shape.kind === 'cylinder') {
+    const he = v3(shape.radius, shape.halfHeight, shape.radius);
     const hit = rayObbDistance(
       ox,
       oy,

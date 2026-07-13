@@ -689,7 +689,7 @@ export const addStandardActor = async (
 export const addLevelCollider = async (
   deps: ConstructSessionDeps,
   state: ConstructSessionState,
-  shape: 'box' | 'cylinder' | 'sphere' | 'capsule',
+  shape: 'box' | 'cylinder' | 'sphere',
 ): Promise<LevelDocument> => {
   await prepareLevelInstanceAllocation(deps, state);
   const rootId = ensureLevelRootWithOrigin(deps, state);

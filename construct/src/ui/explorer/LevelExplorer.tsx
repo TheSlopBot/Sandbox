@@ -15,7 +15,7 @@ export type LevelExplorerProps = {
   onToggleDir: (dirPath: string) => void;
   onAddSimpleProp: (filePath: string) => void;
   onAddSimpleActor: (filePath: string) => void;
-  onAddCollider: (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => void;
+  onAddCollider: (shape: 'box' | 'cylinder' | 'sphere') => void;
   assetsExpanded: boolean;
   onAssetsExpandedChange: (expanded: boolean) => void;
   charactersExpanded: boolean;
@@ -244,7 +244,6 @@ export const LevelExplorer = ({
                   ['box', 'Rectangle'],
                   ['cylinder', 'Cylinder'],
                   ['sphere', 'Sphere'],
-                  ['capsule', 'Capsule'],
                 ] as const
               ).map(([shape, label]) => (
                 <div key={shape} className="treeRowWithAdd" style={{ paddingLeft: 12 }}>

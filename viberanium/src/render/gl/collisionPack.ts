@@ -6,7 +6,6 @@ export const CHARACTER_STATE_STRIDE = CHARACTER_STATE_FLOATS * 4;
 
 export const COLLIDER_KIND_BOX = 0;
 export const COLLIDER_KIND_CYLINDER = 1;
-export const COLLIDER_KIND_CAPSULE = 2;
 export const COLLIDER_KIND_SPHERE = 3;
 export const COLLIDER_KIND_ELLIPSOID = 4;
 

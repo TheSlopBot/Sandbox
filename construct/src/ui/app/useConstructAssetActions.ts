@@ -183,7 +183,7 @@ export const useConstructAssetActions = ({
     })();
   };
 
-  const onAddCollider = (shape: 'box' | 'cylinder' | 'sphere' | 'capsule') => {
+  const onAddCollider = (shape: 'box' | 'cylinder' | 'sphere') => {
     const session = sessionRef.current;
     if (!session) return;
 

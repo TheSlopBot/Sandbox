@@ -21,7 +21,7 @@ export type PropDocumentColliderPart = PropDocumentPartLocal & {
   id: string;
   name: string;
   kind: 'collider';
-  shape: 'box' | 'cylinder' | 'sphere' | 'capsule';
+  shape: 'box' | 'cylinder' | 'sphere';
   halfExtents?: [number, number, number];
   radius?: number;
   halfHeight?: number;
@@ -100,8 +100,7 @@ const normalizePart = (raw: unknown): PropDocumentPart => {
     if (
       part.shape !== 'box' &&
       part.shape !== 'cylinder' &&
-      part.shape !== 'sphere' &&
-      part.shape !== 'capsule'
+      part.shape !== 'sphere'
     ) {
       throw new Error('Invalid collider shape');
     }

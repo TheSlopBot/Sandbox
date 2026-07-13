@@ -321,7 +321,7 @@ const normalizeColliderInstance = (raw: unknown): LevelDocumentColliderInstance 
   if (typeof inst.id !== 'string') throw new Error('Invalid level collider instance id');
 
   const shape = inst.shape;
-  if (shape !== 'box' && shape !== 'cylinder' && shape !== 'sphere' && shape !== 'capsule') {
+  if (shape !== 'box' && shape !== 'cylinder' && shape !== 'sphere') {
     throw new Error('Invalid level collider shape');
   }
 
