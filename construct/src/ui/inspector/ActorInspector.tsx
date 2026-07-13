@@ -40,15 +40,18 @@ export const ActorInspector = ({
 
   const collidersByBone = new Map<string, ActorDocumentCollider[]>();
   const collidersByAttachment = new Map<string, ActorDocumentCollider[]>();
+  const characterColliders: ActorDocumentCollider[] = [];
   for (const c of doc.colliders) {
     if (c.parent.kind === 'bone') {
       const list = collidersByBone.get(c.parent.boneName) ?? [];
       list.push(c);
       collidersByBone.set(c.parent.boneName, list);
-    } else {
+    } else if (c.parent.kind === 'attachment') {
       const list = collidersByAttachment.get(c.parent.attachmentId) ?? [];
       list.push(c);
       collidersByAttachment.set(c.parent.attachmentId, list);
+    } else {
+      characterColliders.push(c);
     }
   }
 
@@ -73,6 +76,18 @@ export const ActorInspector = ({
               <span>◎</span>
               <span>{characterLabel}</span>
             </div>
+            {characterColliders.map((c) => (
+              <div
+                key={c.id}
+                className="construct-elementsRow"
+                style={{ paddingLeft: 16 }}
+                data-selected={selectedCollider === c.id}
+                onClick={() => onSelect({ kind: 'collider', colliderId: c.id })}
+              >
+                <span>◇</span>
+                <span>{colliderListLabel(c)}</span>
+              </div>
+            ))}
             {sortedBoneNames.map((boneName) => {
               const attachments = attachmentsByBone.get(boneName) ?? [];
               const boneColliders = collidersByBone.get(boneName) ?? [];

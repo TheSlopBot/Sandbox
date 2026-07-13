@@ -1,21 +1,39 @@
-import { type Collider, type ColliderShape, type Aabb } from '../components/collider.ts';
-import { type Quat, q4Conjugate, q4TransformVec3 } from '../math/quat.ts';
-import { type Vec3, v3 } from '../math/vec3.ts';
+import { type Aabb, type Collider } from '../components/collider.ts';
+import { type Vec3, v3, v3Set } from '../math/vec3.ts';
 import { aabbIntersects } from './aabb.ts';
+import {
+  type CapsuleContact,
+  type CapsuleY,
+  contactCapsuleVsCollider,
+  footprintOverlapsShape,
+  projectOutOfNormal,
+  separateCapsuleVsBoxVolume,
+} from './capsuleContact.ts';
 
-export type CapsuleY = {
-  x: number;
-  y: number;
-  z: number;
-  radius: number;
-  halfHeight: number;
+export type { CapsuleY, CapsuleContact } from './capsuleContact.ts';
+
+export const DEFAULT_FLOOR_MAX_ANGLE = (50 * Math.PI) / 180;
+export const FLOOR_SNAP_DISTANCE = 0.32;
+export const STEP_HEIGHT = 0.25;
+export const SLIDE_START_SPEED_FACTOR = 1.35;
+export const SLIDE_MAX_SPEED_FACTOR = 3.5;
+export const SLIDE_ACCEL_TIME_SEC = 0.55;
+export const SLIDE_INPUT_COYOTE_SEC = 0.18;
+
+const CONTACT_ITERS = 3;
+const SURFACE_EPS = 0.05;
+const SNAP_MAX_UP_SPEED = 4;
+const SLIDE_MAX_ANGLE = (80 * Math.PI) / 180;
+const SLIDE_MIN_NORMAL_Y = Math.cos(SLIDE_MAX_ANGLE);
+const WALL_HEAD_ON_DOT = Math.cos((40 * Math.PI) / 180);
+
+const _box: Aabb = {
+  min: new Float32Array(3),
+  max: new Float32Array(3),
 };
 
-const SURFACE_EPS = 0.02;
-const SURFACE_SNAP = 0.12;
-const _local = v3();
-const _tmpQ = new Float32Array(4) as Quat;
-const _toPoint = v3();
+const _groundNormal = v3(0, 1, 0);
+const _downhill = v3();
 
 export const capsuleToAabb = (capsule: CapsuleY, out: Aabb): Aabb => {
   const extY = capsule.halfHeight + capsule.radius;
@@ -28,135 +46,24 @@ export const capsuleToAabb = (capsule: CapsuleY, out: Aabb): Aabb => {
   return out;
 };
 
-const yawFromQuat = (q: Quat): number => {
-  const siny = 2 * (q[3]! * q[1]! + q[0]! * q[2]!);
-  const cosy = 1 - 2 * (q[1]! * q[1]! + q[0]! * q[0]!);
-  return Math.atan2(siny, cosy);
+export type ContactKind = 'floor' | 'wall' | 'ceiling';
+
+export const classifyContact = (
+  normalY: number,
+  floorMaxAngle = DEFAULT_FLOOR_MAX_ANGLE,
+): ContactKind => {
+  const cosFloor = Math.cos(floorMaxAngle);
+  if (normalY >= cosFloor) return 'floor';
+  if (normalY <= -cosFloor) return 'ceiling';
+  return 'wall';
 };
 
-const rotateY = (x: number, z: number, yaw: number): { x: number; z: number } => {
-  const c = Math.cos(yaw);
-  const s = Math.sin(yaw);
-  return { x: x * c + z * s, z: -x * s + z * c };
-};
-
-const resolveCircleVsAabbXZ = (
-  x: number,
-  z: number,
-  radius: number,
-  minX: number,
-  maxX: number,
-  minZ: number,
-  maxZ: number,
-): { x: number; z: number } | null => {
-  const cx = Math.max(minX, Math.min(maxX, x));
-  const cz = Math.max(minZ, Math.min(maxZ, z));
-  let dx = x - cx;
-  let dz = z - cz;
-  const d2 = dx * dx + dz * dz;
-  if (d2 >= radius * radius && d2 > 1e-12) return null;
-
-  if (d2 < 1e-12) {
-    const penLeft = x - minX + radius;
-    const penRight = maxX - x + radius;
-    const penNear = z - minZ + radius;
-    const penFar = maxZ - z + radius;
-    const minPen = Math.min(penLeft, penRight, penNear, penFar);
-    if (minPen === penLeft) return { x: minX - radius - 1e-3, z };
-    if (minPen === penRight) return { x: maxX + radius + 1e-3, z };
-    if (minPen === penNear) return { x, z: minZ - radius - 1e-3 };
-    return { x, z: maxZ + radius + 1e-3 };
-  }
-
-  const d = Math.sqrt(d2);
-  const push = (radius - d) / d + 1e-3 / d;
-  return { x: x + dx * push, z: z + dz * push };
-};
-
-const resolveCircleVsOrientedBoxXZ = (
-  x: number,
-  z: number,
-  radius: number,
-  center: Vec3,
-  halfExtents: Vec3,
-  rotation: Quat,
-): { x: number; z: number } | null => {
-  const yaw = yawFromQuat(rotation);
-  const rel = rotateY(x - center[0], z - center[2], -yaw);
-  const resolved = resolveCircleVsAabbXZ(
-    rel.x,
-    rel.z,
-    radius,
-    -halfExtents[0],
-    halfExtents[0],
-    -halfExtents[2],
-    halfExtents[2],
-  );
-  if (!resolved) return null;
-
-  const world = rotateY(resolved.x, resolved.z, yaw);
-  return { x: center[0] + world.x, z: center[2] + world.z };
-};
-
-const resolveCircleVsCircleXZ = (
-  x: number,
-  z: number,
-  radius: number,
-  cx: number,
-  cz: number,
-  otherR: number,
-): { x: number; z: number } | null => {
-  const dx = x - cx;
-  const dz = z - cz;
-  const d2 = dx * dx + dz * dz;
-  const minDist = radius + otherR;
-  if (d2 >= minDist * minDist) return null;
-
-  if (d2 < 1e-12) return { x: cx + minDist + 1e-3, z: cz };
-
-  const d = Math.sqrt(d2);
-  const push = (minDist - d) / d + 1e-3 / d;
-  return { x: x + dx * push, z: z + dz * push };
-};
-
-const footprintOverlaps = (
-  shape: ColliderShape,
-  x: number,
-  z: number,
-  radius: number,
+export const isSlideSlope = (
+  normalY: number,
+  floorMaxAngle = DEFAULT_FLOOR_MAX_ANGLE,
 ): boolean => {
-  if (shape.kind === 'box') {
-    const yaw = yawFromQuat(shape.rotation);
-    const rel = rotateY(x - shape.center[0], z - shape.center[2], -yaw);
-    const hx = shape.halfExtents[0] + radius;
-    const hz = shape.halfExtents[2] + radius;
-    return Math.abs(rel.x) <= hx && Math.abs(rel.z) <= hz;
-  }
-
-  if (shape.kind === 'cylinder' || shape.kind === 'capsule') {
-    q4Conjugate(_tmpQ, shape.rotation);
-    _toPoint[0] = x - shape.center[0];
-    _toPoint[1] = 0;
-    _toPoint[2] = z - shape.center[2];
-    q4TransformVec3(_local, _tmpQ, _toPoint);
-    const dist = Math.hypot(_local[0], _local[2]);
-    return dist <= shape.radius + radius;
-  }
-
-  if (shape.kind === 'sphere') {
-    const dx = x - shape.center[0];
-    const dz = z - shape.center[2];
-    return dx * dx + dz * dz <= (shape.radius + radius) * (shape.radius + radius);
-  }
-
-  q4Conjugate(_tmpQ, shape.rotation);
-  _toPoint[0] = x - shape.center[0];
-  _toPoint[1] = 0;
-  _toPoint[2] = z - shape.center[2];
-  q4TransformVec3(_local, _tmpQ, _toPoint);
-  const nx = _local[0] / (shape.radii[0] + radius);
-  const nz = _local[2] / (shape.radii[2] + radius);
-  return nx * nx + nz * nz <= 1;
+  const cosFloor = Math.cos(floorMaxAngle);
+  return normalY > SLIDE_MIN_NORMAL_Y && normalY < cosFloor;
 };
 
 export const pointBlocksNav = (
@@ -172,162 +79,373 @@ export const pointBlocksNav = (
     return false;
   }
 
-  return footprintOverlaps(collider.shape, x, z, margin);
+  return footprintOverlapsShape(collider.shape, x, z, margin);
 };
 
-export const hasCapsuleSupport = (
-  collider: Collider,
-  x: number,
-  z: number,
-  radius: number,
-): boolean => footprintOverlaps(collider.shape, x, z, radius);
-
-export const colliderTopY = (collider: Collider): number => collider.aabb.max[1];
-
-export const colliderBottomY = (collider: Collider): number => collider.aabb.min[1];
-
-export const resolveCapsuleVsColliderHorizontal = (
-  capsule: CapsuleY,
-  collider: Collider,
-): { x: number; z: number } | null => {
-  const shape = collider.shape;
-
-  if (shape.kind === 'box') {
-    return resolveCircleVsOrientedBoxXZ(
-      capsule.x,
-      capsule.z,
-      capsule.radius,
-      shape.center,
-      shape.halfExtents,
-      shape.rotation,
-    );
-  }
-
-  if (shape.kind === 'cylinder' || shape.kind === 'capsule') {
-    return resolveCircleVsCircleXZ(
-      capsule.x,
-      capsule.z,
-      capsule.radius,
-      shape.center[0],
-      shape.center[2],
-      shape.radius,
-    );
-  }
-
-  if (shape.kind === 'sphere') {
-    return resolveCircleVsCircleXZ(
-      capsule.x,
-      capsule.z,
-      capsule.radius,
-      shape.center[0],
-      shape.center[2],
-      shape.radius,
-    );
-  }
-
-  const yaw = yawFromQuat(shape.rotation);
-  const rel = rotateY(capsule.x - shape.center[0], capsule.z - shape.center[2], -yaw);
-  const rx = shape.radii[0] + capsule.radius;
-  const rz = shape.radii[2] + capsule.radius;
-  const nx = rel.x / rx;
-  const nz = rel.z / rz;
-  const d2 = nx * nx + nz * nz;
-  if (d2 >= 1) return null;
-
-  if (d2 < 1e-12) {
-    const world = rotateY(rx + 1e-3, 0, yaw);
-    return { x: shape.center[0] + world.x, z: shape.center[2] + world.z };
-  }
-
-  const d = Math.sqrt(d2);
-  const scale = (1 - d) / d + 1e-3 / d;
-  const world = rotateY(rel.x + rel.x * scale, rel.z + rel.z * scale, yaw);
-  return { x: shape.center[0] + world.x, z: shape.center[2] + world.z };
-};
-
-export const resolveCapsuleHorizontal = (
+const findDeepestBoxVolumeContact = (
   capsule: CapsuleY,
   obstacles: Collider[],
   outBox: Aabb,
-): CapsuleY => {
-  let next = capsule;
-  capsuleToAabb(next, outBox);
+): CapsuleContact | null => {
+  capsuleToAabb(capsule, outBox);
+  let best: CapsuleContact | null = null;
+
+  for (const s of obstacles) {
+    if (!s.isStatic) continue;
+    if (!aabbIntersects(outBox, s.aabb)) continue;
+    if (s.shape.kind !== 'box') continue;
+
+    const contact = separateCapsuleVsBoxVolume(
+      capsule,
+      s.shape.center,
+      s.shape.halfExtents,
+      s.shape.rotation,
+    );
+    if (!contact || contact.depth <= 0) continue;
+
+    const h = Math.hypot(contact.nx, contact.nz);
+    const flat: CapsuleContact =
+      h > 1e-8
+        ? { nx: contact.nx / h, ny: 0, nz: contact.nz / h, depth: contact.depth, shapeKind: 'box' }
+        : { ...contact, shapeKind: 'box' };
+
+    if (!best || flat.depth > best.depth) best = flat;
+  }
+
+  return best;
+};
+
+const findDeepestContact = (
+  capsule: CapsuleY,
+  obstacles: Collider[],
+  outBox: Aabb,
+  predicate: (contact: CapsuleContact, floorMaxAngle: number) => boolean,
+  floorMaxAngle: number,
+): CapsuleContact | null => {
+  capsuleToAabb(capsule, outBox);
+  let best: CapsuleContact | null = null;
 
   for (const s of obstacles) {
     if (!s.isStatic) continue;
     if (!aabbIntersects(outBox, s.aabb)) continue;
 
-    const yOverlap =
-      outBox.max[1] > s.aabb.min[1] + 1e-4 && outBox.min[1] < s.aabb.max[1] - 1e-4;
-    if (!yOverlap) continue;
+    const hit = contactCapsuleVsCollider(capsule, s);
+    if (!hit || hit.depth <= 0) continue;
 
-    const resolved = resolveCapsuleVsColliderHorizontal(next, s);
-    if (!resolved) continue;
-
-    next = { ...next, x: resolved.x, z: resolved.z };
-    capsuleToAabb(next, outBox);
+    const contact: CapsuleContact = { ...hit, shapeKind: s.shape.kind };
+    if (!predicate(contact, floorMaxAngle)) continue;
+    if (!best || contact.depth > best.depth) best = contact;
   }
 
-  return next;
+  return best;
 };
 
-export const getCapsuleSupportSurfaceY = (
-  capsule: CapsuleY,
-  obstacles: Collider[],
-  groundY = 0,
-): number | null => {
-  const footY = capsule.y - capsule.halfHeight - capsule.radius;
-  if (footY <= groundY + SURFACE_EPS) return groundY;
+const isFloorContact = (contact: CapsuleContact, floorMaxAngle: number) => {
+  if (classifyContact(contact.ny, floorMaxAngle) === 'floor') return true;
+  if (contact.shapeKind === 'box') return false;
+  return contact.ny > SLIDE_MIN_NORMAL_Y;
+};
 
-  let bestTop = -Infinity;
-  for (const s of obstacles) {
-    if (!hasCapsuleSupport(s, capsule.x, capsule.z, capsule.radius)) continue;
-    const top = colliderTopY(s);
-    if (top > bestTop) bestTop = top;
+const isBlockingContact = (contact: CapsuleContact, floorMaxAngle: number) =>
+  !isFloorContact(contact, floorMaxAngle);
+
+const applyContactPush = (capsule: CapsuleY, contact: CapsuleContact): CapsuleY => ({
+  ...capsule,
+  x: capsule.x + contact.nx * contact.depth,
+  y: capsule.y + contact.ny * contact.depth,
+  z: capsule.z + contact.nz * contact.depth,
+});
+
+const applyFloorPush = (capsule: CapsuleY, contact: CapsuleContact): CapsuleY => {
+  if (contact.ny > 0.15) {
+    return {
+      ...capsule,
+      y: capsule.y + contact.depth / contact.ny,
+    };
   }
 
-  if (bestTop === -Infinity) return null;
-  if (footY >= bestTop - SURFACE_SNAP && footY <= bestTop + SURFACE_EPS) return bestTop;
-  return null;
+  return applyContactPush(capsule, contact);
 };
 
-export const resolveCapsuleVertical = (
+const applyWallPush = (capsule: CapsuleY, contact: CapsuleContact): CapsuleY => {
+  const h = Math.hypot(contact.nx, contact.nz);
+  if (h < 1e-8) return applyContactPush(capsule, contact);
+
+  const scale = contact.depth / h;
+  return {
+    ...capsule,
+    x: capsule.x + contact.nx * scale,
+    z: capsule.z + contact.nz * scale,
+  };
+};
+
+const slideVelocityOnWall = (velocity: Vec3, contact: CapsuleContact) => {
+  const h = Math.hypot(contact.nx, contact.nz);
+  if (h < 1e-8) {
+    projectOutOfNormal(velocity, contact);
+    return;
+  }
+
+  const nx = contact.nx / h;
+  const nz = contact.nz / h;
+  const speed = Math.hypot(velocity[0], velocity[2]);
+  if (speed < 1e-8) return;
+
+  const headOn = -(velocity[0] * nx + velocity[2] * nz) / speed;
+  const into = velocity[0] * nx + velocity[2] * nz;
+  if (into < 0) {
+    velocity[0] -= nx * into;
+    velocity[2] -= nz * into;
+  }
+
+  if (headOn >= WALL_HEAD_ON_DOT) {
+    velocity[0] = 0;
+    velocity[2] = 0;
+    return;
+  }
+
+  const along = Math.hypot(velocity[0], velocity[2]);
+  if (along < 1e-8) return;
+
+  const scale = speed / along;
+  velocity[0] *= scale;
+  velocity[2] *= scale;
+};
+
+const downhillFromNormal = (
+  out: Vec3,
+  nx: number,
+  ny: number,
+  nz: number,
+): Vec3 | null => {
+  const sx = nx * ny;
+  const sy = ny * ny - 1;
+  const sz = nz * ny;
+  const slen = Math.hypot(sx, sy, sz);
+  if (slen < 1e-8) return null;
+
+  const inv = 1 / slen;
+  return v3Set(out, sx * inv, sy * inv, sz * inv);
+};
+
+const stopOnWalkableFloor = (velocity: Vec3, contact: CapsuleContact) => {
+  projectOutOfNormal(velocity, contact);
+
+  const horiz = Math.hypot(velocity[0], velocity[2]);
+  if (horiz > 1e-4) return;
+
+  const down = downhillFromNormal(_downhill, contact.nx, contact.ny, contact.nz);
+  if (!down) {
+    if (velocity[1] < 0) velocity[1] = 0;
+    return;
+  }
+
+  const along = velocity[0] * down[0] + velocity[1] * down[1] + velocity[2] * down[2];
+  if (along <= 0) return;
+
+  velocity[0] -= down[0] * along;
+  velocity[1] -= down[1] * along;
+  velocity[2] -= down[2] * along;
+};
+
+const trySurfaceSnap = (
   capsule: CapsuleY,
-  velocityY: number,
-  prevY: number,
   obstacles: Collider[],
+  groundY: number,
+  floorMaxAngle: number,
   outBox: Aabb,
-): { capsule: CapsuleY; velocityY: number; onGround: boolean } => {
+): { capsule: CapsuleY; contact: CapsuleContact } | null => {
+  const foot = capsule.y - capsule.halfHeight - capsule.radius;
+  const ext = capsule.halfHeight + capsule.radius;
+
+  let bestY = -Infinity;
+  let bestCapsule: CapsuleY | null = null;
+  let bestContact: CapsuleContact | null = null;
+
+  const consider = (surfaceY: number, contact: CapsuleContact) => {
+    if (surfaceY > foot + SURFACE_EPS) return;
+    if (foot - surfaceY > FLOOR_SNAP_DISTANCE + SURFACE_EPS) return;
+    if (surfaceY <= bestY + 1e-4) return;
+
+    bestY = surfaceY;
+    bestContact = contact;
+    bestCapsule = { ...capsule, y: surfaceY + ext };
+  };
+
+  if (foot - groundY <= FLOOR_SNAP_DISTANCE + SURFACE_EPS) {
+    consider(groundY, { nx: 0, ny: 1, nz: 0, depth: 0 });
+  }
+
+  const probe: CapsuleY = { ...capsule, y: capsule.y - FLOOR_SNAP_DISTANCE };
+  const contact = findDeepestContact(probe, obstacles, outBox, isFloorContact, floorMaxAngle);
+  if (contact) {
+    const snapped = applyFloorPush(probe, contact);
+    consider(snapped.y - snapped.halfHeight - snapped.radius, contact);
+  }
+
+  if (!bestCapsule || !bestContact) return null;
+
+  return { capsule: bestCapsule, contact: bestContact };
+};
+
+const isCeilingContact = (contact: CapsuleContact, floorMaxAngle: number) =>
+  classifyContact(contact.ny, floorMaxAngle) === 'ceiling';
+
+const tryStepUp = (
+  capsule: CapsuleY,
+  velocity: Vec3,
+  obstacles: Collider[],
+  floorMaxAngle: number,
+  outBox: Aabb,
+): { capsule: CapsuleY; contact: CapsuleContact } | null => {
+  if (Math.hypot(velocity[0], velocity[2]) < 1e-8) return null;
+
+  const foot = capsule.y - capsule.halfHeight - capsule.radius;
+  const raised: CapsuleY = { ...capsule, y: capsule.y + STEP_HEIGHT };
+
+  if (findDeepestContact(raised, obstacles, outBox, isCeilingContact, floorMaxAngle)) return null;
+
+  const floor = findDeepestContact(raised, obstacles, outBox, isFloorContact, floorMaxAngle);
+  if (!floor) return null;
+
+  const stepped = applyFloorPush(raised, floor);
+  const steppedFoot = stepped.y - stepped.halfHeight - stepped.radius;
+  if (steppedFoot <= foot + SURFACE_EPS) return null;
+  if (steppedFoot > foot + STEP_HEIGHT + SURFACE_EPS) return null;
+
+  const wall = findDeepestContact(stepped, obstacles, outBox, isBlockingContact, floorMaxAngle);
+  if (
+    wall &&
+    !isCeilingContact(wall, floorMaxAngle) &&
+    !(wall.shapeKind === 'box' && isSlideSlope(wall.ny, floorMaxAngle)) &&
+    wall.depth > 0.05
+  ) {
+    return null;
+  }
+
+  return { capsule: stepped, contact: floor };
+};
+
+export type MoveAndSlideResult = {
+  capsule: CapsuleY;
+  onGround: boolean;
+  groundNormal: Vec3;
+  sliding: boolean;
+};
+
+export const resolveCapsuleMoveAndSlide = (
+  capsule: CapsuleY,
+  velocity: Vec3,
+  obstacles: Collider[],
+  groundY: number,
+  floorMaxAngle = DEFAULT_FLOOR_MAX_ANGLE,
+  alreadySliding = false,
+  alreadyOnGround = false,
+  outBox: Aabb = _box,
+): MoveAndSlideResult => {
   let next = capsule;
-  let vy = velocityY;
   let onGround = false;
-  capsuleToAabb(next, outBox);
+  let sliding = false;
+  v3Set(_groundNormal, 0, 1, 0);
 
-  const ext = next.halfHeight + next.radius;
+  const foot = next.y - next.halfHeight - next.radius;
+  if (foot < groundY) {
+    next = { ...next, y: groundY + next.halfHeight + next.radius };
+    if (velocity[1] < 0) velocity[1] = 0;
+    onGround = true;
+  }
 
-  for (const s of obstacles) {
-    if (!s.isStatic) continue;
-    if (!aabbIntersects(outBox, s.aabb)) continue;
+  for (let iter = 0; iter < CONTACT_ITERS; iter++) {
+    const floor = findDeepestContact(next, obstacles, outBox, isFloorContact, floorMaxAngle);
+    const wall = findDeepestContact(next, obstacles, outBox, isBlockingContact, floorMaxAngle);
+    const steepBox =
+      wall && wall.shapeKind === 'box' && isSlideSlope(wall.ny, floorMaxAngle) ? wall : null;
+    const volume =
+      floor || steepBox ? null : findDeepestBoxVolumeContact(next, obstacles, outBox);
+    if (!volume && !wall && !floor) break;
 
-    const top = colliderTopY(s);
-    const bottom = colliderBottomY(s);
-    const prevBottom = prevY - ext;
-    const currBottom = next.y - ext;
-    const prevTop = prevY + ext;
-    const currTop = next.y + ext;
-    const supported = hasCapsuleSupport(s, next.x, next.z, next.radius);
+    const startSlopeSlide =
+      !!steepBox && (alreadySliding || sliding || !(alreadyOnGround || onGround));
 
-    if (vy <= 0 && supported && prevBottom >= top - 1e-4 && currBottom < top) {
-      next = { ...next, y: top + ext };
-      vy = 0;
-      onGround = true;
-    } else if (vy > 0 && supported && prevTop <= bottom + 1e-4 && currTop > bottom) {
-      next = { ...next, y: bottom - ext };
-      vy = 0;
+    const blocking = steepBox
+      ? steepBox
+      : volume && wall
+        ? volume.depth >= wall.depth
+          ? volume
+          : wall
+        : (volume ?? wall);
+
+    if (blocking) {
+      if (classifyContact(blocking.ny, floorMaxAngle) === 'ceiling') {
+        next = applyContactPush(next, blocking);
+        projectOutOfNormal(velocity, blocking);
+        if (velocity[1] > 0) velocity[1] = 0;
+      } else if (startSlopeSlide) {
+        next = applyContactPush(next, blocking);
+        sliding = true;
+        onGround = false;
+        v3Set(_groundNormal, blocking.nx, blocking.ny, blocking.nz);
+        projectOutOfNormal(velocity, blocking);
+      } else {
+        const step =
+          (alreadyOnGround || onGround) && !sliding
+            ? tryStepUp(next, velocity, obstacles, floorMaxAngle, outBox)
+            : null;
+
+        if (step) {
+          next = step.capsule;
+          onGround = true;
+          sliding = false;
+          v3Set(_groundNormal, step.contact.nx, step.contact.ny, step.contact.nz);
+          stopOnWalkableFloor(velocity, step.contact);
+        } else {
+          next = applyWallPush(next, blocking);
+          slideVelocityOnWall(velocity, blocking);
+        }
+      }
     }
 
-    capsuleToAabb(next, outBox);
+    if (floor && !sliding) {
+      next = applyFloorPush(next, floor);
+      onGround = true;
+      sliding = false;
+      v3Set(_groundNormal, floor.nx, floor.ny, floor.nz);
+      stopOnWalkableFloor(velocity, floor);
+    }
   }
 
-  return { capsule: next, velocityY: vy, onGround };
+  if (!sliding && velocity[1] < SNAP_MAX_UP_SPEED) {
+    const snap = trySurfaceSnap(next, obstacles, groundY, floorMaxAngle, outBox);
+    if (snap) {
+      next = snap.capsule;
+      onGround = true;
+      sliding = false;
+      v3Set(_groundNormal, snap.contact.nx, snap.contact.ny, snap.contact.nz);
+      stopOnWalkableFloor(velocity, snap.contact);
+    }
+  }
+
+  return {
+    capsule: next,
+    onGround,
+    sliding,
+    groundNormal: v3(_groundNormal[0], _groundNormal[1], _groundNormal[2]),
+  };
 };
+
+export const applySlideVelocity = (
+  velocity: Vec3,
+  nx: number,
+  ny: number,
+  nz: number,
+  slideSpeed: number,
+) => {
+  const down = downhillFromNormal(_downhill, nx, ny, nz);
+  if (!down) return;
+
+  velocity[0] = down[0] * slideSpeed;
+  velocity[1] = down[1] * slideSpeed;
+  velocity[2] = down[2] * slideSpeed;
+};
+
+export { projectOutOfNormal };

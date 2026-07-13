@@ -42,7 +42,7 @@ Mesh sub-entities are allowed only for static props (`renderGroup`) until props 
 | `animationClipMap` | `clips` keyed by `AnimStateId` — state → retargeted clip |
 | `animationStateMachine` | current state, timers, playback tuning — not on `character` |
 
-`character` is **physics only** (velocity, gravity, onGround, halfExtents). Animation timing and blend weights live on `animationStateMachine` and per-clip components.
+`character` is **physics only** (velocity, gravity, onGround). Body capsule dims come from an authored actor collider (`collision` capsule, typically `parent: { kind: 'character' }`) attached at spawn — not from `character` fields. Animation timing and blend weights live on `animationStateMachine` and per-clip components.
 
 ## Component rules
 

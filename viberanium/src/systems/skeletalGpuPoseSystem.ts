@@ -7,6 +7,7 @@ import { type AnimationStateMachine, type AnimStateId } from '../components/anim
 import { type AnimationClipMap } from '../components/animationClipMap.ts';
 import { type Children } from '../components/children.ts';
 import { type BoneAttachment } from '../components/boneAttachment.ts';
+import { type Collider, bakeColliderWorldFromLocal } from '../components/collider.ts';
 import { type SkinInstance } from '../components/skin.ts';
 import { type Gltf } from '../assets/gltf/types.ts';
 import {
@@ -14,7 +15,7 @@ import {
   type EngineOptimizationOptions,
   skeletonLodUpdateInterval,
 } from '../engine/optimizationOptions.ts';
-import { m4, m4Copy, type Mat4 } from '../math/mat4.ts';
+import { m4, m4Copy, m4Mul, type Mat4 } from '../math/mat4.ts';
 import { type Vec3 } from '../math/vec3.ts';
 import { type GpuDevice } from '../render/gl/device.ts';
 import {
@@ -30,6 +31,8 @@ import {
 } from '../render/passes/skeletalPosePass.ts';
 import { clipStateIndex } from '../assets/gltf/packClipsForGpu.ts';
 import { type Entity } from '../engine/entity.ts';
+
+const _boneAttachedWorld = m4();
 
 export type SkeletalGpuPoseOptions = {
   device: GpuDevice;
@@ -241,7 +244,15 @@ export const installSkeletalGpuPoseSystem = (
           if (!attachment) continue;
 
           const childT = child.components[COMPONENT_KEYS.transform] as Transform | undefined;
-          if (childT) m4Copy(childT.world, renderRoot);
+          const boneNode = item.model.bodyScene.nodes[attachment.boneNodeIndex];
+          if (childT && boneNode) {
+            m4Mul(_boneAttachedWorld, renderRoot, boneNode.worldM);
+            m4Mul(childT.world, _boneAttachedWorld, attachment.localOffset);
+            childT.dirty = false;
+
+            const collider = child.components[COMPONENT_KEYS.collider] as Collider | undefined;
+            if (collider) bakeColliderWorldFromLocal(collider, childT.world);
+          }
 
           const childDraws = child.components[COMPONENT_KEYS.meshDraws] as MeshDraws | undefined;
           if (!childDraws) continue;

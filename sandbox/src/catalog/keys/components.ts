@@ -7,6 +7,7 @@ export const GAME_COMPONENT_KEYS = {
   robot: 'robot',
   combatMech: 'combatMech',
   dummy: 'dummy',
+  colliderDebug: 'colliderDebug',
 } as const;
 
 export type GameComponentKey = (typeof GAME_COMPONENT_KEYS)[keyof typeof GAME_COMPONENT_KEYS];

@@ -15,7 +15,7 @@ export type { RobotVariant };
 
 export type RobotSpawnOpts = TestAiOpts & {
   variant?: RobotVariant;
-  y?: number;
+  y: number;
 };
 
 export const createRobot = async (
@@ -26,15 +26,19 @@ export const createRobot = async (
   opts: RobotSpawnOpts,
 ) => {
   const variant = opts.variant ?? 'one';
+  const actor = ROBOT_ACTORS[variant];
 
   return spawnActor(
     registry,
     device,
     textures,
     gltfCache,
-    actorDefinitionToSkeletalDef(ROBOT_ACTORS[variant]),
+    actorDefinitionToSkeletalDef(actor),
     {
-      ...opts,
+      x: opts.x,
+      y: opts.y,
+      z: opts.z,
+      colliders: actor.colliders,
       extraComponents: {
         [GAME_COMPONENT_KEYS.testAi]: createTestAi(opts),
         [GAME_COMPONENT_KEYS.robot]: createRobotComponent(),

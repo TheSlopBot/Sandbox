@@ -22,12 +22,14 @@ import {
   createNavGrid,
   COMPONENT_KEYS,
   markNavGridDirty,
+  DEFAULT_LEVEL_PLAYER_SPAWN,
 } from 'viberanium';
 import { type LevelGroundVariant, type LevelNavGridConfig } from '../../catalog/levels/levelDefinition.ts';
 import { createPlayer } from '../../entities/player/createPlayer.ts';
 import { installTestAiSystem } from '../../entities/enemies/systems/testAiSystem.ts';
 import { installPlayerInputSystem } from '../../entities/player/systems/playerInputSystem.ts';
 import { spawnGround } from '../../entities/ground/spawnGround.ts';
+import { installColliderDebugSystem } from '../../entities/debug/installColliderDebugSystem.ts';
 import { instantiateProp, type PropPlacement } from './prop.ts';
 
 export type SceneDeps = {
@@ -40,6 +42,7 @@ export type SceneDeps = {
   optimization: EngineOptimizationOptions;
   staticPropBatcher: StaticPropBatcher;
   setSimFlush: (fn: (() => Promise<void>) | null) => void;
+  getShowColliders: () => boolean;
 };
 
 export type AddProp = (def: PropDefinition, placement?: PropPlacement) => Promise<void>;
@@ -79,6 +82,11 @@ export const createPlayableScene = (
     optimization: deps.optimization,
   });
   installStaticModelSystem(registry);
+  const removeColliderDebug = installColliderDebugSystem(
+    registry,
+    deps.device,
+    deps.getShowColliders,
+  );
 
   const addProp: AddProp = async (def, placement = {}) => {
     await instantiateProp(deps.device, registry, deps.textures, deps.gltfCache, def, placement, {
@@ -100,13 +108,20 @@ export const createPlayableScene = (
     await spawnProps(addProp);
     markNavGridDirty(registry);
     if (spawnNpcs) await spawnNpcs(registry, deps);
-    await createPlayer(registry, deps.device, deps.textures, deps.gltfCache, playerSpawn);
+    await createPlayer(
+      registry,
+      deps.device,
+      deps.textures,
+      deps.gltfCache,
+      playerSpawn ?? DEFAULT_LEVEL_PLAYER_SPAWN,
+    );
   };
 
   const unload = () => {
     if (!loaded) return;
 
     deps.setSimFlush(null);
+    removeColliderDebug();
 
     const ids = [...registry.all()].map((entity) => entity.id);
     for (const id of ids) registry.deregister(id);

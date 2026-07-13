@@ -291,8 +291,7 @@ fn resolveCharacters(@builtin(global_invocation_id) id: vec3u) {
 
   let foot = ch.halfHeight + ch.radius;
   let speed2 = ch.velX * ch.velX + ch.velY * ch.velY + ch.velZ * ch.velZ;
-  let footY0 = ch.posY - foot;
-  if (speed2 < 1e-10 && ch.onGround > 0.5 && footY0 <= params.groundY + SURFACE_EPS + 0.05) {
+  if (speed2 < 1e-10 && ch.onGround > 0.5) {
     characters[i] = ch;
     return;
   }

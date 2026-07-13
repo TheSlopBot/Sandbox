@@ -69,6 +69,7 @@ const findCollider = (
 ): ActorDocumentCollider | null => doc.colliders.find((c) => c.id === id) ?? null;
 
 const colliderParentLabel = (doc: ActorDocument, collider: ActorDocumentCollider): string => {
+  if (collider.parent.kind === 'character') return 'character';
   if (collider.parent.kind === 'bone') return collider.parent.boneName;
   const attachment = findAttachment(doc, collider.parent.attachmentId);
   return attachment ? attachmentListLabel(attachment) : collider.parent.attachmentId;

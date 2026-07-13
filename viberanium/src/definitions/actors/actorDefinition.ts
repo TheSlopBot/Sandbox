@@ -21,6 +21,7 @@ export type ActorCharacterDef = {
 export type ActorColliderShape = 'box' | 'cylinder' | 'sphere' | 'capsule';
 
 export type ActorColliderParent =
+  | { kind: 'character' }
   | { kind: 'bone'; boneName: string }
   | { kind: 'attachment'; attachmentId: string };
 

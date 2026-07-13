@@ -2,7 +2,10 @@ import { type Registry } from '../engine/registry.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type Collider } from '../components/collider.ts';
 import { type Transform } from '../components/transform.ts';
-import { type CharacterController } from '../components/characterController.ts';
+import {
+  type CharacterController,
+  readCharacterBodyCapsule,
+} from '../components/characterController.ts';
 import { type Entity } from '../engine/entity.ts';
 import { type GpuDevice } from '../render/gl/device.ts';
 import { CHARACTER_STATE_FLOATS } from '../render/gl/collisionPack.ts';
@@ -82,30 +85,28 @@ export const installCollisionSystem = (
       inputs.length = 0;
       entities.length = 0;
 
-      const groundY = readGroundPlaneY(registry);
-
       for (const e of registry.view(COMPONENT_KEYS.character)) {
         const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
         const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-        if (!t || !cc) continue;
+        const body = readCharacterBodyCapsule(
+          e.components[COMPONENT_KEYS.collider] as Collider | undefined,
+        );
+        if (!t || !cc || !body) continue;
 
         const speed2 =
           cc.velocity[0] * cc.velocity[0] +
           cc.velocity[1] * cc.velocity[1] +
           cc.velocity[2] * cc.velocity[2];
-        const foot = cc.halfHeight + cc.radius;
-        const airborne = t.position[1] - foot > groundY + 0.05;
-        const active = !(speed2 < 1e-10 && cc.onGround && !airborne);
-        if (!active) continue;
+        if (speed2 < 1e-10 && cc.onGround && !cc.sliding) continue;
 
         entities.push(e);
         inputs.push({
           pos: t.position,
           vel: cc.velocity,
-          radius: cc.radius,
-          halfHeight: cc.halfHeight,
+          radius: body.radius,
+          halfHeight: body.halfHeight,
           gravity: cc.gravity,
-          onGround: cc.onGround && !airborne,
+          onGround: cc.onGround,
           active: true,
         });
       }

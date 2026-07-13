@@ -1,56 +1,101 @@
+import { useEffect, useState } from 'react';
 import './mainMenuModal.css';
 import {
+  mergeQualityOverrides,
+  readStoredQualityOverrides,
   type RenderQualityChoice,
   type RenderQualityOverrides,
 } from '../../catalog/ui/renderQuality.ts';
-import { type EngineOptimizationOptions, type RenderQualityPresetId } from 'viberanium';
+import {
+  createEngineOptimizationFromPreset,
+  type EngineOptimizationOptions,
+  type RenderQualityPresetId,
+} from 'viberanium';
 
 export type MainMenuView = 'root' | 'settings';
 
 export type MainMenuModalProps = {
   view: MainMenuView;
   qualityChoice: RenderQualityChoice;
-  resolvedPreset: RenderQualityPresetId;
+  recommendedPreset: RenderQualityPresetId;
   optimization: EngineOptimizationOptions;
   onViewChange: (view: MainMenuView) => void;
   onResume: () => void;
   onLoadLevel: () => void;
   onConstruct: () => void;
-  onQualityChange: (choice: RenderQualityChoice) => void;
-  onOptimizationPatch: (patch: RenderQualityOverrides) => void;
+  onSaveSettings: (choice: RenderQualityChoice, overrides: RenderQualityOverrides) => void;
 };
 
-const PRESETS: { id: RenderQualityChoice; label: string }[] = [
-  { id: 'auto', label: 'Auto' },
+const PRESETS: { id: RenderQualityPresetId; label: string }[] = [
+  { id: 'ultra', label: 'Ultra' },
   { id: 'high', label: 'High' },
   { id: 'medium', label: 'Medium' },
   { id: 'low', label: 'Low' },
 ];
 
 const MSAA_OPTIONS = [1, 4] as const;
-const SHADOW_OPTIONS = [256, 512, 1024, 2048] as const;
-const DPR_OPTIONS = [1, 1.25, 1.5, 2] as const;
-const CULL_OPTIONS = [18, 20, 30, 35, 45, 55, 60, 80, 100] as const;
-const SKELETON_DIST_OPTIONS = [8, 12, 20, 28, 30, 40, 60, 80, 100, 120, 150] as const;
+const SHADOW_OPTIONS = [256, 512, 1024, 2048, 4096] as const;
+const DPR_OPTIONS = [0.75, 1, 1.25, 1.5, 2, 3] as const;
+const CULL_OPTIONS = [18, 20, 30, 35, 45, 55, 60, 80, 100, 120, 150] as const;
+const SKELETON_DIST_OPTIONS = [8, 12, 20, 28, 30, 40, 60, 80, 100, 120, 150, 200] as const;
 
 const withCurrent = (options: readonly number[], current: number) => {
   if (options.includes(current)) return [...options];
   return [...options, current].sort((a, b) => a - b);
 };
 
+const sameOverrides = (a: RenderQualityOverrides, b: RenderQualityOverrides) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
 export const MainMenuModal = ({
   view,
   qualityChoice,
-  resolvedPreset,
+  recommendedPreset,
   optimization,
   onViewChange,
   onResume,
   onLoadLevel,
   onConstruct,
-  onQualityChange,
-  onOptimizationPatch,
+  onSaveSettings,
 }: MainMenuModalProps) => {
+  const [draftChoice, setDraftChoice] = useState(qualityChoice);
+  const [draftOverrides, setDraftOverrides] = useState<RenderQualityOverrides>(() =>
+    readStoredQualityOverrides(),
+  );
+  const [baselineChoice, setBaselineChoice] = useState(qualityChoice);
+  const [baselineOverrides, setBaselineOverrides] = useState<RenderQualityOverrides>(() =>
+    readStoredQualityOverrides(),
+  );
+
+  useEffect(() => {
+    if (view !== 'settings') return;
+
+    const stored = readStoredQualityOverrides();
+    setDraftChoice(qualityChoice);
+    setDraftOverrides(stored);
+    setBaselineChoice(qualityChoice);
+    setBaselineOverrides(stored);
+  }, [view, qualityChoice, optimization]);
+
   if (view === 'settings') {
+    const draftOptimization = createEngineOptimizationFromPreset(draftChoice, draftOverrides);
+    const dirty =
+      draftChoice !== baselineChoice || !sameOverrides(draftOverrides, baselineOverrides);
+
+    const patchDraft = (patch: RenderQualityOverrides) => {
+      setDraftOverrides((current) => {
+        const next = mergeQualityOverrides(current, patch);
+        const skip =
+          next.skeletonLod?.skipStartDist ?? draftOptimization.skeletonLod.skipStartDist;
+        const freeze =
+          next.skeletonLod?.freezeDist ?? draftOptimization.skeletonLod.freezeDist;
+        if (freeze <= skip) {
+          next.skeletonLod = { ...next.skeletonLod, freezeDist: skip + 4 };
+        }
+        return next;
+      });
+    };
+
     return (
       <div className="main-menu-modal-backdrop" role="presentation">
         <div
@@ -73,22 +118,20 @@ export const MainMenuModal = ({
             </button>
           </header>
 
-          <p className="main-menu-modal__hint">
-            Changing quality reloads the session.
-            {qualityChoice === 'auto' ? ` Auto resolved to ${resolvedPreset}.` : null}
-          </p>
-
           <div className="main-menu-modal__sectionTitle">Presets</div>
           <ul className="main-menu-modal__list main-menu-modal__list--presets">
-            {PRESETS.map((preset) => (
-              <li key={preset.id}>
+            {PRESETS.map((presetOption) => (
+              <li key={presetOption.id}>
                 <button
                   type="button"
                   className="main-menu-modal__item"
-                  data-active={qualityChoice === preset.id}
-                  onClick={() => onQualityChange(preset.id)}
+                  data-active={draftChoice === presetOption.id}
+                  onClick={() => {
+                    setDraftChoice(presetOption.id);
+                    setDraftOverrides({});
+                  }}
                 >
-                  <span className="main-menu-modal__item-name">{preset.label}</span>
+                  <span className="main-menu-modal__item-name">{presetOption.label}</span>
                 </button>
               </li>
             ))}
@@ -100,10 +143,10 @@ export const MainMenuModal = ({
               <span className="main-menu-modal__fieldLabel">MSAA</span>
               <select
                 className="main-menu-modal__select"
-                value={optimization.msaaSamples}
-                onChange={(e) => onOptimizationPatch({ msaaSamples: Number(e.target.value) })}
+                value={draftOptimization.msaaSamples}
+                onChange={(e) => patchDraft({ msaaSamples: Number(e.target.value) })}
               >
-                {withCurrent(MSAA_OPTIONS, optimization.msaaSamples).map((value) => (
+                {withCurrent(MSAA_OPTIONS, draftOptimization.msaaSamples).map((value) => (
                   <option key={value} value={value}>
                     {value}x
                   </option>
@@ -115,10 +158,10 @@ export const MainMenuModal = ({
               <span className="main-menu-modal__fieldLabel">Shadow map</span>
               <select
                 className="main-menu-modal__select"
-                value={optimization.shadowMapSize}
-                onChange={(e) => onOptimizationPatch({ shadowMapSize: Number(e.target.value) })}
+                value={draftOptimization.shadowMapSize}
+                onChange={(e) => patchDraft({ shadowMapSize: Number(e.target.value) })}
               >
-                {withCurrent(SHADOW_OPTIONS, optimization.shadowMapSize).map((value) => (
+                {withCurrent(SHADOW_OPTIONS, draftOptimization.shadowMapSize).map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>
@@ -130,10 +173,10 @@ export const MainMenuModal = ({
               <span className="main-menu-modal__fieldLabel">Max DPR</span>
               <select
                 className="main-menu-modal__select"
-                value={optimization.maxDpr}
-                onChange={(e) => onOptimizationPatch({ maxDpr: Number(e.target.value) })}
+                value={draftOptimization.maxDpr}
+                onChange={(e) => patchDraft({ maxDpr: Number(e.target.value) })}
               >
-                {withCurrent(DPR_OPTIONS, optimization.maxDpr).map((value) => (
+                {withCurrent(DPR_OPTIONS, draftOptimization.maxDpr).map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>
@@ -145,8 +188,8 @@ export const MainMenuModal = ({
               <span className="main-menu-modal__fieldLabel">Tone bloom</span>
               <select
                 className="main-menu-modal__select"
-                value={optimization.toneBloom ? 'on' : 'off'}
-                onChange={(e) => onOptimizationPatch({ toneBloom: e.target.value === 'on' })}
+                value={draftOptimization.toneBloom ? 'on' : 'off'}
+                onChange={(e) => patchDraft({ toneBloom: e.target.value === 'on' })}
               >
                 <option value="on">On</option>
                 <option value="off">Off</option>
@@ -157,10 +200,10 @@ export const MainMenuModal = ({
               <span className="main-menu-modal__fieldLabel">Shadow cull</span>
               <select
                 className="main-menu-modal__select"
-                value={optimization.shadowCullDist}
-                onChange={(e) => onOptimizationPatch({ shadowCullDist: Number(e.target.value) })}
+                value={draftOptimization.shadowCullDist}
+                onChange={(e) => patchDraft({ shadowCullDist: Number(e.target.value) })}
               >
-                {withCurrent(CULL_OPTIONS, optimization.shadowCullDist).map((value) => (
+                {withCurrent(CULL_OPTIONS, draftOptimization.shadowCullDist).map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>
@@ -172,10 +215,10 @@ export const MainMenuModal = ({
               <span className="main-menu-modal__fieldLabel">Forward cull</span>
               <select
                 className="main-menu-modal__select"
-                value={optimization.forwardCullDist}
-                onChange={(e) => onOptimizationPatch({ forwardCullDist: Number(e.target.value) })}
+                value={draftOptimization.forwardCullDist}
+                onChange={(e) => patchDraft({ forwardCullDist: Number(e.target.value) })}
               >
-                {withCurrent(CULL_OPTIONS, optimization.forwardCullDist).map((value) => (
+                {withCurrent(CULL_OPTIONS, draftOptimization.forwardCullDist).map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>
@@ -187,16 +230,18 @@ export const MainMenuModal = ({
               <span className="main-menu-modal__fieldLabel">Skeleton LOD start</span>
               <select
                 className="main-menu-modal__select"
-                value={optimization.skeletonLod.skipStartDist}
+                value={draftOptimization.skeletonLod.skipStartDist}
                 onChange={(e) =>
-                  onOptimizationPatch({ skeletonLod: { skipStartDist: Number(e.target.value) } })
+                  patchDraft({ skeletonLod: { skipStartDist: Number(e.target.value) } })
                 }
               >
-                {withCurrent(SKELETON_DIST_OPTIONS, optimization.skeletonLod.skipStartDist).map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
+                {withCurrent(SKELETON_DIST_OPTIONS, draftOptimization.skeletonLod.skipStartDist).map(
+                  (value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ),
+                )}
               </select>
             </label>
 
@@ -204,25 +249,42 @@ export const MainMenuModal = ({
               <span className="main-menu-modal__fieldLabel">Skeleton LOD freeze</span>
               <select
                 className="main-menu-modal__select"
-                value={optimization.skeletonLod.freezeDist}
+                value={draftOptimization.skeletonLod.freezeDist}
                 onChange={(e) =>
-                  onOptimizationPatch({ skeletonLod: { freezeDist: Number(e.target.value) } })
+                  patchDraft({ skeletonLod: { freezeDist: Number(e.target.value) } })
                 }
               >
-                {withCurrent(SKELETON_DIST_OPTIONS, optimization.skeletonLod.freezeDist).map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
+                {withCurrent(SKELETON_DIST_OPTIONS, draftOptimization.skeletonLod.freezeDist).map(
+                  (value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ),
+                )}
               </select>
             </label>
           </div>
 
-          <footer className="main-menu-modal__footer">
-            <button type="button" className="main-menu-modal__button" onClick={() => onViewChange('root')}>
-              Back
+          <div className="main-menu-modal__footer">
+            <button
+              type="button"
+              className="main-menu-modal__button"
+              onClick={() => {
+                setDraftChoice(recommendedPreset);
+                setDraftOverrides({});
+              }}
+            >
+              Auto-detect
             </button>
-          </footer>
+            <button
+              type="button"
+              className="main-menu-modal__button main-menu-modal__button--primary"
+              disabled={!dirty}
+              onClick={() => onSaveSettings(draftChoice, draftOverrides)}
+            >
+              Save
+            </button>
+          </div>
         </div>
       </div>
     );

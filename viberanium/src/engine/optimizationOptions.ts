@@ -13,7 +13,7 @@ export type EngineOptimizationOptions = {
   toneBloom: boolean;
 };
 
-export type RenderQualityPresetId = 'low' | 'medium' | 'high';
+export type RenderQualityPresetId = 'low' | 'medium' | 'high' | 'ultra';
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
@@ -30,6 +30,15 @@ export const DEFAULT_ENGINE_OPTIMIZATION: EngineOptimizationOptions = {
 };
 
 export const RENDER_QUALITY_PRESETS: Record<RenderQualityPresetId, DeepPartial<EngineOptimizationOptions>> = {
+  ultra: {
+    shadowCullDist: 100,
+    forwardCullDist: 150,
+    skeletonLod: { skipStartDist: 60, freezeDist: 200 },
+    msaaSamples: 4,
+    shadowMapSize: 4096,
+    maxDpr: 3,
+    toneBloom: true,
+  },
   high: {
     shadowCullDist: 60,
     forwardCullDist: 100,
@@ -54,7 +63,7 @@ export const RENDER_QUALITY_PRESETS: Record<RenderQualityPresetId, DeepPartial<E
     skeletonLod: { skipStartDist: 8, freezeDist: 28 },
     msaaSamples: 1,
     shadowMapSize: 256,
-    maxDpr: 1,
+    maxDpr: 0.75,
     toneBloom: false,
   },
 };
@@ -77,6 +86,7 @@ export const createEngineOptimizationOptions = (
   overrides?: DeepPartial<EngineOptimizationOptions>,
 ): EngineOptimizationOptions => {
   const skeletonLodOverrides = overrides?.skeletonLod;
+  const rawMsaa = overrides?.msaaSamples ?? DEFAULT_ENGINE_OPTIMIZATION.msaaSamples;
   const options: EngineOptimizationOptions = {
     shadowCullDist: overrides?.shadowCullDist ?? DEFAULT_ENGINE_OPTIMIZATION.shadowCullDist,
     forwardCullDist: overrides?.forwardCullDist ?? DEFAULT_ENGINE_OPTIMIZATION.forwardCullDist,
@@ -85,7 +95,7 @@ export const createEngineOptimizationOptions = (
         skeletonLodOverrides?.skipStartDist ?? DEFAULT_ENGINE_OPTIMIZATION.skeletonLod.skipStartDist,
       freezeDist: skeletonLodOverrides?.freezeDist ?? DEFAULT_ENGINE_OPTIMIZATION.skeletonLod.freezeDist,
     },
-    msaaSamples: overrides?.msaaSamples ?? DEFAULT_ENGINE_OPTIMIZATION.msaaSamples,
+    msaaSamples: rawMsaa >= 4 ? 4 : 1,
     shadowMapSize: overrides?.shadowMapSize ?? DEFAULT_ENGINE_OPTIMIZATION.shadowMapSize,
     maxDpr: overrides?.maxDpr ?? DEFAULT_ENGINE_OPTIMIZATION.maxDpr,
     toneBloom: overrides?.toneBloom ?? DEFAULT_ENGINE_OPTIMIZATION.toneBloom,
@@ -109,22 +119,60 @@ export const createEngineOptimizationFromPreset = (
     },
   });
 
+const adapterInfoText = (adapter?: GPUAdapter | null): string => {
+  const info = adapter && 'info' in adapter ? (adapter as GPUAdapter & { info?: GPUAdapterInfo }).info : undefined;
+  return [
+    info?.vendor,
+    info?.architecture,
+    info?.device,
+    info?.description,
+  ]
+    .filter((part): part is string => typeof part === 'string' && part.length > 0)
+    .join(' ')
+    .toLowerCase();
+};
+
+const isFallbackAdapter = (adapter?: GPUAdapter | null): boolean =>
+  !!adapter && 'isFallbackAdapter' in adapter && !!(adapter as GPUAdapter & { isFallbackAdapter?: boolean }).isFallbackAdapter;
+
 export const detectPreferredQualityPreset = (adapter?: GPUAdapter | null): RenderQualityPresetId => {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua);
   const isMac = /Mac/i.test(ua);
+  const text = adapterInfoText(adapter);
 
-  const info = adapter && 'info' in adapter ? (adapter as GPUAdapter & { info?: GPUAdapterInfo }).info : undefined;
-  const architecture = (info?.architecture ?? '').toLowerCase();
-  const description = (info?.description ?? '').toLowerCase();
-  const vendor = (info?.vendor ?? '').toLowerCase();
+  if (isFallbackAdapter(adapter)) return 'low';
+
   const appleGpu =
-    architecture.includes('apple') ||
-    description.includes('apple') ||
-    vendor.includes('apple') ||
-    /metal/i.test(description);
+    /apple|metal/.test(text) ||
+    (isSafari && isMac);
 
-  if (appleGpu || (isSafari && isMac)) return 'medium';
+  if (appleGpu) return 'medium';
+
+  const discrete =
+    /nvidia|geforce|rtx|gtx|quadro|tesla/.test(text) ||
+    /radeon\s*rx|radeon\s*pro|radeon\s*vega\s*(?:56|64)|radeon\s*vii|firepro|instinct/.test(text) ||
+    /arc\s*(?:a|b)\d|intel\s*arc/.test(text) ||
+    /adreno\s*(?:7|8)\d{2}/.test(text);
+
+  if (discrete) {
+    const highEnd =
+      /rtx\s*(?:30|40|50)\d{2}|rtx\s*a\d|gtx\s*16\d{2}|gtx\s*1080/.test(text) ||
+      /radeon\s*rx\s*(?:6|7|8|9)\d{3}|radeon\s*pro\s*w\d/.test(text) ||
+      /arc\s*(?:a7|a770|b\d)/.test(text);
+    return highEnd ? 'ultra' : 'high';
+  }
+
+  const integrated =
+    /intel/.test(text) ||
+    /uhd|iris|hd graphics/.test(text) ||
+    /radeon\s*graphics|radeon\s*\d{3}m|radeon\s*vega\s*(?:3|8|11)|graphics.*radeon/.test(text) ||
+    /mali|xclipse|adreno/.test(text);
+
+  if (integrated) return 'medium';
+
+  if (isSafari || /android/i.test(ua) || /mobile/i.test(ua)) return 'medium';
+
   return 'high';
 };
 

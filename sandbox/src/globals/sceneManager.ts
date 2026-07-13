@@ -25,6 +25,7 @@ export type SceneManagerDeps = {
   optimization: EngineOptimizationOptions;
   setActiveSceneRegistry: (registry: Registry) => void;
   resolveLevel: (levelId: string) => LevelBuild | null;
+  getShowColliders: () => boolean;
 };
 
 export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDeps) => {
@@ -42,6 +43,7 @@ export const installSceneManager = (gameRegistry: Registry, deps: SceneManagerDe
     optimization: deps.optimization,
     staticPropBatcher: deps.pipeline.staticPropBatcher,
     setSimFlush: deps.game.setSimFlush,
+    getShowColliders: deps.getShowColliders,
   });
 
   const switchTo = async (levelId: string) => {

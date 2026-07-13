@@ -6,6 +6,8 @@ import {
   type Registry,
   type Transform,
   type Vec3,
+  type Collider,
+  bakeColliderWorldFromLocal,
   m4,
   m4Mul,
   v3,
@@ -51,6 +53,9 @@ export const syncPartWorld = (registry: Registry, selected: Entity) => {
 
     m4Mul(t.world, boneWorld, boneAtt.localOffset);
     t.dirty = false;
+
+    const collider = selected.components[COMPONENT_KEYS.collider] as Collider | undefined;
+    if (collider) bakeColliderWorldFromLocal(collider, t.world);
     return;
   }
 

@@ -57,7 +57,7 @@ export const createDevice = async (
   let destroyed = false;
 
   const measure = () => {
-    dpr = Math.max(1, Math.min(maxDpr, window.devicePixelRatio || 1));
+    dpr = Math.max(0.5, Math.min(maxDpr, window.devicePixelRatio || 1));
     cssW = canvas.clientWidth;
     cssH = canvas.clientHeight;
     sizeDirty = true;

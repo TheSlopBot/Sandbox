@@ -4,9 +4,11 @@ import {
   createTransform,
   createCharacterController,
   createMovementIntent,
+  attachActorBodyCollider,
   type TextureCache,
   type GltfCache,
   type CharacterController,
+  type ActorColliderDef,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef.ts';
@@ -15,9 +17,10 @@ import { spawnSkeletalCharacter } from './spawnSkeletalCharacter.ts';
 
 export type SpawnActorOpts = {
   x: number;
+  y: number;
   z: number;
-  y?: number;
   moveSpeed?: number;
+  colliders?: readonly ActorColliderDef[];
   extraComponents?: Record<string, unknown>;
 };
 
@@ -31,7 +34,7 @@ export const spawnActor = async (
 ) => {
   const charT = createTransform();
   charT.position[0] = opts.x;
-  charT.position[1] = opts.y ?? 1.6;
+  charT.position[1] = opts.y;
   charT.position[2] = opts.z;
   charT.dirty = true;
 
@@ -48,6 +51,10 @@ export const spawnActor = async (
 
   const loaded = await loadSkeletalCharacter({ device, textures, gltfCache }, def);
   spawnSkeletalCharacter(registry, entity, loaded, { device });
+
+  if (opts.colliders && opts.colliders.length > 0) {
+    attachActorBodyCollider(entity, opts.colliders);
+  }
 
   const cc = entity.components[COMPONENT_KEYS.character] as CharacterController;
   cc.moveSpeed = opts.moveSpeed ?? 3.8;

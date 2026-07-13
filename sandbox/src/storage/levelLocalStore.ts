@@ -37,7 +37,9 @@ const writeStore = (store: LevelLocalStoreData) => {
 };
 
 export const listLocalLevelEntries = (): LevelLocalStoreEntry[] =>
-  Object.values(readStore().entries).sort((a, b) => b.updatedAt - a.updatedAt);
+  Object.values(readStore().entries).sort((a, b) =>
+    a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id),
+  );
 
 export const getLocalLevelEntry = (id: string): LevelLocalStoreEntry | null => readStore().entries[id] ?? null;
 

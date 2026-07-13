@@ -5,6 +5,7 @@ import {
   createCharacterController,
   createCameraFollow,
   createMovementIntent,
+  attachActorBodyCollider,
   type TextureCache,
   type GltfCache,
   COMPONENT_KEYS,
@@ -22,14 +23,14 @@ export const createPlayer = async (
   device: GpuDevice,
   textures: TextureCache,
   gltfCache: GltfCache,
-  spawn?: {
-    position?: [number, number, number];
+  spawn: {
+    position: [number, number, number];
     rotation?: [number, number, number, number];
   },
 ) => {
   const charT = createTransform();
-  const position = spawn?.position ?? [0, 1.6, 0];
-  const rotation = spawn?.rotation ?? [0, 0, 0, 1];
+  const position = spawn.position;
+  const rotation = spawn.rotation ?? [0, 0, 0, 1];
   charT.position[0] = position[0];
   charT.position[1] = position[1];
   charT.position[2] = position[2];
@@ -54,6 +55,8 @@ export const createPlayer = async (
     device,
     attachmentTags: PLAYER_ATTACHMENT_TAGS,
   });
+
+  attachActorBodyCollider(entity, SPACE_RANGER_ACTOR.colliders);
 
   registry.register(entity);
 

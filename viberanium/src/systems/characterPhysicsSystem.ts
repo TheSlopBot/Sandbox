@@ -2,17 +2,24 @@ import { type Registry } from '../engine/registry.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type Entity } from '../engine/entity.ts';
 import { type Transform } from '../components/transform.ts';
-import { type Aabb } from '../components/collider.ts';
-import { type CharacterController, characterFootOffset } from '../components/characterController.ts';
+import { type Aabb, type Collider } from '../components/collider.ts';
+import {
+  type CharacterController,
+  readCharacterBodyCapsule,
+} from '../components/characterController.ts';
 import {
   type CapsuleY,
-  getCapsuleSupportSurfaceY,
-  resolveCapsuleHorizontal,
-  resolveCapsuleVertical,
+  applySlideVelocity,
+  resolveCapsuleMoveAndSlide,
+  SLIDE_ACCEL_TIME_SEC,
+  SLIDE_INPUT_COYOTE_SEC,
+  SLIDE_MAX_SPEED_FACTOR,
+  SLIDE_START_SPEED_FACTOR,
 } from '../collision/capsule.ts';
 import { isCollisionBroadphaseDirty } from '../collision/collisionBroadphase.ts';
 import { getNearbyObstacles, getObstacles } from './collisionObstacles.ts';
 import { readGroundPlaneY } from './readGroundPlaneY.ts';
+import { v3Set } from '../math/vec3.ts';
 
 const PHYSICS_STEP_SEC = 1 / 144;
 const MAX_PHYSICS_SUBSTEPS = 4;
@@ -51,19 +58,20 @@ export const installCharacterPhysicsSystem = (
 
         const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
         const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-        if (!t || !cc) continue;
+        const body = readCharacterBodyCapsule(
+          e.components[COMPONENT_KEYS.collider] as Collider | undefined,
+        );
+        if (!t || !cc || !body) continue;
 
-        const foot = characterFootOffset(cc);
         const speed2 =
           cc.velocity[0] * cc.velocity[0] +
           cc.velocity[1] * cc.velocity[1] +
           cc.velocity[2] * cc.velocity[2];
-        const airborne = t.position[1] - foot > groundY + 0.05;
-        if (speed2 < 1e-10 && cc.onGround && !airborne) continue;
+        if (speed2 < 1e-10 && cc.onGround && !cc.sliding) continue;
 
         const queryRadius = Math.max(
           2,
-          cc.radius * 8 + Math.hypot(cc.velocity[0], cc.velocity[2]) * 0.1,
+          body.radius * 8 + Math.hypot(cc.velocity[0], cc.velocity[2]) * 0.1,
         );
         const obstacles = getNearbyObstacles(
           registry,
@@ -84,60 +92,77 @@ export const installCharacterPhysicsSystem = (
           physicsRemaining -= step;
           substeps += 1;
 
-          const stepPrevY = t.position[1];
-
-          t.position[0] += cc.velocity[0] * step;
-          t.position[2] += cc.velocity[2] * step;
-
-          let capsule: CapsuleY = {
-            x: t.position[0],
-            y: t.position[1],
-            z: t.position[2],
-            radius: cc.radius,
-            halfHeight: cc.halfHeight,
-          };
-
-          capsule = resolveCapsuleHorizontal(capsule, obstacles, _box);
-          t.position[0] = capsule.x;
-          t.position[2] = capsule.z;
-
-          const surfaceY = getCapsuleSupportSurfaceY(capsule, obstacles, groundY);
-          if (surfaceY !== null && cc.velocity[1] <= 0) {
-            cc.velocity[1] = 0;
-            t.position[1] = surfaceY + foot;
-            cc.onGround = true;
-            continue;
+          if (!cc.onGround && !cc.sliding) {
+            cc.velocity[1] -= cc.gravity * step;
           }
 
-          cc.velocity[1] -= cc.gravity * step;
+          t.position[0] += cc.velocity[0] * step;
           t.position[1] += cc.velocity[1] * step;
-          cc.onGround = false;
+          t.position[2] += cc.velocity[2] * step;
 
-          capsule = {
+          const capsule: CapsuleY = {
             x: t.position[0],
             y: t.position[1],
             z: t.position[2],
-            radius: cc.radius,
-            halfHeight: cc.halfHeight,
+            radius: body.radius,
+            halfHeight: body.halfHeight,
           };
 
-          const vertical = resolveCapsuleVertical(
+          const result = resolveCapsuleMoveAndSlide(
             capsule,
-            cc.velocity[1],
-            stepPrevY,
+            cc.velocity,
             obstacles,
+            groundY,
+            cc.floorMaxAngle,
+            cc.sliding,
+            cc.onGround,
             _box,
           );
-          t.position[0] = vertical.capsule.x;
-          t.position[1] = vertical.capsule.y;
-          t.position[2] = vertical.capsule.z;
-          cc.velocity[1] = vertical.velocityY;
-          if (vertical.onGround) cc.onGround = true;
 
-          if (t.position[1] - foot < groundY) {
-            t.position[1] = groundY + foot;
-            cc.velocity[1] = 0;
-            cc.onGround = true;
+          t.position[0] = result.capsule.x;
+          t.position[1] = result.capsule.y;
+          t.position[2] = result.capsule.z;
+
+          if (result.sliding) {
+            const start = cc.moveSpeed * SLIDE_START_SPEED_FACTOR;
+            const max = cc.moveSpeed * SLIDE_MAX_SPEED_FACTOR;
+            if (!cc.sliding) {
+              cc.slideSpeed = start;
+            } else {
+              const accel = (max - start) / SLIDE_ACCEL_TIME_SEC;
+              cc.slideSpeed = Math.min(max, cc.slideSpeed + accel * step);
+            }
+
+            cc.sliding = true;
+            cc.slideIgnoreInputRemaining = SLIDE_INPUT_COYOTE_SEC;
+            cc.onGround = false;
+            v3Set(
+              cc.groundNormal,
+              result.groundNormal[0],
+              result.groundNormal[1],
+              result.groundNormal[2],
+            );
+            applySlideVelocity(
+              cc.velocity,
+              cc.groundNormal[0],
+              cc.groundNormal[1],
+              cc.groundNormal[2],
+              cc.slideSpeed,
+            );
+          } else {
+            cc.sliding = false;
+            cc.slideSpeed = 0;
+            cc.onGround = result.onGround;
+            if (result.onGround) {
+              v3Set(
+                cc.groundNormal,
+                result.groundNormal[0],
+                result.groundNormal[1],
+                result.groundNormal[2],
+              );
+            } else {
+              v3Set(cc.groundNormal, 0, 1, 0);
+            }
           }
         }
 

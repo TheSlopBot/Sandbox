@@ -159,6 +159,10 @@ const normalizeColliderParent = (raw: unknown): ActorDocumentColliderParent => {
     attachmentId?: string;
   };
 
+  if (parent.kind === 'character') {
+    return { kind: 'character' };
+  }
+
   if (parent.kind === 'bone' && typeof parent.boneName === 'string') {
     return { kind: 'bone', boneName: parent.boneName };
   }

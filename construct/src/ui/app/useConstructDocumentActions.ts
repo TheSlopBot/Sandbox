@@ -179,21 +179,21 @@ export const useConstructDocumentActions = ({
     return doc;
   };
 
-  const persistLocalProp = (doc: PropDocument) => {
+  const persistLocalProp = (doc: PropDocument, asNew = false) => {
     const entry = saveLocalProp(doc);
     onLocalLibraryChange?.();
-    setStatus(`Saved ${entry.displayName} to local storage`);
+    setStatus(asNew ? `Saved as ${entry.displayName}` : `Saved ${entry.displayName}`);
   };
 
-  const persistLocalActor = (doc: ActorDocument) => {
+  const persistLocalActor = (doc: ActorDocument, asNew = false) => {
     const entry = saveLocalActor(doc);
     onLocalLibraryChange?.();
-    setStatus(`Saved ${entry.displayName} to local storage`);
+    setStatus(asNew ? `Saved as ${entry.displayName}` : `Saved ${entry.displayName}`);
   };
 
-  const persistLocalLevel = (doc: LevelDocument) => {
+  const persistLocalLevel = (doc: LevelDocument, asNew = false) => {
     const entry = saveLocalLevel(doc);
-    setStatus(`Saved ${entry.displayName} to local storage`);
+    setStatus(asNew ? `Saved as ${entry.displayName}` : `Saved ${entry.displayName}`);
   };
 
   const exportPropFile = (doc: PropDocument) => {
@@ -384,7 +384,7 @@ export const useConstructDocumentActions = ({
         if (!session) return;
         const doc = session.renameProp(name);
         setPropDoc({ ...doc, parts: [...doc.parts] });
-        persistLocalProp(doc);
+        persistLocalProp(doc, true);
         return;
       }
       const doc = applyRenamedProp(name);
@@ -407,7 +407,7 @@ export const useConstructDocumentActions = ({
         if (!session) return;
         const doc = session.renameActor(name);
         setActorDoc(cloneActorDoc(doc));
-        persistLocalActor(doc);
+        persistLocalActor(doc, true);
         return;
       }
       const doc = applyRenamedActor(name);
@@ -430,7 +430,7 @@ export const useConstructDocumentActions = ({
         if (!session) return;
         const doc = session.renameLevel(name);
         setLevelDoc(doc);
-        persistLocalLevel(doc);
+        persistLocalLevel(doc, true);
         return;
       }
       const doc = applyRenamedLevel(name);

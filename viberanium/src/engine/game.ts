@@ -8,6 +8,7 @@ export type Game = {
   setAfterUpdate: (fn: (() => void) | null) => void;
   start: () => void;
   stop: () => void;
+  setPaused: (paused: boolean) => void;
 };
 
 export const useGame = (): Game => {
@@ -64,6 +65,21 @@ export const useGame = (): Game => {
     cancelAnimationFrame(raf);
   };
 
+  const setPaused = (paused: boolean) => {
+    if (paused) {
+      if (!running) return;
+      running = false;
+      cancelAnimationFrame(raf);
+      return;
+    }
+
+    if (running) return;
+    running = true;
+    inFrame = false;
+    last = performance.now();
+    raf = requestAnimationFrame(frame);
+  };
+
   const setActiveScene = (scene: Scene | null) => {
     if (activeScene && activeScene !== scene) activeScene.unload();
     activeScene = scene;
@@ -80,5 +96,6 @@ export const useGame = (): Game => {
     },
     start,
     stop,
+    setPaused,
   };
 };

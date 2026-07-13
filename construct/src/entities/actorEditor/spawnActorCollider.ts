@@ -105,6 +105,25 @@ export const spawnActorCollider = (
     return entity.id;
   }
 
+  if (collider.parent.kind === 'character') {
+    entity.components[COMPONENT_KEYS.childOf] = createChildOf(characterEntityId);
+    registry.register(entity);
+    addChildId(characterChildren, entity.id);
+
+    const parentT = character.components[COMPONENT_KEYS.transform] as
+      | ReturnType<typeof createTransform>
+      | undefined;
+    if (parentT) {
+      const localM = m4();
+      m4FromTRSQuat(localM, local.position, local.rotation, local.scale);
+      m4Mul(t.world, parentT.world, localM);
+      t.dirty = false;
+      bakeColliderWorldFromLocal(resources.collider, t.world);
+    }
+
+    return entity.id;
+  }
+
   const attachmentEntity = findActorAttachmentEntity(registry, collider.parent.attachmentId);
   if (!attachmentEntity) {
     registry.deregister(entity.id);

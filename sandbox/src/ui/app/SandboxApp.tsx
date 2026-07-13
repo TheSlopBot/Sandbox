@@ -9,9 +9,6 @@ import { LOADING_COLORS } from '../../ui/theme/loadingColors.ts';
 import { bootstrap, type SandboxSession } from '../../globals/bootstrap.ts';
 import { type LevelLocalStoreEntry } from '../../storage/levelLocalStore.ts';
 import {
-  readStoredQualityChoice,
-  readStoredQualityOverrides,
-  mergeQualityOverrides,
   type RenderQualityChoice,
   type RenderQualityOverrides,
 } from '../../catalog/ui/renderQuality.ts';
@@ -43,11 +40,12 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
   const [levelEntries, setLevelEntries] = useState<LevelLocalStoreEntry[]>([]);
   const [currentLevelId, setCurrentLevelId] = useState<string | null>(null);
   const [switchingLevel, setSwitchingLevel] = useState(false);
-  const [qualityChoice, setQualityChoice] = useState<RenderQualityChoice>(() => readStoredQualityChoice());
-  const [resolvedPreset, setResolvedPreset] = useState<RenderQualityPresetId>('high');
+  const [qualityChoice, setQualityChoice] = useState<RenderQualityChoice>('high');
+  const [recommendedPreset, setRecommendedPreset] = useState<RenderQualityPresetId>('high');
   const [optimization, setOptimization] = useState<EngineOptimizationOptions | null>(null);
 
   const pendingMenuViewRef = useRef<MainMenuView | null>(null);
+  const pendingLevelIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!active) {
@@ -55,6 +53,7 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
       setMainMenuView('root');
       setLevelModalOpen(false);
       pendingMenuViewRef.current = null;
+      pendingLevelIdRef.current = null;
       return;
     }
 
@@ -65,7 +64,9 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
 
     let cancelled = false;
     const restoreView = pendingMenuViewRef.current ?? 'root';
+    const restoreLevelId = pendingLevelIdRef.current;
     pendingMenuViewRef.current = null;
+    pendingLevelIdRef.current = null;
 
     setBootError(null);
     setLoading(true);
@@ -79,7 +80,7 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
         loadingScreen = await createLoadingScreen(loadingCanvas, { colors: LOADING_COLORS });
         if (cancelled) return;
 
-        const session = await bootstrap(gameCanvas);
+        const session = await bootstrap(gameCanvas, { initialLevelId: restoreLevelId });
         if (cancelled) {
           session.unload();
           return;
@@ -89,7 +90,7 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
         setSubscribeFps(() => session.subscribeFps);
         setCurrentLevelId(session.getCurrentLevelId());
         setQualityChoice(session.qualityChoice);
-        setResolvedPreset(session.resolvedQualityPreset);
+        setRecommendedPreset(session.recommendedQualityPreset);
         setOptimization(session.optimization);
         setBootError(null);
       } catch (err) {
@@ -121,6 +122,15 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
 
   const levelModalOpenRef = useRef(false);
   levelModalOpenRef.current = levelModalOpen;
+
+  useEffect(() => {
+    if (!active || loading) return;
+
+    const session = sessionRef.current;
+    if (!session) return;
+
+    session.setPaused(mainMenuOpen || levelModalOpen || switchingLevel);
+  }, [active, loading, mainMenuOpen, levelModalOpen, switchingLevel, bootKey]);
 
   useEffect(() => {
     if (!active || loading) return;
@@ -186,12 +196,13 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
     if (!session) return;
 
     setSwitchingLevel(true);
+    setLevelModalOpen(false);
+    setMainMenuOpen(false);
+    setMainMenuView('root');
     void session.switchToLevel(levelId).finally(() => {
       setSwitchingLevel(false);
       setCurrentLevelId(session.getCurrentLevelId());
-      setLevelModalOpen(false);
-      setMainMenuOpen(true);
-      setMainMenuView('root');
+      session.input.lockPointer();
     });
   };
 
@@ -204,45 +215,24 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
     return result;
   };
 
-  const reloadWithSettingsOpen = () => {
+  const reloadAfterSave = () => {
     const session = sessionRef.current;
     session?.input.unlockPointer();
-    pendingMenuViewRef.current = 'settings';
+    pendingMenuViewRef.current = 'root';
+    pendingLevelIdRef.current = session?.getCurrentLevelId() ?? null;
     setMainMenuOpen(true);
-    setMainMenuView('settings');
+    setMainMenuView('root');
     setBootKey((k) => k + 1);
   };
 
-  const handleQualityChange = (choice: RenderQualityChoice) => {
-    const session = sessionRef.current;
-    if (!session) {
-      setQualityChoice(choice);
-      return;
-    }
-
-    const hadOverrides = Object.keys(readStoredQualityOverrides()).length > 0;
-    if (choice === session.qualityChoice && !hadOverrides) return;
-
-    session.setQualityChoice(choice);
-    setQualityChoice(choice);
-    reloadWithSettingsOpen();
-  };
-
-  const handleOptimizationPatch = (patch: RenderQualityOverrides) => {
+  const handleSaveSettings = (choice: RenderQualityChoice, overrides: RenderQualityOverrides) => {
     const session = sessionRef.current;
     if (!session) return;
 
-    const next = mergeQualityOverrides(readStoredQualityOverrides(), patch);
-    const skip =
-      next.skeletonLod?.skipStartDist ?? session.optimization.skeletonLod.skipStartDist;
-    const freeze =
-      next.skeletonLod?.freezeDist ?? session.optimization.skeletonLod.freezeDist;
-    if (freeze <= skip) {
-      next.skeletonLod = { ...next.skeletonLod, freezeDist: skip + 4 };
-    }
-
-    session.setQualityOverrides(next);
-    reloadWithSettingsOpen();
+    session.setQualityChoice(choice);
+    session.setQualityOverrides(overrides);
+    setQualityChoice(choice);
+    reloadAfterSave();
   };
 
   return (
@@ -260,7 +250,7 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
         <MainMenuModal
           view={mainMenuView}
           qualityChoice={qualityChoice}
-          resolvedPreset={resolvedPreset}
+          recommendedPreset={recommendedPreset}
           optimization={optimization}
           onViewChange={setMainMenuView}
           onResume={handleResume}
@@ -269,8 +259,7 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
             sessionRef.current?.input.unlockPointer();
             onOpenConstruct?.();
           }}
-          onQualityChange={handleQualityChange}
-          onOptimizationPatch={handleOptimizationPatch}
+          onSaveSettings={handleSaveSettings}
         />
       ) : null}
       {levelModalOpen ? (

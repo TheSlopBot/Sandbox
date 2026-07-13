@@ -59,3 +59,45 @@ export const rayAabbDistance = (
   if (tMax < 0 || tMin > maxDist) return Number.POSITIVE_INFINITY;
   return tMin >= 0 ? tMin : 0;
 };
+
+export const rayAabbHitNormal = (
+  ox: number,
+  oy: number,
+  oz: number,
+  dx: number,
+  dy: number,
+  dz: number,
+  minX: number,
+  minY: number,
+  minZ: number,
+  maxX: number,
+  maxY: number,
+  maxZ: number,
+  tHit: number,
+): { nx: number; ny: number; nz: number } => {
+  const px = ox + dx * tHit;
+  const py = oy + dy * tHit;
+  const pz = oz + dz * tHit;
+  const eps = 1e-4;
+
+  if (Math.abs(px - minX) <= eps) return { nx: -1, ny: 0, nz: 0 };
+  if (Math.abs(px - maxX) <= eps) return { nx: 1, ny: 0, nz: 0 };
+  if (Math.abs(py - minY) <= eps) return { nx: 0, ny: -1, nz: 0 };
+  if (Math.abs(py - maxY) <= eps) return { nx: 0, ny: 1, nz: 0 };
+  if (Math.abs(pz - minZ) <= eps) return { nx: 0, ny: 0, nz: -1 };
+  if (Math.abs(pz - maxZ) <= eps) return { nx: 0, ny: 0, nz: 1 };
+
+  const toMinX = Math.abs(px - minX);
+  const toMaxX = Math.abs(px - maxX);
+  const toMinY = Math.abs(py - minY);
+  const toMaxY = Math.abs(py - maxY);
+  const toMinZ = Math.abs(pz - minZ);
+  const toMaxZ = Math.abs(pz - maxZ);
+  const m = Math.min(toMinX, toMaxX, toMinY, toMaxY, toMinZ, toMaxZ);
+  if (m === toMinX) return { nx: -1, ny: 0, nz: 0 };
+  if (m === toMaxX) return { nx: 1, ny: 0, nz: 0 };
+  if (m === toMinY) return { nx: 0, ny: -1, nz: 0 };
+  if (m === toMaxY) return { nx: 0, ny: 1, nz: 0 };
+  if (m === toMinZ) return { nx: 0, ny: 0, nz: -1 };
+  return { nx: 0, ny: 0, nz: 1 };
+};

@@ -5,7 +5,7 @@ import {
   type RenderQualityPresetId,
 } from 'viberanium';
 
-export type RenderQualityChoice = 'auto' | RenderQualityPresetId;
+export type RenderQualityChoice = RenderQualityPresetId;
 
 export type RenderQualityOverrides = Partial<{
   msaaSamples: number;
@@ -23,10 +23,17 @@ export type RenderQualityOverrides = Partial<{
 const CHOICE_KEY = 'sandbox.renderQuality';
 const OVERRIDES_KEY = 'sandbox.renderQualityOverrides';
 
-export const readStoredQualityChoice = (): RenderQualityChoice => {
+const PRESET_IDS: readonly RenderQualityPresetId[] = ['low', 'medium', 'high', 'ultra'];
+
+const isPresetId = (value: string): value is RenderQualityPresetId =>
+  (PRESET_IDS as readonly string[]).includes(value);
+
+export const readStoredQualityChoice = (): RenderQualityPresetId | 'auto' => {
   try {
     const raw = localStorage.getItem(CHOICE_KEY);
-    if (raw === 'auto' || raw === 'low' || raw === 'medium' || raw === 'high') return raw;
+    if (!raw) return 'auto';
+    if (raw === 'auto') return 'auto';
+    if (isPresetId(raw)) return raw;
   } catch {
   }
   return 'auto';
@@ -75,7 +82,7 @@ export const mergeQualityOverrides = (
 });
 
 export const resolveQualityPreset = (
-  choice: RenderQualityChoice,
+  choice: RenderQualityPresetId | 'auto',
   adapter?: GPUAdapter | null,
 ): RenderQualityPresetId => {
   if (choice === 'auto') return detectPreferredQualityPreset(adapter);
@@ -83,19 +90,22 @@ export const resolveQualityPreset = (
 };
 
 export const createOptimizationForQualityChoice = (
-  choice: RenderQualityChoice,
+  choice: RenderQualityPresetId | 'auto',
   adapter?: GPUAdapter | null,
   overrides: RenderQualityOverrides = {},
 ): {
   choice: RenderQualityChoice;
   preset: RenderQualityPresetId;
+  recommended: RenderQualityPresetId;
   optimization: EngineOptimizationOptions;
   overrides: RenderQualityOverrides;
 } => {
+  const recommended = detectPreferredQualityPreset(adapter);
   const preset = resolveQualityPreset(choice, adapter);
   return {
-    choice,
+    choice: preset,
     preset,
+    recommended,
     overrides,
     optimization: createEngineOptimizationFromPreset(preset, overrides),
   };

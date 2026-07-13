@@ -15,7 +15,7 @@ export type { CombatMechVariant };
 
 export type CombatMechSpawnOpts = TestAiOpts & {
   variant?: CombatMechVariant;
-  y?: number;
+  y: number;
 };
 
 export const createCombatMech = async (
@@ -26,15 +26,19 @@ export const createCombatMech = async (
   opts: CombatMechSpawnOpts,
 ) => {
   const variant = opts.variant ?? 'primary';
+  const actor = COMBAT_MECH_ACTORS[variant];
 
   return spawnActor(
     registry,
     device,
     textures,
     gltfCache,
-    actorDefinitionToSkeletalDef(COMBAT_MECH_ACTORS[variant]),
+    actorDefinitionToSkeletalDef(actor),
     {
-      ...opts,
+      x: opts.x,
+      y: opts.y,
+      z: opts.z,
+      colliders: actor.colliders,
       extraComponents: {
         [GAME_COMPONENT_KEYS.testAi]: createTestAi(opts),
         [GAME_COMPONENT_KEYS.combatMech]: createCombatMechComponent(variant),

@@ -203,10 +203,12 @@ export const useConstructAssetActions = ({
           ? { kind: 'attachment' as const, attachmentId: actorSelection.attachmentId }
           : actorSelection?.kind === 'bone'
             ? { kind: 'bone' as const, boneName: actorSelection.boneName }
-            : null;
+            : actorSelection?.kind === 'actor' || actorSelection === null
+              ? { kind: 'character' as const }
+              : null;
 
       if (!parent) {
-        setStatus('Select a bone or attachment before adding a collider');
+        setStatus('Select the actor, a bone, or an attachment before adding a collider');
         return;
       }
 

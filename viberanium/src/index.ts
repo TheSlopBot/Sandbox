@@ -38,12 +38,20 @@ export {
 export {
   type CapsuleY,
   capsuleToAabb,
-  resolveCapsuleHorizontal,
-  resolveCapsuleVertical,
-  getCapsuleSupportSurfaceY,
-  hasCapsuleSupport,
+  resolveCapsuleMoveAndSlide,
   pointBlocksNav,
+  classifyContact,
+  isSlideSlope,
+  applySlideVelocity,
+  DEFAULT_FLOOR_MAX_ANGLE,
+  SLIDE_START_SPEED_FACTOR,
+  SLIDE_MAX_SPEED_FACTOR,
+  SLIDE_ACCEL_TIME_SEC,
 } from './collision/capsule.ts';
+export {
+  type CapsuleContact,
+  contactCapsuleVsCollider,
+} from './collision/capsuleContact.ts';
 
 export { createTransform, updateWorldMatrix, type Transform } from './components/transform.ts';
 export { type Renderable } from './components/renderable.ts';
@@ -77,7 +85,9 @@ export {
   createCharacterController,
   characterFootOffset,
   characterHeadOffset,
+  readCharacterBodyCapsule,
   type CharacterController,
+  type CharacterBodyCapsule,
 } from './components/characterController.ts';
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
 export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
@@ -195,6 +205,7 @@ export {
   type BuildSimpleActorOpts,
   type SimpleActorAttachment,
 } from './definitions/actors/buildSimpleActor.ts';
+export { DEFAULT_CHARACTER_BODY_CAPSULE } from './definitions/actors/defaultCharacterBodyCapsule.ts';
 export {
   type PropPartLocal,
   type PropAssetPart,
@@ -245,3 +256,4 @@ export {
   type PropPlacement,
   type InstantiatePropOptions,
 } from './spawn/instantiateProp.ts';
+export { attachActorBodyCollider, pickActorBodyCapsule } from './spawn/attachActorBodyCollider.ts';

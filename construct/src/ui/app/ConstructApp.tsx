@@ -31,6 +31,8 @@ import { useConstructSelection } from './useConstructSelection.ts';
 import { useConstructDocumentActions } from './useConstructDocumentActions.ts';
 import { useConstructAssetActions } from './useConstructAssetActions.ts';
 import { useConstructInspectorActions } from './useConstructInspectorActions.ts';
+import { useConstructToast } from './useConstructToast.ts';
+import { ConstructToast } from '../toast/ConstructToast.tsx';
 import '../theme/style.css';
 
 export type ConstructAppProps = {
@@ -40,7 +42,7 @@ export type ConstructAppProps = {
 
 export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
   const [fileOpen, setFileOpen] = useState(false);
-  const [, setStatus] = useState<string>('Loading manifest…');
+  const { toast, setStatus } = useConstructToast();
 
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [levelStandardPropEntries, setLevelStandardPropEntries] = useState<PropLocalStoreEntry[]>([]);
@@ -750,6 +752,7 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
               }
             />
           ) : null}
+          {toast ? <ConstructToast key={toast.key} message={toast.message} /> : null}
         </div>
 
         {mode === 'prop' ? (
