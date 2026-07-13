@@ -4,17 +4,20 @@ import { aabbIntersects } from './aabb.ts';
 import {
   type BodyContact,
   type BodyY,
+  bodyFeetY,
+  boxTopSurfaceNormal,
+  boxTopSurfaceYAt,
   contactBodyVsCollider,
   footprintOverlapsShape,
   projectOutOfNormal,
   separateBodyVsBoxVolume,
+  snapBoxFaceNormal,
 } from './characterContact.ts';
 
 export type { BodyY, BodyContact } from './characterContact.ts';
 
 export const DEFAULT_FLOOR_MAX_ANGLE = (50 * Math.PI) / 180;
 export const FLOOR_SNAP_DISTANCE = 0.32;
-export const STEP_HEIGHT = 0.35;
 export const SLIDE_START_SPEED_FACTOR = 1.35;
 export const SLIDE_MAX_SPEED_FACTOR = 3.5;
 export const SLIDE_ACCEL_TIME_SEC = 0.55;
@@ -115,15 +118,26 @@ const findDeepestBoxVolumeContact = (
   return best;
 };
 
+type ContactPredicate = (
+  contact: BodyContact,
+  collider: Collider,
+  floorMaxAngle: number,
+) => boolean;
+
+type ContactHit = {
+  contact: BodyContact;
+  collider: Collider;
+};
+
 const findDeepestContact = (
   body: BodyY,
   obstacles: Collider[],
   outBox: Aabb,
-  predicate: (contact: BodyContact, floorMaxAngle: number) => boolean,
+  predicate: ContactPredicate,
   floorMaxAngle: number,
-): BodyContact | null => {
+): ContactHit | null => {
   bodyToAabb(body, outBox);
-  let best: BodyContact | null = null;
+  let best: ContactHit | null = null;
 
   for (const s of obstacles) {
     if (!s.isStatic) continue;
@@ -133,21 +147,35 @@ const findDeepestContact = (
     if (!hit || hit.depth <= 0) continue;
 
     const contact: BodyContact = { ...hit, shapeKind: s.shape.kind };
-    if (!predicate(contact, floorMaxAngle)) continue;
-    if (!best || contact.depth > best.depth) best = contact;
+    if (!predicate(contact, s, floorMaxAngle)) continue;
+    if (!best || contact.depth > best.contact.depth) best = { contact, collider: s };
   }
 
   return best;
 };
 
-const isFloorContact = (contact: BodyContact, floorMaxAngle: number) => {
-  if (classifyContact(contact.ny, floorMaxAngle) === 'floor') return true;
-  if (contact.shapeKind === 'box') return false;
-  return contact.ny > SLIDE_MIN_NORMAL_Y;
-};
+const boxSlopeSlideContact = (
+  hit: ContactHit,
+  floorMaxAngle: number,
+): BodyContact | null => {
+  const shape = hit.collider.shape;
+  if (shape.kind !== 'box') return null;
 
-const isBlockingContact = (contact: BodyContact, floorMaxAngle: number) =>
-  !isFloorContact(contact, floorMaxAngle);
+  const face = snapBoxFaceNormal(
+    shape.rotation,
+    hit.contact.nx,
+    hit.contact.ny,
+    hit.contact.nz,
+  );
+  if (!face || !isSlideSlope(face.ny, floorMaxAngle)) return null;
+
+  return {
+    ...hit.contact,
+    nx: face.nx,
+    ny: face.ny,
+    nz: face.nz,
+  };
+};
 
 const applyContactPush = (body: BodyY, contact: BodyContact): BodyY => ({
   ...body,
@@ -165,6 +193,72 @@ const applyFloorPush = (body: BodyY, contact: BodyContact): BodyY => {
   }
 
   return applyContactPush(body, contact);
+};
+
+const isWithinFloorSnap = (foot: number, surfaceFoot: number): boolean =>
+  foot <= surfaceFoot + SURFACE_EPS &&
+  surfaceFoot - foot <= FLOOR_SNAP_DISTANCE + SURFACE_EPS;
+
+const contactSurfaceFootY = (body: BodyY, contact: BodyContact): number =>
+  bodyFeetY(applyFloorPush(body, contact));
+
+const makeIsFloorContact =
+  (body: BodyY): ContactPredicate =>
+  (contact, collider, floorMaxAngle) => {
+    if (classifyContact(contact.ny, floorMaxAngle) !== 'floor') {
+      if (collider.shape.kind === 'box') return false;
+      return contact.ny > SLIDE_MIN_NORMAL_Y;
+    }
+
+    const shape = collider.shape;
+    if (shape.kind === 'box') {
+      if (!footprintOverlapsShape(shape, body.x, body.z, body.radius)) return false;
+
+      const foot = bodyFeetY(body);
+      const surfaceFoot = contactSurfaceFootY(body, contact);
+      return isWithinFloorSnap(foot, surfaceFoot);
+    }
+
+    return true;
+  };
+
+const makeIsBlockingContact = (body: BodyY): ContactPredicate => {
+  const isFloor = makeIsFloorContact(body);
+  return (contact, collider, floorMaxAngle) => !isFloor(contact, collider, floorMaxAngle);
+};
+
+const findSupportFloorContact = (
+  body: BodyY,
+  obstacles: Collider[],
+  outBox: Aabb,
+  floorMaxAngle: number,
+): BodyContact | null => {
+  const isFloor = makeIsFloorContact(body);
+  const foot = bodyFeetY(body);
+  let best: BodyContact | null = null;
+  let bestTop = -Infinity;
+
+  bodyToAabb(body, outBox);
+
+  for (const s of obstacles) {
+    if (!s.isStatic) continue;
+    if (!aabbIntersects(outBox, s.aabb)) continue;
+
+    const hit = contactBodyVsCollider(body, s);
+    if (!hit || hit.depth <= 0) continue;
+
+    const contact: BodyContact = { ...hit, shapeKind: s.shape.kind };
+    if (!isFloor(contact, s, floorMaxAngle)) continue;
+
+    const topY = contactSurfaceFootY(body, contact);
+    if (!isWithinFloorSnap(foot, topY)) continue;
+    if (topY <= bestTop + 1e-4) continue;
+
+    bestTop = topY;
+    best = contact;
+  }
+
+  return best;
 };
 
 const applyWallPush = (body: BodyY, contact: BodyContact): BodyY => {
@@ -228,6 +322,13 @@ const downhillFromNormal = (
   return v3Set(out, sx * inv, sy * inv, sz * inv);
 };
 
+const isUphillOnSlope = (velocity: Vec3, contact: BodyContact): boolean => {
+  const down = downhillFromNormal(_downhill, contact.nx, contact.ny, contact.nz);
+  if (!down) return false;
+
+  return velocity[0] * down[0] + velocity[1] * down[1] + velocity[2] * down[2] < -1e-4;
+};
+
 const stopOnWalkableFloor = (velocity: Vec3, contact: BodyContact) => {
   projectOutOfNormal(velocity, contact);
 
@@ -246,6 +347,55 @@ const stopOnWalkableFloor = (velocity: Vec3, contact: BodyContact) => {
   velocity[0] -= down[0] * along;
   velocity[1] -= down[1] * along;
   velocity[2] -= down[2] * along;
+};
+
+const tryEmbedLanding = (
+  body: BodyY,
+  obstacles: Collider[],
+  floorMaxAngle: number,
+  maxEmbed: number,
+  outBox: Aabb,
+): { body: BodyY; contact: BodyContact } | null => {
+  const ext = body.halfHeight + body.radius;
+  const foot = bodyFeetY(body);
+
+  bodyToAabb(body, outBox);
+
+  let bestTop = -Infinity;
+  let bestBody: BodyY | null = null;
+  let bestContact: BodyContact | null = null;
+
+  for (const s of obstacles) {
+    if (!s.isStatic || s.shape.kind !== 'box') continue;
+    if (!aabbIntersects(outBox, s.aabb)) continue;
+    if (!footprintOverlapsShape(s.shape, body.x, body.z, body.radius)) continue;
+
+    const surface = boxTopSurfaceNormal(s.shape.rotation);
+    if (classifyContact(surface.ny, floorMaxAngle) !== 'floor') continue;
+    if (isSlideSlope(surface.ny, floorMaxAngle)) continue;
+
+    const topY = boxTopSurfaceYAt(
+      s.shape.center,
+      s.shape.halfExtents,
+      s.shape.rotation,
+      body.x,
+      body.z,
+    );
+    if (!Number.isFinite(topY)) continue;
+
+    const embed = topY - foot;
+    if (embed <= SURFACE_EPS || embed > maxEmbed) continue;
+
+    if (topY > bestTop) {
+      bestTop = topY;
+      bestBody = { ...body, y: topY + ext };
+      bestContact = surface;
+    }
+  }
+
+  if (!bestBody || !bestContact) return null;
+
+  return { body: bestBody, contact: bestContact };
 };
 
 const trySurfaceSnap = (
@@ -277,117 +427,10 @@ const trySurfaceSnap = (
   }
 
   const probe: BodyY = { ...body, y: body.y - FLOOR_SNAP_DISTANCE };
-  const contact = findDeepestContact(probe, obstacles, outBox, isFloorContact, floorMaxAngle);
+  const contact = findSupportFloorContact(probe, obstacles, outBox, floorMaxAngle);
   if (contact) {
     const snapped = applyFloorPush(probe, contact);
     consider(snapped.y - snapped.halfHeight - snapped.radius, contact);
-  }
-
-  if (!bestBody || !bestContact) return null;
-
-  return { body: bestBody, contact: bestContact };
-};
-
-const isCeilingContact = (contact: BodyContact, floorMaxAngle: number) =>
-  classifyContact(contact.ny, floorMaxAngle) === 'ceiling';
-
-const footOnWalkableSupport = (
-  body: BodyY,
-  obstacles: Collider[],
-  groundY: number,
-  floorMaxAngle: number,
-  outBox: Aabb,
-): boolean => {
-  const foot = body.y - body.halfHeight - body.radius;
-  if (foot <= groundY + SURFACE_EPS) return true;
-
-  const floor = findDeepestContact(body, obstacles, outBox, isFloorContact, floorMaxAngle);
-  if (!floor) return false;
-
-  const pushed = applyFloorPush(body, floor);
-  const surfaceY = pushed.y - body.halfHeight - body.radius;
-  return foot <= surfaceY + SURFACE_EPS;
-};
-
-const tryStepUp = (
-  body: BodyY,
-  velocity: Vec3,
-  obstacles: Collider[],
-  floorMaxAngle: number,
-  outBox: Aabb,
-): { body: BodyY; contact: BodyContact } | null => {
-  const speed = Math.hypot(velocity[0], velocity[2]);
-  if (speed < 1e-8) return null;
-
-  const foot = body.y - body.halfHeight - body.radius;
-  const ext = body.halfHeight + body.radius;
-  const fwdX = velocity[0] / speed;
-  const fwdZ = velocity[2] / speed;
-  const raised: BodyY = { ...body, y: body.y + STEP_HEIGHT };
-
-  if (findDeepestContact(raised, obstacles, outBox, isCeilingContact, floorMaxAngle)) return null;
-
-  let bestY = -Infinity;
-  let bestBody: BodyY | null = null;
-  let bestContact: BodyContact | null = null;
-
-  const consider = (surfaceY: number, contact: BodyContact, at: BodyY) => {
-    if (surfaceY <= foot + SURFACE_EPS) return;
-    if (surfaceY > foot + STEP_HEIGHT + SURFACE_EPS) return;
-    if (surfaceY <= bestY + 1e-4) return;
-
-    bestY = surfaceY;
-    bestContact = contact;
-    bestBody = { ...at, y: surfaceY + ext };
-  };
-
-  const floorRaised = findDeepestContact(raised, obstacles, outBox, isFloorContact, floorMaxAngle);
-  if (floorRaised) {
-    const snapped = applyFloorPush(raised, floorRaised);
-    consider(snapped.y - ext, floorRaised, snapped);
-  }
-
-  const probeX = body.x + fwdX * body.radius * 0.35;
-  const probeZ = body.z + fwdZ * body.radius * 0.35;
-
-  outBox.min[0] = Math.min(body.x, probeX) - body.radius;
-  outBox.min[1] = foot;
-  outBox.min[2] = Math.min(body.z, probeZ) - body.radius;
-  outBox.max[0] = Math.max(body.x, probeX) + body.radius;
-  outBox.max[1] = foot + STEP_HEIGHT;
-  outBox.max[2] = Math.max(body.z, probeZ) + body.radius;
-
-  for (const s of obstacles) {
-    if (!s.isStatic) continue;
-    if (!aabbIntersects(outBox, s.aabb)) continue;
-
-    const top = s.aabb.max[1];
-    if (top <= foot + SURFACE_EPS || top > foot + STEP_HEIGHT + SURFACE_EPS) continue;
-
-    const onFootprint =
-      footprintOverlapsShape(s.shape, body.x, body.z, body.radius) ||
-      footprintOverlapsShape(s.shape, probeX, probeZ, body.radius);
-    if (!onFootprint) continue;
-
-    const midX = (s.aabb.min[0] + s.aabb.max[0]) * 0.5;
-    const midZ = (s.aabb.min[2] + s.aabb.max[2]) * 0.5;
-    const toMidX = midX - probeX;
-    const toMidZ = midZ - probeZ;
-    const toMidLen = Math.hypot(toMidX, toMidZ);
-    const pull = toMidLen > 1e-8 ? Math.min(toMidLen, body.radius * 0.35) : 0;
-    const landX = toMidLen > 1e-8 ? probeX + (toMidX / toMidLen) * pull : probeX;
-    const landZ = toMidLen > 1e-8 ? probeZ + (toMidZ / toMidLen) * pull : probeZ;
-
-    const landed: BodyY = {
-      ...body,
-      x: landX,
-      z: landZ,
-      y: top + ext,
-    };
-
-    if (findDeepestContact(landed, obstacles, outBox, isCeilingContact, floorMaxAngle)) continue;
-
-    consider(top, { nx: 0, ny: 1, nz: 0, depth: 0, shapeKind: s.shape.kind }, landed);
   }
 
   if (!bestBody || !bestContact) return null;
@@ -424,11 +467,30 @@ export const resolveCylinderMoveAndSlide = (
     onGround = true;
   }
 
+  if (velocity[1] <= 0 && !alreadySliding) {
+    const bodyExt = next.halfHeight + next.radius;
+    const maxEmbed =
+      alreadyOnGround || onGround
+        ? FLOOR_SNAP_DISTANCE + SURFACE_EPS
+        : bodyExt * 2 + FLOOR_SNAP_DISTANCE;
+    const embed = tryEmbedLanding(next, obstacles, floorMaxAngle, maxEmbed, outBox);
+    if (embed) {
+      next = embed.body;
+      onGround = true;
+      sliding = false;
+      v3Set(_groundNormal, embed.contact.nx, embed.contact.ny, embed.contact.nz);
+      if (velocity[1] < 0) velocity[1] = 0;
+    }
+  }
+
   for (let iter = 0; iter < CONTACT_ITERS; iter++) {
-    const floor = findDeepestContact(next, obstacles, outBox, isFloorContact, floorMaxAngle);
-    const wall = findDeepestContact(next, obstacles, outBox, isBlockingContact, floorMaxAngle);
-    const steepBox =
-      wall && wall.shapeKind === 'box' && isSlideSlope(wall.ny, floorMaxAngle) ? wall : null;
+    let floor = findSupportFloorContact(next, obstacles, outBox, floorMaxAngle);
+    const wallHit = findDeepestContact(next, obstacles, outBox, makeIsBlockingContact(next), floorMaxAngle);
+    const wall = wallHit?.contact ?? null;
+    const steepBox = wallHit ? boxSlopeSlideContact(wallHit, floorMaxAngle) : null;
+    const uphillSteep =
+      steepBox && isUphillOnSlope(velocity, steepBox) ? steepBox : null;
+
     const volume =
       floor || steepBox ? null : findDeepestBoxVolumeContact(next, obstacles, outBox);
     if (!volume && !wall && !floor) break;
@@ -459,22 +521,15 @@ export const resolveCylinderMoveAndSlide = (
         onGround = false;
         v3Set(_groundNormal, blocking.nx, blocking.ny, blocking.nz);
         projectOutOfNormal(velocity, blocking);
-      } else if (!floor) {
-        const step =
-          !sliding && footOnWalkableSupport(next, obstacles, groundY, floorMaxAngle, outBox)
-            ? tryStepUp(next, velocity, obstacles, floorMaxAngle, outBox)
-            : null;
-
-        if (step) {
-          next = step.body;
-          onGround = true;
-          sliding = false;
-          v3Set(_groundNormal, step.contact.nx, step.contact.ny, step.contact.nz);
-          stopOnWalkableFloor(velocity, step.contact);
-        } else {
-          next = applyWallPush(next, blocking);
-          slideVelocityOnWall(velocity, blocking);
-        }
+      } else if (uphillSteep && blocking === uphillSteep) {
+        next = applyContactPush(next, uphillSteep);
+        slideVelocityOnWall(velocity, uphillSteep);
+      } else if (
+        blocking !== floor &&
+        classifyContact(blocking.ny, floorMaxAngle) === 'wall'
+      ) {
+        next = applyWallPush(next, blocking);
+        slideVelocityOnWall(velocity, blocking);
       }
     }
 

@@ -175,6 +175,72 @@ const worldFromLocal = (out: Vec3, local: Vec3, center: Vec3, rotation: Quat) =>
   out[2] = center[2] + _tmp[2];
 };
 
+export const bodyFeetY = (body: BodyY): number => body.y - body.halfHeight - body.radius;
+
+export const boxTopSurfaceYAt = (
+  center: Vec3,
+  halfExtents: Vec3,
+  rotation: Quat,
+  x: number,
+  z: number,
+): number => {
+  q4Conjugate(_invQ, rotation);
+  v3Set(_tmp, x - center[0], 0, z - center[2]);
+  q4TransformVec3(_p, _invQ, _tmp);
+  const hx = halfExtents[0];
+  const hz = halfExtents[2];
+  const hy = halfExtents[1];
+  if (Math.abs(_p[0]) > hx || Math.abs(_p[2]) > hz) return -Infinity;
+
+  v3Set(_tmp, _p[0], hy, _p[2]);
+  worldFromLocal(_q, _tmp, center, rotation);
+  return _q[1];
+};
+
+export const boxTopSurfaceNormal = (rotation: Quat): BodyContact => {
+  q4TransformVec3(_n, rotation, v3Set(_tmp, 0, 1, 0));
+  v3Normalize(_n, _n);
+  return { nx: _n[0], ny: _n[1], nz: _n[2], depth: 0 };
+};
+
+const _boxFaceLocals: readonly [number, number, number][] = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+];
+
+export const snapBoxFaceNormal = (
+  rotation: Quat,
+  nx: number,
+  ny: number,
+  nz: number,
+  minDot = 0.92,
+): { nx: number; ny: number; nz: number } | null => {
+  let bestDot = -1;
+  let bestNx = 0;
+  let bestNy = 0;
+  let bestNz = 0;
+
+  for (const [lx, ly, lz] of _boxFaceLocals) {
+    q4TransformVec3(_n, rotation, v3Set(_tmp, lx, ly, lz));
+    v3Normalize(_n, _n);
+    const dot = nx * _n[0] + ny * _n[1] + nz * _n[2];
+    if (dot <= bestDot) continue;
+
+    bestDot = dot;
+    bestNx = _n[0];
+    bestNy = _n[1];
+    bestNz = _n[2];
+  }
+
+  if (bestDot < minDot) return null;
+
+  return { nx: bestNx, ny: bestNy, nz: bestNz };
+};
+
 const toLocalSegment = (
   body: BodyY,
   center: Vec3,
@@ -224,11 +290,37 @@ const contactVsBox = (
     const dx = hx - Math.abs(_p[0]);
     const dy = hy - Math.abs(_p[1]);
     const dz = hz - Math.abs(_p[2]);
+    const footWorld = bodyFeetY(body);
+    const topAtFootprint = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
+    const feetBelowTop = footWorld < topAtFootprint - 0.05;
+    const capCx = (_la[0] + _lb[0]) * 0.5;
+    const capCz = (_la[2] + _lb[2]) * 0.5;
+    const overFootprint = Math.abs(capCx) <= hx && Math.abs(capCz) <= hz;
     let nx = 0;
     let ny = 0;
     let nz = 0;
     let push = 0;
-    if (dx <= dy && dx <= dz) {
+    if (feetBelowTop && overFootprint) {
+      ny = 1;
+      push = hy - _p[1];
+      _q[0] = _p[0];
+      _q[1] = hy;
+      _q[2] = _p[2];
+    } else if (feetBelowTop) {
+      if (dx <= dz) {
+        nx = _p[0] >= 0 ? 1 : -1;
+        push = dx;
+        _q[0] = nx * hx;
+        _q[1] = _p[1];
+        _q[2] = _p[2];
+      } else {
+        nz = _p[2] >= 0 ? 1 : -1;
+        push = dz;
+        _q[0] = _p[0];
+        _q[1] = _p[1];
+        _q[2] = nz * hz;
+      }
+    } else if (dx <= dy && dx <= dz) {
       nx = _p[0] >= 0 ? 1 : -1;
       push = dx;
       _q[0] = nx * hx;
@@ -438,12 +530,14 @@ export const separateBodyVsBoxVolume = (
 
   const cx = (_la[0] + _lb[0]) * 0.5;
   const cz = (_la[2] + _lb[2]) * 0.5;
-  const footY = Math.min(_la[1], _lb[1]) - r;
+  const footWorld = bodyFeetY(body);
+  const topAtFootprint = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
+  const onTopOfBox = footWorld >= topAtFootprint - 0.04;
 
   const inside =
     Math.abs(_p[0]) <= hx && Math.abs(_p[1]) <= hy && Math.abs(_p[2]) <= hz;
 
-  if (footY >= hy - 0.04 && Math.abs(cx) <= hx && Math.abs(cz) <= hz) {
+  if (onTopOfBox && Math.abs(cx) <= hx && Math.abs(cz) <= hz) {
     return null;
   }
 
@@ -452,12 +546,15 @@ export const separateBodyVsBoxVolume = (
   let lz = 0;
 
   if (inside) {
+    const overFootprint = Math.abs(cx) <= hx && Math.abs(cz) <= hz;
+    if (overFootprint && footWorld < topAtFootprint - 0.04) return null;
+
     const dx = hx - Math.abs(_p[0]);
     const dy = hy - Math.abs(_p[1]);
     const dz = hz - Math.abs(_p[2]);
     const lateral = Math.min(dx, dz);
     if (lateral <= 0) return null;
-    if (_p[1] > 0 && dy <= lateral && dy < r && lateral > r * 0.75) return null;
+    if (onTopOfBox && _p[1] > 0 && dy <= lateral && dy < r && lateral > r * 0.75) return null;
 
     depth = lateral + r;
     if (dx <= dz) lx = _p[0] >= 0 ? 1 : -1;
