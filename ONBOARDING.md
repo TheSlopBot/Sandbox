@@ -517,29 +517,30 @@ Read narrowly: open the listed files (or folders) in order. Skim; do not try to 
 1. `viberanium/src/engine/` — `registry`, `game`, `scene`, `entity`
 2. `viberanium/src/engine/componentKeys.ts`
 3. Components: `transform`, `movementIntent`, `characterController`, `collider`
-4. Systems: `movementSystem`, `characterPhysicsSystem`, `collisionSystem`
-5. `viberanium/src/index.ts` — public API surface
+4. Collision math: `collision/characterContact.ts`, `collision/characterCollision.ts`, `collision/collisionBroadphase.ts`
+5. Systems: `movementSystem`, `colliderTransformSystem`, `characterPhysicsSystem`, `characterStateSystem` (CPU path — sandbox does **not** install `collisionSystem`)
+6. `viberanium/src/index.ts` — public API surface
 
 ### Pass 2 — Definitions and spawn (~30–45 min)
 
-6. `viberanium/src/definitions/levels/levelDefinition.ts` (+ prop/actor defs nearby)
-7. `viberanium/src/spawn/instantiateProp.ts`
+7. `viberanium/src/definitions/levels/levelDefinition.ts` (+ prop/actor defs nearby)
+8. `viberanium/src/spawn/instantiateProp.ts`
 
 ### Pass 3 — Sandbox playable path (~1 hour)
 
-8. `sandbox/src/globals/bootstrap.ts` + `sceneManager.ts`
-9. `sandbox/src/catalog/levels/` — `levelFile.ts`, one `test*.ts`, `levelSeed.ts`
-10. `sandbox/src/scenes/common/createPlayableScene.ts` + `useLevelScene.ts`
-11. `sandbox/src/entities/player/` then one enemy under `entities/enemies/`
-12. `sandbox/src/entities/actor/` — load/spawn pipeline
+9. `sandbox/src/globals/bootstrap.ts` + `sceneManager.ts`
+10. `sandbox/src/catalog/levels/` — `levelFile.ts`, one `test*.ts`, `levelSeed.ts`
+11. `sandbox/src/scenes/common/createPlayableScene.ts` + `useLevelScene.ts`
+12. `sandbox/src/entities/player/` then one enemy under `entities/enemies/`
+13. `sandbox/src/entities/actor/` — load/spawn pipeline
 
 ### Pass 4 — Construct authoring path (~1 hour)
 
-13. `construct/src/globals/bootstrap.ts`
-14. `construct/src/session/types.ts` then `session/levelEditor.ts`
-15. `construct/src/catalog/levels/levelDocument.ts` — especially `toLevelDefinition`
-16. `construct/src/scenes/editorScene.ts` (and installers)
-17. `construct/src/ui/app/ConstructApp.tsx` — shell; follow `useConstructSession` + one action hook
+14. `construct/src/globals/bootstrap.ts`
+15. `construct/src/session/types.ts` then `session/levelEditor.ts`
+16. `construct/src/catalog/levels/levelDocument.ts` — especially `toLevelDefinition`
+17. `construct/src/scenes/editorScene.ts` (and installers)
+18. `construct/src/ui/app/ConstructApp.tsx` — shell; follow `useConstructSession` + one action hook
 
 ### Pass 5 — Deeper as needed
 
@@ -548,7 +549,8 @@ Read narrowly: open the listed files (or folders) in order. Skim; do not try to 
 | Rendering / perf | `viberanium/src/render/pipeline.ts`, then one pass under `render/passes/` |
 | Animation | `components/animation*`, skeletal systems via `installSkeletalCharacterSystems` |
 | Pathfinding | `components/navGrid.ts`, `navigation/`, `systems/navGridSystem.ts`, `testAiSystem.ts` |
-| Props / colliders | `instantiateProp` + Construct prop editor entities |
+| Props / colliders | `instantiateProp` + Construct prop editor entities; rotated box colliders act as ramps (no dedicated ramp type) |
+| Character collision | `viberanium/collision/characterCollision.ts`, `characterPhysicsSystem.ts` — slope walk/slide/wall by angle |
 | Level editor UX | `ui/explorer/LevelExplorer.tsx`, `ui/inspector/Level*.tsx`, `entities/levelEditor/` |
 | System order bands | `.cursor/rules/systems.mdc` |
 | Rules / agents | `.cursor/rules/architecture.mdc`, `ecs.mdc`, `levels.mdc`, `AGENTS.md` |
@@ -565,6 +567,8 @@ Read narrowly: open the listed files (or folders) in order. Skim; do not try to 
 | Where does a new enemy go? | `sandbox/entities/enemies/<kind>/` |
 | Where does editor gizmo logic go? | `construct/entities/gizmos/` |
 | Who writes movement? | Controllers → `movementIntent`; never fork physics per character |
+| What are ramps? | Rotated box colliders — walkable ≤ 50°, slide 50°–80°, wall > 80° (defaults) |
+| CPU vs GPU collision? | Sandbox uses CPU `installCharacterPhysicsSystem` only |
 | May sandbox import construct? | No |
 | May construct import sandbox? | No |
 | Do scenes survive level switch? | No — fresh scene every `switchTo` |

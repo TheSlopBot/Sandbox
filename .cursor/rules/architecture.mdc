@@ -13,7 +13,7 @@ viberanium/                  # Game engine (Viberanium)
     ├── engine/              # Core loop, registry, scene, entity primitives
     ├── math/                # vec3, quat, mat4 — no deps, no classes
     ├── input/               # createInput — keyboard, mouse, pointer lock
-    ├── collision/           # Pure AABB/OBB math helpers (no GL, no registry)
+    ├── collision/           # Pure character collision math — capsule resolve, broadphase, slope classification (no GL, no registry)
     ├── components/          # Data-only component types + factories
     ├── systems/             # install*System processors (movement, physics, animation, …)
     ├── navigation/          # A* pathfinding helpers
@@ -96,6 +96,20 @@ sandbox/src/entities/enemies/spider/
 Register spawn logic in `catalog/levels/` and `useLevelScene`. Add `GAME_COMPONENT_KEYS.spiderAi` in `catalog/keys/components.ts`. Install feature systems in `createPlayableScene` once per scene instance.
 
 When adding geometry that blocks pathfinding, register a static `collider` and call `markNavGridDirty(scene.registry)`.
+
+## Character collision
+
+CPU cylinder move-and-slide is the canonical gameplay path (`installCharacterPhysicsSystem`). Pure math in `viberanium/collision/`:
+
+| Module | Role |
+|--------|------|
+| `characterContact.ts` | Capsule-vs-box/cylinder/sphere/ellipsoid narrowphase |
+| `characterCollision.ts` | `resolveCylinderMoveAndSlide`, slope classification, wall/slope slide |
+| `collisionBroadphase.ts` | Spatial grid for static obstacle queries |
+
+**Ramps** have no dedicated type — they are rotated box colliders on props or level placements. Walkable slopes (≤ `floorMaxAngle`, default 50°) set `onGround`; steeper slopes (50°–80°) trigger `character.sliding` with automatic downhill movement; near-vertical faces act as walls.
+
+Body dimensions come from a cylinder `collider` on the character entity (`attachActorBodyCollider` at spawn). `character` holds physics state only (`velocity`, `onGround`, `sliding`, `groundNormal`, …). Optional GPU collision (`installCollisionSystem` + `collisionPass`) is exported but not used in sandbox scenes.
 
 ## Skeletal characters
 

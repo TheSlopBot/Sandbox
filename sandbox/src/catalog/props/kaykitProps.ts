@@ -12,6 +12,7 @@ import {
   TARGET_STAND_A_DECORATED,
   WALL_WINDOW_OPEN,
   WEAPONRACK_DECORATED,
+  WOOD_PLANK_B,
   WORKBENCH_DECORATED,
 } from '../assets/kaykit.ts';
 import { buildSimpleProp } from './buildSimpleProp.ts';
@@ -114,6 +115,32 @@ export const WORKBENCH_PROP: PropDefinition = buildSimpleProp(
   { shape: 'box', halfExtents: [1.5, 1.3, 0.75], position: [0, 1.3, 0] },
 );
 
+export const PLANK_PROP: PropDefinition = {
+  id: 'plank',
+  displayName: 'Plank',
+  parts: [
+    {
+      id: 'plank_mesh',
+      kind: 'asset',
+      url: WOOD_PLANK_B,
+      materialPrefix: 'prop',
+      tags: [],
+      position: [0, 0, 0],
+      rotation: [0, 0, 0, 1],
+      scale: [3, 1, 4],
+    },
+    {
+      id: 'plank_collider',
+      kind: 'collider',
+      shape: 'box',
+      halfExtents: [0.5, 0.5, 0.5],
+      position: [0, 0.07782703638076782, 0],
+      rotation: [0, 0, 0, 1],
+      scale: [1.2000000476837158, 0.13639314472675323, 6],
+    },
+  ],
+};
+
 export const KAYKIT_PROPS: readonly PropDefinition[] = [
   CUBE_SMALL_PROP,
   CUBE_LARGE_PROP,
@@ -129,4 +156,5 @@ export const KAYKIT_PROPS: readonly PropDefinition[] = [
   WALL_WINDOW_OPEN_PROP,
   WEAPONRACK_PROP,
   WORKBENCH_PROP,
+  PLANK_PROP,
 ];

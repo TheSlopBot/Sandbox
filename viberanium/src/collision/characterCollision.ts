@@ -9,6 +9,7 @@ import {
   boxTopSurfaceYAt,
   contactBodyVsCollider,
   footprintOverlapsShape,
+  isBodyOnBoxWalkableTop,
   projectOutOfNormal,
   separateBodyVsBoxVolume,
   snapBoxFaceNormal,
@@ -25,7 +26,6 @@ export const SLIDE_INPUT_COYOTE_SEC = 0.18;
 
 const CONTACT_ITERS = 3;
 const SURFACE_EPS = 0.05;
-const SNAP_MAX_UP_SPEED = 4;
 const SLIDE_MAX_ANGLE = (80 * Math.PI) / 180;
 const SLIDE_MIN_NORMAL_Y = Math.cos(SLIDE_MAX_ANGLE);
 const WALL_HEAD_ON_DOT = Math.cos((40 * Math.PI) / 180);
@@ -213,6 +213,9 @@ const makeIsFloorContact =
     const shape = collider.shape;
     if (shape.kind === 'box') {
       if (!footprintOverlapsShape(shape, body.x, body.z, body.radius)) return false;
+      if (!isBodyOnBoxWalkableTop(shape.center, shape.halfExtents, shape.rotation, body, SURFACE_EPS)) {
+        return false;
+      }
 
       const foot = bodyFeetY(body);
       const surfaceFoot = contactSurfaceFootY(body, contact);
@@ -225,6 +228,13 @@ const makeIsFloorContact =
 const makeIsBlockingContact = (body: BodyY): ContactPredicate => {
   const isFloor = makeIsFloorContact(body);
   return (contact, collider, floorMaxAngle) => !isFloor(contact, collider, floorMaxAngle);
+};
+
+const isUndersideBoxHit = (body: BodyY, collider: Collider, contact: BodyContact, floorMaxAngle: number): boolean => {
+  const shape = collider.shape;
+  if (shape.kind !== 'box') return false;
+  if (classifyContact(contact.ny, floorMaxAngle) !== 'floor') return false;
+  return !isBodyOnBoxWalkableTop(shape.center, shape.halfExtents, shape.rotation, body, SURFACE_EPS);
 };
 
 const findSupportFloorContact = (
@@ -353,7 +363,6 @@ const tryEmbedLanding = (
   body: BodyY,
   obstacles: Collider[],
   floorMaxAngle: number,
-  maxEmbed: number,
   outBox: Aabb,
 ): { body: BodyY; contact: BodyContact } | null => {
   const ext = body.halfHeight + body.radius;
@@ -382,9 +391,12 @@ const tryEmbedLanding = (
       body.z,
     );
     if (!Number.isFinite(topY)) continue;
+    if (!isBodyOnBoxWalkableTop(s.shape.center, s.shape.halfExtents, s.shape.rotation, body, SURFACE_EPS)) {
+      continue;
+    }
 
     const embed = topY - foot;
-    if (embed <= SURFACE_EPS || embed > maxEmbed) continue;
+    if (embed <= SURFACE_EPS || embed > FLOOR_SNAP_DISTANCE + SURFACE_EPS) continue;
 
     if (topY > bestTop) {
       bestTop = topY;
@@ -468,12 +480,7 @@ export const resolveCylinderMoveAndSlide = (
   }
 
   if (velocity[1] <= 0 && !alreadySliding) {
-    const bodyExt = next.halfHeight + next.radius;
-    const maxEmbed =
-      alreadyOnGround || onGround
-        ? FLOOR_SNAP_DISTANCE + SURFACE_EPS
-        : bodyExt * 2 + FLOOR_SNAP_DISTANCE;
-    const embed = tryEmbedLanding(next, obstacles, floorMaxAngle, maxEmbed, outBox);
+    const embed = tryEmbedLanding(next, obstacles, floorMaxAngle, outBox);
     if (embed) {
       next = embed.body;
       onGround = true;
@@ -511,7 +518,8 @@ export const resolveCylinderMoveAndSlide = (
         : (volume ?? wall);
 
     if (blocking) {
-      if (classifyContact(blocking.ny, floorMaxAngle) === 'ceiling') {
+      const underside = wallHit ? isUndersideBoxHit(next, wallHit.collider, blocking, floorMaxAngle) : false;
+      if (underside || classifyContact(blocking.ny, floorMaxAngle) === 'ceiling') {
         next = applyContactPush(next, blocking);
         projectOutOfNormal(velocity, blocking);
         if (velocity[1] > 0) velocity[1] = 0;
@@ -542,7 +550,7 @@ export const resolveCylinderMoveAndSlide = (
     }
   }
 
-  if (!sliding && velocity[1] < SNAP_MAX_UP_SPEED) {
+  if (!sliding && velocity[1] <= 0) {
     const snap = trySurfaceSnap(next, obstacles, groundY, floorMaxAngle, outBox);
     if (snap) {
       next = snap.body;

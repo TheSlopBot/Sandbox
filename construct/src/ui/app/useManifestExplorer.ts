@@ -7,9 +7,11 @@ import {
 } from '../../catalog/manifest/kaykitManifest.ts';
 import { buildAssetTree, buildCharacterTree } from '../../catalog/manifest/filterManifestTrees.ts';
 import { scopeExplorerDirPath } from '../explorer/AssetExplorer.tsx';
-
-const getSearchWords = (raw: string) =>
-  raw.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 0);
+import {
+  collectTreeDirPaths,
+  getSearchWords,
+  treeHasFileNodes,
+} from '../explorer/explorerSearch.ts';
 
 const matchesWords = (haystack: string, words: readonly string[]) => {
   if (words.length === 0) return true;
@@ -20,23 +22,6 @@ const matchesWords = (haystack: string, words: readonly string[]) => {
   }
 
   return true;
-};
-
-const collectDirPaths = (root: KaykitTreeNode) => {
-  const out = new Set<string>();
-
-  const stack: KaykitTreeNode[] = [root];
-  while (stack.length) {
-    const n = stack.pop();
-    if (!n) break;
-
-    if (n.type === 'dir') {
-      out.add(n.path);
-      for (const c of n.children) stack.push(c);
-    }
-  }
-
-  return out;
 };
 
 export const expandVariantPaths = (
@@ -113,28 +98,59 @@ export const useManifestExplorer = ({ active, setStatus }: UseManifestExplorerPa
     return () => window.clearTimeout(handle);
   }, [explorerQueryInput]);
 
+  const collapseExplorerExpansion = () => {
+    setExpanded(new Set());
+    setAssetsExpanded(false);
+    setCharactersExpanded(false);
+    setColliderExpanded(false);
+  };
+
+  const expandExplorerSearchMatches = (
+    nextAssetTree: KaykitTreeNode | null,
+    nextCharacterTree: KaykitTreeNode | null,
+  ) => {
+    const assetMatches = nextAssetTree ? treeHasFileNodes(nextAssetTree) : false;
+    const characterMatches = nextCharacterTree ? treeHasFileNodes(nextCharacterTree) : false;
+
+    setAssetsExpanded(assetMatches);
+    setCharactersExpanded(characterMatches);
+    setExpanded(() => {
+      const next = new Set<string>();
+      if (assetMatches && nextAssetTree) {
+        for (const p of collectTreeDirPaths(nextAssetTree)) {
+          next.add(scopeExplorerDirPath('assets', p));
+        }
+      }
+      if (characterMatches && nextCharacterTree) {
+        for (const p of collectTreeDirPaths(nextCharacterTree)) {
+          next.add(scopeExplorerDirPath('characters', p));
+        }
+      }
+      return next;
+    });
+  };
+
+  const clearExplorerSearch = () => {
+    setExplorerQueryInput('');
+    setExplorerQuery('');
+    collapseExplorerExpansion();
+  };
+
   useEffect(() => {
     if (!assetTree && !characterTree) return;
 
     const prevQuery = prevExplorerQueryRef.current;
     prevExplorerQueryRef.current = explorerQuery;
 
-    if (explorerQuery.length <= prevQuery.length) return;
+    const hadQuery = prevQuery.trim().length > 0;
+    const hasQuery = explorerQuery.trim().length > 0;
 
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (assetTree) {
-        for (const p of collectDirPaths(assetTree)) {
-          next.add(scopeExplorerDirPath('assets', p));
-        }
-      }
-      if (characterTree) {
-        for (const p of collectDirPaths(characterTree)) {
-          next.add(scopeExplorerDirPath('characters', p));
-        }
-      }
-      return next;
-    });
+    if (!hasQuery) {
+      if (hadQuery) collapseExplorerExpansion();
+      return;
+    }
+
+    expandExplorerSearchMatches(assetTree, characterTree);
   }, [assetTree, characterTree, explorerQuery]);
 
   const onToggleDir = (dirPath: string) => {
@@ -162,6 +178,7 @@ export const useManifestExplorer = ({ active, setStatus }: UseManifestExplorerPa
     setExplorerQueryInput,
     explorerQuery,
     setExplorerQuery,
+    clearExplorerSearch,
     assetsExpanded,
     setAssetsExpanded,
     charactersExpanded,

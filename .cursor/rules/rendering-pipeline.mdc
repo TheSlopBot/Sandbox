@@ -20,7 +20,7 @@ Post-process chain   → ping-pong → canvas
 Compute (when enabled) runs before/alongside draw prep:
 - skeletal pose / skin palette / attachments
 - static prop cull → indirect draws
-- collision resolve (optional; compact root readback only)
+- collision resolve (optional GPU alternate — **not installed** in sandbox; CPU `installCharacterPhysicsSystem` is canonical)
 
 ## Post-Process Chain
 
@@ -75,5 +75,5 @@ Opaque non-batched items are sorted by material/mesh affinity. Transparent items
 ## Sync rules
 
 - Skinning / bone attachments: GPU-only between compute pose and draw
-- Character bodies: CPU broadphase + cylinder resolve, or optional GPU resolve with compact root SoA readback only
+- Character bodies: CPU broadphase + `resolveCylinderMoveAndSlide` (sandbox default). Optional GPU resolve (`installCollisionSystem`) has no slope sliding — do not use both on the same scene registry.
 - Never require per-frame full joint-tree readback for rendering

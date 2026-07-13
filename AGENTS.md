@@ -46,7 +46,15 @@ Code must be self-documenting through names and types. Do not add `//` inline co
 | `useX()` | Registry-level singleton (engine-layer only) |
 | `swapX()` | Runtime replacement of model, clip, or material on an existing entity |
 
-**Movement** is the canonical term for character intent: `movementIntent`. Animation state and clip maps live on `animationStateMachine` and `animationClipMap` — not on `character`. Never use `locomotion` in names or docs.
+**Movement** is the canonical term for character intent: `movementIntent`. Animation state and clip maps live on `animationStateMachine` and `animationClipMap` — not on `character`. `character` is physics only: `velocity`, `onGround`, `sliding`, `groundNormal`, jump coyote/buffer. Never use `locomotion` in names or docs.
+
+### Character collision
+
+- CPU path: `installCharacterPhysicsSystem` + `resolveCylinderMoveAndSlide` in `viberanium/collision/`
+- Body cylinder from authored `collider` on character entity — not from `character` fields
+- No `ramp` type — rotated box colliders; slope behavior is angle-based (walk ≤ 50°, slide 50°–80°, wall > 80° with defaults)
+- Slope slide (`character.sliding`) suppresses input and applies downhill velocity; wall slide is transient velocity projection during resolve
+- Sandbox installs CPU collision only — not `installCollisionSystem` (optional GPU alternate)
 
 ---
 
@@ -57,7 +65,7 @@ viberanium/src/
   engine/       core loop, registry, entity
   math/         vec3, mat4, quat
   input/        createInput
-  collision/    aabb, obb — pure math only
+  collision/    characterContact, characterCollision, broadphase — pure math, no registry
   components/   shared component types (hierarchy, meshDraws, animation, …)
   systems/      install*System processors
   navigation/   A* pathfinding helpers

@@ -113,8 +113,8 @@ export const AssetExplorer = ({
               aria-label="Clear search"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
-                onQueryClear?.();
-                onQueryChange('');
+                if (onQueryClear) onQueryClear();
+                else onQueryChange('');
                 searchInputRef.current?.focus();
               }}
             >

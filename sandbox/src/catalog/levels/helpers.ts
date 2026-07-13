@@ -165,7 +165,7 @@ export const buildDummySpawnInstances = (
     occupied.push({
       x: prop.position[0],
       z: prop.position[2],
-      radius: prop.indexId === 'cube_large' ? 2.5 : 1.5,
+      radius: prop.indexId === 'cube_large' || prop.indexId === 'plank' ? 2.5 : 1.5,
     });
   }
 

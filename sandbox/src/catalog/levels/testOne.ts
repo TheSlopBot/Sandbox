@@ -1,4 +1,4 @@
-import { type LevelDefinition } from './levelDefinition.ts';
+import { type LevelDefinition, type LevelPropInstance } from './levelDefinition.ts';
 import { type LevelBuild } from './levelSeed.ts';
 import { DEFAULT_NAV_GRID, actorInstance, buildDummySpawnInstances, indexById, propInstance, withTestAi } from './helpers.ts';
 import { getPropDefinition } from '../props/registry.ts';
@@ -23,9 +23,29 @@ const CUBE_LARGE_PLACEMENTS: Array<{ x: number; z: number; yaw?: number }> = [
   { x: -11.5, z: 7.0, yaw: -Math.PI / 3 },
 ];
 
+const PLANK_PLACEMENTS: readonly LevelPropInstance[] = [
+  {
+    id: 'prop_1',
+    kind: 'standardProp',
+    indexId: 'plank',
+    position: [10.694493293762207, 3.1431872844696045, 2.7608726024627686],
+    rotation: [-0.1921161264181137, 0.48069220781326294, 0.10882005840539932, 0.8486368656158447],
+    scale: [1, 1, 1],
+  },
+  {
+    id: 'prop_2',
+    kind: 'standardProp',
+    indexId: 'plank',
+    position: [12.271650314331055, 1.584024429321289, 7.097674369812012],
+    rotation: [-0.7959551215171814, -0.17626774311065674, -0.25302982330322266, 0.5209231972694397],
+    scale: [1, 1, 1],
+  },
+];
+
 const props = [
   ...CUBE_SMALL_PLACEMENTS.map((p, i) => propInstance(`cubeSmall${i}`, 'cube_small', p.x, p.z, { yaw: p.yaw })),
   ...CUBE_LARGE_PLACEMENTS.map((p, i) => propInstance(`cubeLarge${i}`, 'cube_large', p.x, p.z, { yaw: p.yaw })),
+  ...PLANK_PLACEMENTS,
 ];
 
 const robots = [
@@ -49,7 +69,11 @@ const definition: LevelDefinition = {
   navGrid: DEFAULT_NAV_GRID,
   index: {
     simpleProps: {},
-    standardProps: indexById([getPropDefinition('cube_small'), getPropDefinition('cube_large')]),
+    standardProps: indexById([
+      getPropDefinition('cube_small'),
+      getPropDefinition('cube_large'),
+      getPropDefinition('plank'),
+    ]),
     simpleActors: {},
     standardActors: indexById([ROBOT_ACTORS.one, ROBOT_ACTORS.ome, ...Object.values(DUMMY_ACTORS)]),
   },

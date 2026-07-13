@@ -42,7 +42,25 @@ Mesh sub-entities are allowed only for static props (`renderGroup`) until props 
 | `animationClipMap` | `clips` keyed by `AnimStateId` — state → retargeted clip |
 | `animationStateMachine` | current state, timers, playback tuning — not on `character` |
 
-`character` is **physics only** (velocity, gravity, onGround). Body cylinder dims come from an authored actor collider (`collision` cylinder, typically `parent: { kind: 'character' }`) attached at spawn — not from `character` fields. Animation timing and blend weights live on `animationStateMachine` and per-clip components.
+`character` is **physics only** (velocity, gravity, `onGround`, `sliding`, `groundNormal`). Body cylinder dims come from an authored actor `collider` (cylinder, typically `parent: { kind: 'character' }`) attached at spawn — not from `character` fields. Animation timing and blend weights live on `animationStateMachine` and per-clip components.
+
+### CharacterController fields
+
+| Field | Role |
+|-------|------|
+| `velocity`, `moveSpeed`, `jumpSpeed`, `gravity` | Integration + tuning |
+| `onGround` | Walkable floor contact (slope ≤ `floorMaxAngle`) |
+| `sliding` | Active slope-slide state (steep box faces) |
+| `slideSpeed` | Current downhill slide speed magnitude |
+| `slideIgnoreInputRemaining` | Post-slide input lockout (seconds) |
+| `groundNormal` | Surface normal when grounded or sliding |
+| `floorMaxAngle` | Max walkable slope (default 50°) |
+| `obstructiveColliderKeys` | Component keys queried as static obstacles (default `[collider]`) |
+| `coyoteRemaining`, `jumpBufferRemaining` | Jump grace windows |
+
+### Collider component
+
+Static props and level geometry use `isStatic: true`. Character body colliders use `isStatic: false` (the mover, not an obstacle). Shapes: `box`, `cylinder`, `sphere`, `ellipsoid`. Authored `localShape` is baked to world `shape` + `aabb` each frame by `installColliderTransformSystem` when `transform.dirty`.
 
 ## Component rules
 
@@ -66,7 +84,8 @@ Player and AI characters share movement, physics, collision, and animation syste
 | `playerController` (sandbox) | — (tag) | `installPlayerInputSystem` |
 | `testAi` (sandbox) | — (data) | `installTestAiSystem` |
 | `movementIntent` | controller systems | `installMovementSystem` |
-| `character` | movement + physics | physics, yaw (`installCharacterStateSystem`) |
+| `character` | movement + physics | physics, yaw (`installCharacterStateSystem`), animation FSM |
+| `collider` (character body) | spawn (`attachActorBodyCollider`) | `readCharacterBodyCylinder` in physics |
 | `animationStateMachine` | `installAnimationFsmSystem`, movement jump | pose system |
 | `animationClipMap` | spawn from character def | pose system |
 | `navGrid` | — (data, `dirty` flag) | `installNavGridSystem` (rebuild when dirty), `installTestAiSystem` |
@@ -102,6 +121,59 @@ registry.deregister(entity.id);
 - `game.setActiveScene(null)` drops the active scene; the `Scene` object is discarded after `switchTo` completes
 - Frame loop runs game registry actions first, then active scene registry actions
 - Construct **level editor** placements use editor tags (`editableTarget`, level placement) without playable `testAi` / player — playable spawn remains sandbox `useLevelScene`
+
+## Character collision
+
+CPU cylinder move-and-slide in `viberanium/collision/` — pure math, no registry. Gameplay uses `installCharacterPhysicsSystem`; optional GPU resolve (`installCollisionSystem`) is exported but **not installed** in sandbox.
+
+### Module layout
+
+| File | Role |
+|------|------|
+| `collision/characterContact.ts` | Capsule-vs-shape narrowphase, box top queries, footprint overlap |
+| `collision/characterCollision.ts` | Contact classification, floor snap, wall slide, slope slide, `resolveCylinderMoveAndSlide` |
+| `collision/collisionBroadphase.ts` | 64×64 spatial grid for static colliders |
+| `systems/colliderTransformSystem.ts` | Bake `localShape` → world `shape` |
+| `systems/movementSystem.ts` | Intent → velocity; ground-plane projection; blocks input while sliding |
+| `systems/characterPhysicsSystem.ts` | Gravity, substep integrate, broadphase query, resolve, slide speed |
+| `systems/characterStateSystem.ts` | Yaw toward intent — skipped while sliding |
+| `spawn/attachActorBodyCollider.ts` | Dynamic cylinder collider on character entity |
+
+### Pipeline
+
+```
+Controllers → movementIntent
+  → movementSystem (8): desiredVelocity → velocity; project onto groundNormal when onGround
+  → colliderTransformSystem (8): static collider world bake
+  → characterPhysicsSystem (9–10): integrate → resolveCylinderMoveAndSlide → onGround/sliding/groundNormal
+  → characterStateSystem (13): yaw (skipped when sliding)
+```
+
+Broadphase candidates come from `getNearbyObstacles(registry, character.obstructiveColliderKeys, x, z, radius)`. `markNavGridDirty` also invalidates the collision broadphase.
+
+### Ramps (no dedicated type)
+
+There is **no `ramp` component or identifier**. Ramps are **rotated box colliders** — prop colliders, level `composition.colliders` placements, or Construct-authored geometry with non-identity rotation. Slope behavior is angle-based via contact normals:
+
+| Slope angle (from horizontal) | Classification | Behavior |
+|-------------------------------|----------------|----------|
+| 0°–`floorMaxAngle` (default 50°) | Walkable floor | `onGround`; movement projected onto `groundNormal` |
+| `floorMaxAngle`–80° (`SLIDE_MAX_ANGLE`) | Slide slope | `sliding`; downhill auto-velocity; input suppressed |
+| > 80° | Wall | Blocked; wall-slide velocity projection |
+
+### Two kinds of "slide"
+
+| Kind | Mechanism | State |
+|------|-----------|-------|
+| **Slope slide** | `character.sliding` + `applySlideVelocity` on steep box faces | Persistent until walkable floor or jump cancel |
+| **Wall slide** | `slideVelocityOnWall` strips velocity into walls during resolve | No persistent state |
+
+Slope slide starts when landing on or hitting a 50°–80° box face while airborne. `slideSpeed` ramps from `moveSpeed × SLIDE_START_SPEED_FACTOR` to `moveSpeed × SLIDE_MAX_SPEED_FACTOR`. Jump during slide coyote cancels sliding. `animationStateMachine` treats sliding as grounded (no run anim).
+
+### Ground plane
+
+`readGroundPlaneY(registry)` reads the infinite horizontal floor from the `groundPlane` entity — separate from prop/box colliders. Resolver snaps feet to this Y when below it.
+
 ## Nav grid
 
 The nav grid is a first-class scene component — not a hidden cache inside an AI system.
@@ -133,6 +205,7 @@ Bounds come from `LevelDefinition.navGrid` in the level catalog.
 - **Do not** rebuild the nav grid every update — only when `navGrid.dirty` is true
 - **Do** call `markNavGridDirty(registry)` when static colliders are added or removed during an active level (e.g. `instantiateProp`, runtime destructibles)
 - AI systems read the scene grid via `registry.view(COMPONENT_KEYS.navGrid)` — never build or cache their own grid
+- Nav grid blocking uses XZ footprint overlap only — **no slope-angle awareness**; any static collider footprint blocks the cell
 
 ## Forbidden
 
@@ -147,3 +220,6 @@ Bounds come from `LevelDefinition.navGrid` in the level catalog.
 - `rigRenderMeshes`, `rigOwner`, `skeletalAnimations` blobs, shared `Transform` refs across entities
 - Orphan render sub-entities for skeletal body meshes — use `meshDraws` on the logic entity
 - Monolithic `installSkeletalAnimationSystem` — use `installSkeletalCharacterSystems`
+- `ramp` as a component type, collider kind, or identifier — use rotated box colliders
+- Installing both `installCharacterPhysicsSystem` and `installCollisionSystem` on the same scene registry
+- Collision math that imports registry or systems — keep it in `viberanium/collision/`

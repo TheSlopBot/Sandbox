@@ -23,10 +23,10 @@ Lower `order` runs first within a phase. Reserve bands:
 | 5 | update | player input, AI controller |
 | 6 | update | test AI pathfinding (sandbox `installTestAiSystem`) |
 | 7 | update | transform hierarchy (`installTransformHierarchySystem`) |
-| 8 | update | movement (intent → velocity, jump → FSM) |
-| 9–10 | update | CPU character physics (`installCharacterPhysicsSystem`: broadphase@9, resolve@10) |
+| 8 | update | collider world bake (`installColliderTransformSystem`), movement (intent → velocity, jump → FSM; blocks input while sliding) |
+| 9–10 | update | CPU character physics (`installCharacterPhysicsSystem`: broadphase@9, integrate + `resolveCylinderMoveAndSlide`@10) |
 | 12 | update | animation FSM (`installAnimationFsmSystem`) |
-| 13 | update | character yaw (`installCharacterStateSystem`) |
+| 13 | update | character yaw (`installCharacterStateSystem`; skipped while `character.sliding`) |
 | 0 | postUpdate | camera follow; GPU skeletal pose gather (`installSkeletalGpuPoseSystem`) |
 | 0 | draw | render pipeline (pose encode + cull + forward) |
 | 0 | commit | input.commitFrame() |
@@ -132,4 +132,25 @@ Sandbox `createPlayableScene` installs `installSkeletalCharacterSystems` (not a 
 | `installAnimationFsmSystem` | update | `animationStateMachine` state + timers |
 | `installSkeletalGpuPoseSystem` | postUpdate gather; draw encode | GPU joint palettes + mesh/attachment models |
 
-Install `installCharacterStateSystem` and `installMovementSystem` separately on the scene registry. Character collision is CPU via `installCharacterPhysicsSystem` (broadphase query + cylinder resolve); GPU pose/cull/render stay unchanged.
+Install `installCharacterStateSystem`, `installMovementSystem`, `installColliderTransformSystem`, and `installCharacterPhysicsSystem` separately on the scene registry. Character collision is CPU via `installCharacterPhysicsSystem` (broadphase query + cylinder `resolveCylinderMoveAndSlide`); GPU pose/cull/render stay unchanged.
+
+## Character collision systems
+
+Sandbox `createPlayableScene` installs the CPU collision stack only — not `installCollisionSystem` (optional GPU alternate).
+
+| Installer | Order | Role |
+|-----------|-------|------|
+| `installColliderTransformSystem` | 8 | Bake static `localShape` → world `shape` when `transform.dirty` |
+| `installMovementSystem` | 8 | `movementIntent` → `character.velocity`; project onto `groundNormal` when `onGround`; zero input while `sliding` or `slideIgnoreInputRemaining > 0` |
+| `installCharacterPhysicsSystem` | 9–10 | Fixed substep (`1/144` s, max 4); gravity when `!onGround && !sliding`; integrate; `resolveCylinderMoveAndSlide`; update `onGround` / `sliding` / `groundNormal` / `slideSpeed` |
+| `installCharacterStateSystem` | 13 | Yaw toward movement intent — skipped while sliding |
+
+### Slope and slide behavior
+
+No `ramp` type — rotated box colliders act as ramps. Contact normals classify surfaces:
+
+- **Walkable floor** (`normalY ≥ cos(floorMaxAngle)`): `onGround`, movement follows `groundNormal`
+- **Slide slope** (`cos(80°) < normalY < cos(floorMaxAngle)`): `sliding`, downhill `applySlideVelocity`, input blocked
+- **Wall** (else): velocity projected along wall tangent (`slideVelocityOnWall`)
+
+Pure collision math lives in `viberanium/collision/characterContact.ts` and `characterCollision.ts`. Systems query obstacles per character via broadphase — never pass collider arrays into installers.

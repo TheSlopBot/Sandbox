@@ -65,6 +65,7 @@ construct/src/
 - Details: rename; simple variants; actor `aiPackage`; Group / Delete footer; ground plane and player spawn non-deletable (ground: move+scale only; player spawn: move+yaw only).
 - Preview HUD: status + Show colliders (prop/actor/level); Show bones (actor only).
 - Gizmos: instance / group root / temp multi-select pivot; world move; TRS relative to level origin; scale collider-only or ground plane; actors/player spawn yaw-only rotate; ground plane no rotate.
+- Rotated box colliders (prop parts or level collider placements) serve as **ramps** at runtime — no dedicated ramp type; slope walk/slide behavior is angle-based in the CPU collision resolver.
 - Files: `.level` save/load/import/export via `levelLocalStore` (`construct.levelLocalStore`).
 
 ## Entity rule

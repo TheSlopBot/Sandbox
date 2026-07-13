@@ -1,12 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { type KaykitTreeNode } from '../../catalog/manifest/kaykitManifest.ts';
 import { type PropLocalStoreEntry } from '../../storage/propLocalStore.ts';
 import { type ActorLocalStoreEntry } from '../../storage/actorLocalStore.ts';
 import { Tree } from './Tree.tsx';
 import { EXPLORER_EXPAND_SCOPE, scopeExplorerDirPath } from './AssetExplorer.tsx';
+import { matchesExplorerSearch, treeHasFileNodes } from './explorerSearch.ts';
 
 export type LevelExplorerProps = {
   query: string;
+  searchQuery: string;
   onQueryChange: (value: string) => void;
   onQueryClear?: () => void;
   assetTree: KaykitTreeNode | null;
@@ -41,6 +43,7 @@ const unscopeExpanded = (expanded: ReadonlySet<string>, scope: keyof typeof EXPL
 
 export const LevelExplorer = ({
   query,
+  searchQuery,
   onQueryChange,
   onQueryClear,
   assetTree,
@@ -69,7 +72,51 @@ export const LevelExplorer = ({
   const [standardExpanded, setStandardExpanded] = useState(false);
   const [standardPropsExpanded, setStandardPropsExpanded] = useState(false);
   const [standardActorsExpanded, setStandardActorsExpanded] = useState(false);
+  const prevSearchQueryRef = useRef(searchQuery);
   const hasQuery = query.trim().length > 0;
+  const hasSearchQuery = searchQuery.trim().length > 0;
+
+  useEffect(() => {
+    const prevQuery = prevSearchQueryRef.current;
+    prevSearchQueryRef.current = searchQuery;
+
+    const hadQuery = prevQuery.trim().length > 0;
+    const activeQuery = searchQuery.trim().length > 0;
+
+    if (!activeQuery) {
+      if (hadQuery) {
+        setSimpleExpanded(false);
+        setStandardExpanded(false);
+        setStandardPropsExpanded(false);
+        setStandardActorsExpanded(false);
+      }
+      return;
+    }
+
+    const assetMatches = assetTree ? treeHasFileNodes(assetTree) : false;
+    const characterMatches = characterTree ? treeHasFileNodes(characterTree) : false;
+    const propMatches = localPropEntries.some((entry) =>
+      matchesExplorerSearch(searchQuery, entry.displayName),
+    );
+    const actorMatches = localActorEntries.some((entry) =>
+      matchesExplorerSearch(searchQuery, entry.displayName),
+    );
+
+    if (assetMatches || characterMatches) setSimpleExpanded(true);
+    if (propMatches || actorMatches) setStandardExpanded(true);
+    if (propMatches) setStandardPropsExpanded(true);
+    if (actorMatches) setStandardActorsExpanded(true);
+  }, [searchQuery, assetTree, characterTree, localPropEntries, localActorEntries]);
+
+  const visiblePropEntries = useMemo(() => {
+    if (!hasSearchQuery) return localPropEntries;
+    return localPropEntries.filter((entry) => matchesExplorerSearch(searchQuery, entry.displayName));
+  }, [hasSearchQuery, searchQuery, localPropEntries]);
+
+  const visibleActorEntries = useMemo(() => {
+    if (!hasSearchQuery) return localActorEntries;
+    return localActorEntries.filter((entry) => matchesExplorerSearch(searchQuery, entry.displayName));
+  }, [hasSearchQuery, searchQuery, localActorEntries]);
   const assetExpanded = unscopeExpanded(expanded, 'assets');
   const characterExpanded = unscopeExpanded(expanded, 'characters');
 
@@ -94,8 +141,8 @@ export const LevelExplorer = ({
               aria-label="Clear search"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
-                onQueryClear?.();
-                onQueryChange('');
+                if (onQueryClear) onQueryClear();
+                else onQueryChange('');
                 searchInputRef.current?.focus();
               }}
             >
@@ -173,12 +220,12 @@ export const LevelExplorer = ({
                   <div className="treeName">Props</div>
                 </div>
                 {standardPropsExpanded ? (
-                  localPropEntries.length === 0 ? (
+                  visiblePropEntries.length === 0 ? (
                     <div className="mutedNote" style={{ paddingLeft: 24 }}>
-                      No saved props.
+                      {hasSearchQuery ? 'No matching props.' : 'No saved props.'}
                     </div>
                   ) : (
-                    localPropEntries.map((entry) => (
+                    visiblePropEntries.map((entry) => (
                       <div key={entry.id} className="treeRowWithAdd" style={{ paddingLeft: 24 }}>
                         <div className="treeRow">
                           <div className="treeIcon">▣</div>
@@ -206,12 +253,12 @@ export const LevelExplorer = ({
                   <div className="treeName">Actors</div>
                 </div>
                 {standardActorsExpanded ? (
-                  localActorEntries.length === 0 ? (
+                  visibleActorEntries.length === 0 ? (
                     <div className="mutedNote" style={{ paddingLeft: 24 }}>
-                      No saved actors.
+                      {hasSearchQuery ? 'No matching actors.' : 'No saved actors.'}
                     </div>
                   ) : (
-                    localActorEntries.map((entry) => (
+                    visibleActorEntries.map((entry) => (
                       <div key={entry.id} className="treeRowWithAdd" style={{ paddingLeft: 24 }}>
                         <div className="treeRow">
                           <div className="treeIcon">◎</div>

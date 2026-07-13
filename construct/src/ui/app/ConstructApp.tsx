@@ -83,7 +83,8 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     setSelectedEntry,
     explorerQueryInput,
     setExplorerQueryInput,
-    setExplorerQuery,
+    explorerQuery,
+    clearExplorerSearch,
     assetsExpanded,
     setAssetsExpanded,
     charactersExpanded,
@@ -443,8 +444,9 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
   const levelExplorer = (
     <LevelExplorer
       query={explorerQueryInput}
+      searchQuery={explorerQuery}
       onQueryChange={setExplorerQueryInput}
-      onQueryClear={() => setExplorerQuery('')}
+      onQueryClear={clearExplorerSearch}
       assetTree={assetTree}
       characterTree={characterTree}
       expanded={expanded}
@@ -471,7 +473,7 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     <AssetExplorer
       query={explorerQueryInput}
       onQueryChange={setExplorerQueryInput}
-      onQueryClear={() => setExplorerQuery('')}
+      onQueryClear={clearExplorerSearch}
       assetTree={assetTree}
       characterTree={characterTree}
       expanded={expanded}

@@ -177,6 +177,35 @@ const worldFromLocal = (out: Vec3, local: Vec3, center: Vec3, rotation: Quat) =>
 
 export const bodyFeetY = (body: BodyY): number => body.y - body.halfHeight - body.radius;
 
+const alongBoxTopNormal = (
+  center: Vec3,
+  rotation: Quat,
+  worldY: number,
+  x: number,
+  z: number,
+): number => {
+  const topNormal = boxTopSurfaceNormal(rotation);
+  return (x - center[0]) * topNormal.nx + (worldY - center[1]) * topNormal.ny + (z - center[2]) * topNormal.nz;
+};
+
+const boxFootAlongTopNormal = (
+  center: Vec3,
+  rotation: Quat,
+  body: BodyY,
+): number => alongBoxTopNormal(center, rotation, bodyFeetY(body), body.x, body.z);
+
+export const isBodyOnBoxWalkableTop = (
+  center: Vec3,
+  halfExtents: Vec3,
+  rotation: Quat,
+  body: BodyY,
+  snapDistance = 0.05,
+): boolean => {
+  const hy = halfExtents[1]!;
+  const footAlong = boxFootAlongTopNormal(center, rotation, body);
+  return footAlong >= hy - snapDistance;
+};
+
 export const boxTopSurfaceYAt = (
   center: Vec3,
   halfExtents: Vec3,
@@ -301,11 +330,20 @@ const contactVsBox = (
     let nz = 0;
     let push = 0;
     if (feetBelowTop && overFootprint) {
-      ny = 1;
-      push = hy - _p[1];
-      _q[0] = _p[0];
-      _q[1] = hy;
-      _q[2] = _p[2];
+      const footAlong = alongBoxTopNormal(center, rotation, footWorld, body.x, body.z);
+      if (footAlong >= hy - 0.05) {
+        ny = 1;
+        push = hy - _p[1];
+        _q[0] = _p[0];
+        _q[1] = hy;
+        _q[2] = _p[2];
+      } else {
+        ny = -1;
+        push = _p[1] + hy;
+        _q[0] = _p[0];
+        _q[1] = -hy;
+        _q[2] = _p[2];
+      }
     } else if (feetBelowTop) {
       if (dx <= dz) {
         nx = _p[0] >= 0 ? 1 : -1;

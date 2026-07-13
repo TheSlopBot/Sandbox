@@ -1,6 +1,7 @@
 export const KAYKIT = `${import.meta.env.BASE_URL}assets/kaykit`;
 
 const PROTOTYPE_GLTF = `${KAYKIT}/KayKit Prototype Bits 1.1/Assets/gltf`;
+const RESOURCE_GLTF = `${KAYKIT}/KayKit Resource Bits 1.0/Assets/gltf`;
 
 export const CUBE_SMALL = `${PROTOTYPE_GLTF}/Cube_Prototype_Small.gltf`;
 export const CUBE_LARGE = `${PROTOTYPE_GLTF}/Cube_Prototype_Large_B.gltf`;
@@ -17,6 +18,7 @@ export const TARGET_STAND_A_DECORATED = `${PROTOTYPE_GLTF}/target_stand_A_Decora
 export const WALL_WINDOW_OPEN = `${PROTOTYPE_GLTF}/Wall_Window_Open.gltf`;
 export const WEAPONRACK_DECORATED = `${PROTOTYPE_GLTF}/Weaponrack_Decorated.gltf`;
 export const WORKBENCH_DECORATED = `${PROTOTYPE_GLTF}/Workbench_Decorated.gltf`;
+export const WOOD_PLANK_B = `${RESOURCE_GLTF}/Wood_Plank_B.gltf`;
 
 export const DUMMY_GLB = `${KAYKIT}/KayKit Prototype Bits 1.1/Character/Dummy.glb`;
 export const DUMMY_TEX_PRIMARY = `${KAYKIT}/KayKit Prototype Bits 1.1/textures/prototypebits_texture.png`;
