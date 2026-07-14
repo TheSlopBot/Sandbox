@@ -48,7 +48,7 @@ export const stepAnimationFsm = (
   const grounded = cc.onGround || cc.sliding || cc.coyoteRemaining > 0;
   const moving = isMoving(cc, intent);
 
-  if (grounded && (fsm.current === 'jumpStart' || fsm.current === 'jumpAir')) {
+  if ((cc.onGround || cc.coyoteRemaining > 0) && (fsm.current === 'jumpStart' || fsm.current === 'jumpAir')) {
     if (moving) fsm.current = 'run';
     else {
       fsm.current = 'jumpLand';
