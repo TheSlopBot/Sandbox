@@ -177,34 +177,7 @@ const worldFromLocal = (out: Vec3, local: Vec3, center: Vec3, rotation: Quat) =>
 
 export const bodyFeetY = (body: BodyY): number => body.y - body.halfHeight - body.radius;
 
-const alongBoxTopNormal = (
-  center: Vec3,
-  rotation: Quat,
-  worldY: number,
-  x: number,
-  z: number,
-): number => {
-  const topNormal = boxTopSurfaceNormal(rotation);
-  return (x - center[0]) * topNormal.nx + (worldY - center[1]) * topNormal.ny + (z - center[2]) * topNormal.nz;
-};
-
-const boxFootAlongTopNormal = (
-  center: Vec3,
-  rotation: Quat,
-  body: BodyY,
-): number => alongBoxTopNormal(center, rotation, bodyFeetY(body), body.x, body.z);
-
-export const isBodyOnBoxWalkableTop = (
-  center: Vec3,
-  halfExtents: Vec3,
-  rotation: Quat,
-  body: BodyY,
-  snapDistance = 0.05,
-): boolean => {
-  const hy = halfExtents[1]!;
-  const footAlong = boxFootAlongTopNormal(center, rotation, body);
-  return footAlong >= hy - snapDistance;
-};
+const BOX_SURFACE_EPS = 0.05;
 
 export const boxTopSurfaceYAt = (
   center: Vec3,
@@ -226,12 +199,6 @@ export const boxTopSurfaceYAt = (
   return _q[1];
 };
 
-export const boxTopSurfaceNormal = (rotation: Quat): BodyContact => {
-  q4TransformVec3(_n, rotation, v3Set(_tmp, 0, 1, 0));
-  v3Normalize(_n, _n);
-  return { nx: _n[0], ny: _n[1], nz: _n[2], depth: 0 };
-};
-
 const _boxFaceLocals: readonly [number, number, number][] = [
   [1, 0, 0],
   [-1, 0, 0],
@@ -241,7 +208,7 @@ const _boxFaceLocals: readonly [number, number, number][] = [
   [0, 0, -1],
 ];
 
-export const snapBoxFaceNormal = (
+const snapBoxFaceNormal = (
   rotation: Quat,
   nx: number,
   ny: number,
@@ -295,6 +262,64 @@ const contactVsSphere = (
   return contactFromPoints(_p, center, body.radius, radius);
 };
 
+const pickBoxInsideSeparation = (
+  body: BodyY,
+  center: Vec3,
+  halfExtents: Vec3,
+  rotation: Quat,
+  localP: Vec3,
+  localSegA: Vec3,
+  localSegB: Vec3,
+): { lx: number; ly: number; lz: number; push: number } => {
+  const hx = halfExtents[0];
+  const hy = halfExtents[1];
+  const hz = halfExtents[2];
+  const dx = hx - Math.abs(localP[0]);
+  const dy = hy - Math.abs(localP[1]);
+  const dz = hz - Math.abs(localP[2]);
+  const capCx = (localSegA[0] + localSegB[0]) * 0.5;
+  const capCz = (localSegA[2] + localSegB[2]) * 0.5;
+  const overFootprint = Math.abs(capCx) <= hx && Math.abs(capCz) <= hz;
+  const footWorld = bodyFeetY(body);
+  const topAtFootprint = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
+  const aboveTop = footWorld >= topAtFootprint - BOX_SURFACE_EPS;
+
+  if (overFootprint && aboveTop) {
+    const highestY = Math.max(localSegA[1], localSegB[1]);
+    return { lx: 0, ly: 1, lz: 0, push: Math.max(hy - highestY, 0) };
+  }
+
+  if (aboveTop) {
+    const lateral = Math.min(dx, dz);
+    if (lateral > 0 && lateral <= dy) {
+      if (dx <= dz) return { lx: localP[0] >= 0 ? 1 : -1, ly: 0, lz: 0, push: dx };
+      return { lx: 0, ly: 0, lz: localP[2] >= 0 ? 1 : -1, push: dz };
+    }
+  }
+
+  if (dx <= dy && dx <= dz) return { lx: localP[0] >= 0 ? 1 : -1, ly: 0, lz: 0, push: dx };
+  if (dy <= dz) return { lx: 0, ly: localP[1] >= 0 ? 1 : -1, lz: 0, push: dy };
+  return { lx: 0, ly: 0, lz: localP[2] >= 0 ? 1 : -1, push: dz };
+};
+
+const boxContactFromLocalNormal = (
+  rotation: Quat,
+  lx: number,
+  ly: number,
+  lz: number,
+  push: number,
+  bodyRadius: number,
+): BodyContact => {
+  q4TransformVec3(_n, rotation, v3Set(_tmp, lx, ly, lz));
+  v3Normalize(_n, _n);
+  return {
+    nx: _n[0],
+    ny: _n[1],
+    nz: _n[2],
+    depth: push + bodyRadius,
+  };
+};
+
 const contactVsBox = (
   body: BodyY,
   center: Vec3,
@@ -316,76 +341,8 @@ const contactVsBox = (
     Math.abs(_p[0]) <= hx && Math.abs(_p[1]) <= hy && Math.abs(_p[2]) <= hz;
 
   if (inside) {
-    const dx = hx - Math.abs(_p[0]);
-    const dy = hy - Math.abs(_p[1]);
-    const dz = hz - Math.abs(_p[2]);
-    const footWorld = bodyFeetY(body);
-    const topAtFootprint = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
-    const feetBelowTop = footWorld < topAtFootprint - 0.05;
-    const capCx = (_la[0] + _lb[0]) * 0.5;
-    const capCz = (_la[2] + _lb[2]) * 0.5;
-    const overFootprint = Math.abs(capCx) <= hx && Math.abs(capCz) <= hz;
-    let nx = 0;
-    let ny = 0;
-    let nz = 0;
-    let push = 0;
-    if (feetBelowTop && overFootprint) {
-      const footAlong = alongBoxTopNormal(center, rotation, footWorld, body.x, body.z);
-      if (footAlong >= hy - 0.05) {
-        ny = 1;
-        push = hy - _p[1];
-        _q[0] = _p[0];
-        _q[1] = hy;
-        _q[2] = _p[2];
-      } else {
-        ny = -1;
-        push = _p[1] + hy;
-        _q[0] = _p[0];
-        _q[1] = -hy;
-        _q[2] = _p[2];
-      }
-    } else if (feetBelowTop) {
-      if (dx <= dz) {
-        nx = _p[0] >= 0 ? 1 : -1;
-        push = dx;
-        _q[0] = nx * hx;
-        _q[1] = _p[1];
-        _q[2] = _p[2];
-      } else {
-        nz = _p[2] >= 0 ? 1 : -1;
-        push = dz;
-        _q[0] = _p[0];
-        _q[1] = _p[1];
-        _q[2] = nz * hz;
-      }
-    } else if (dx <= dy && dx <= dz) {
-      nx = _p[0] >= 0 ? 1 : -1;
-      push = dx;
-      _q[0] = nx * hx;
-      _q[1] = _p[1];
-      _q[2] = _p[2];
-    } else if (dy <= dz) {
-      ny = _p[1] >= 0 ? 1 : -1;
-      push = dy;
-      _q[0] = _p[0];
-      _q[1] = ny * hy;
-      _q[2] = _p[2];
-    } else {
-      nz = _p[2] >= 0 ? 1 : -1;
-      push = dz;
-      _q[0] = _p[0];
-      _q[1] = _p[1];
-      _q[2] = nz * hz;
-    }
-    q4TransformVec3(_n, rotation, v3Set(_tmp, nx, ny, nz));
-    v3Normalize(_n, _n);
-    worldFromLocal(_segA, _p, center, rotation);
-    return {
-      nx: _n[0],
-      ny: _n[1],
-      nz: _n[2],
-      depth: push + body.radius,
-    };
+    const sep = pickBoxInsideSeparation(body, center, halfExtents, rotation, _p, _la, _lb);
+    return boxContactFromLocalNormal(rotation, sep.lx, sep.ly, sep.lz, sep.push, body.radius);
   }
 
   worldFromLocal(_segA, _p, center, rotation);
@@ -393,27 +350,9 @@ const contactVsBox = (
   const hit = contactFromPoints(_segA, _segB, body.radius, 0);
   if (!hit) return null;
 
-  const onX = Math.abs(Math.abs(_q[0]) - hx) <= 1e-4;
-  const onY = Math.abs(Math.abs(_q[1]) - hy) <= 1e-4;
-  const onZ = Math.abs(Math.abs(_q[2]) - hz) <= 1e-4;
-  const faces = (onX ? 1 : 0) + (onY ? 1 : 0) + (onZ ? 1 : 0);
-
-  if (faces === 1) {
-    let lx = 0;
-    let ly = 0;
-    let lz = 0;
-    if (onX) lx = _q[0] >= 0 ? 1 : -1;
-    else if (onY) ly = _q[1] >= 0 ? 1 : -1;
-    else lz = _q[2] >= 0 ? 1 : -1;
-
-    q4TransformVec3(_n, rotation, v3Set(_tmp, lx, ly, lz));
-    v3Normalize(_n, _n);
-    return {
-      nx: _n[0],
-      ny: _n[1],
-      nz: _n[2],
-      depth: hit.depth,
-    };
+  const face = snapBoxFaceNormal(rotation, hit.nx, hit.ny, hit.nz);
+  if (face) {
+    return { nx: face.nx, ny: face.ny, nz: face.nz, depth: hit.depth };
   }
 
   return hit;
@@ -546,70 +485,6 @@ export const contactBodyVsCollider = (
   body: BodyY,
   collider: Collider,
 ): BodyContact | null => contactBodyVsShape(body, collider.shape);
-
-export const separateBodyVsBoxVolume = (
-  body: BodyY,
-  center: Vec3,
-  halfExtents: Vec3,
-  rotation: Quat,
-): BodyContact | null => {
-  const hx = halfExtents[0];
-  const hy = halfExtents[1];
-  const hz = halfExtents[2];
-  const r = body.radius;
-
-  toLocalSegment(body, center, rotation, _la, _lb);
-
-  const closestOnBox = (out: Vec3, p: Vec3) => {
-    clampAabbCentered(out, p, hx, hy, hz);
-  };
-
-  refineClosestOutside(_p, _q, _la, _lb, closestOnBox);
-
-  const cx = (_la[0] + _lb[0]) * 0.5;
-  const cz = (_la[2] + _lb[2]) * 0.5;
-  const footWorld = bodyFeetY(body);
-  const topAtFootprint = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
-  const onTopOfBox = footWorld >= topAtFootprint - 0.04;
-
-  const inside =
-    Math.abs(_p[0]) <= hx && Math.abs(_p[1]) <= hy && Math.abs(_p[2]) <= hz;
-
-  if (onTopOfBox && Math.abs(cx) <= hx && Math.abs(cz) <= hz) {
-    return null;
-  }
-
-  let depth = 0;
-  let lx = 0;
-  let lz = 0;
-
-  if (inside) {
-    const overFootprint = Math.abs(cx) <= hx && Math.abs(cz) <= hz;
-    if (overFootprint && footWorld < topAtFootprint - 0.04) return null;
-
-    const dx = hx - Math.abs(_p[0]);
-    const dy = hy - Math.abs(_p[1]);
-    const dz = hz - Math.abs(_p[2]);
-    const lateral = Math.min(dx, dz);
-    if (lateral <= 0) return null;
-    if (onTopOfBox && _p[1] > 0 && dy <= lateral && dy < r && lateral > r * 0.75) return null;
-
-    depth = lateral + r;
-    if (dx <= dz) lx = _p[0] >= 0 ? 1 : -1;
-    else lz = _p[2] >= 0 ? 1 : -1;
-  } else {
-    return null;
-  }
-
-  q4TransformVec3(_n, rotation, v3Set(_tmp, lx, 0, lz));
-  v3Normalize(_n, _n);
-  return {
-    nx: _n[0],
-    ny: _n[1],
-    nz: _n[2],
-    depth,
-  };
-};
 
 export const contactNormalDot = (contact: BodyContact, v: Vec3): number =>
   contact.nx * v[0] + contact.ny * v[1] + contact.nz * v[2];
