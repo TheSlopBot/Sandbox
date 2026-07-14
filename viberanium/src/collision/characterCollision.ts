@@ -1,10 +1,12 @@
 import { type Aabb, type Collider } from '../components/collider.ts';
+import { q4TransformVec3 } from '../math/quat.ts';
 import { type Vec3, v3, v3Set } from '../math/vec3.ts';
 import { aabbIntersects } from './aabb.ts';
 import {
   type BodyContact,
   type BodyY,
   bodyFeetY,
+  boxTopSurfaceYAt,
   contactBodyVsCollider,
   footprintOverlapsShape,
   projectOutOfNormal,
@@ -27,6 +29,8 @@ const _box: Aabb = {
 
 const _groundNormal = v3(0, 1, 0);
 const _downhill = v3();
+const _topNormal = v3();
+const _localUp = v3(0, 1, 0);
 
 export const bodyToAabb = (body: BodyY, out: Aabb): Aabb => {
   const extY = body.halfHeight + body.radius;
@@ -89,12 +93,23 @@ const depenetrate = (body: BodyY, contact: BodyContact): BodyY => ({
   z: body.z + contact.nz * contact.depth,
 });
 
-const isWithinFloorSnap = (foot: number, surfaceFoot: number): boolean =>
-  foot <= surfaceFoot + SURFACE_EPS &&
-  surfaceFoot - foot <= SURFACE_EPS;
+const applyFloorPush = (body: BodyY, contact: BodyContact): BodyY => {
+  if (contact.ny > 0.15) {
+    return { ...body, y: body.y + contact.depth / contact.ny };
+  }
+
+  return depenetrate(body, contact);
+};
+
+const isWithinFloorSnap = (
+  foot: number,
+  surfaceFoot: number,
+  snapAbove = SURFACE_EPS,
+): boolean =>
+  foot <= surfaceFoot + snapAbove && surfaceFoot - foot <= SURFACE_EPS;
 
 const contactSurfaceFootY = (body: BodyY, contact: BodyContact): number =>
-  bodyFeetY(depenetrate(body, contact));
+  bodyFeetY(applyFloorPush(body, contact));
 
 const isWalkableFloorContact = (
   body: BodyY,
@@ -217,17 +232,19 @@ const trySurfaceSnap = (
   groundY: number,
   floorMaxAngle: number,
   outBox: Aabb,
+  alreadyOnGround = false,
 ): { body: BodyY; contact: BodyContact } | null => {
   const foot = body.y - body.halfHeight - body.radius;
   const ext = body.halfHeight + body.radius;
+  const snapAbove = alreadyOnGround ? SURFACE_EPS * 3 : SURFACE_EPS;
 
   let bestY = -Infinity;
   let bestBody: BodyY | null = null;
   let bestContact: BodyContact | null = null;
 
   const consider = (surfaceY: number, contact: BodyContact) => {
-    if (surfaceY > foot + SURFACE_EPS) return;
-    if (foot - surfaceY > SURFACE_EPS) return;
+    if (surfaceY > foot + snapAbove) return;
+    if (foot - surfaceY > snapAbove) return;
     if (surfaceY <= bestY + 1e-4) return;
 
     bestY = surfaceY;
@@ -235,14 +252,34 @@ const trySurfaceSnap = (
     bestBody = { ...body, y: surfaceY + ext };
   };
 
-  if (foot - groundY <= SURFACE_EPS) {
+  if (foot - groundY <= snapAbove) {
     consider(groundY, { nx: 0, ny: 1, nz: 0, depth: 0 });
   }
 
   const contact = findSupportFloorContact(body, obstacles, outBox, floorMaxAngle);
   if (contact) {
-    const snapped = depenetrate(body, contact);
+    const snapped = applyFloorPush(body, contact);
     consider(snapped.y - snapped.halfHeight - snapped.radius, contact);
+  }
+
+  for (const s of obstacles) {
+    if (!s.isStatic || s.shape.kind !== 'box') continue;
+
+    const { center, halfExtents, rotation } = s.shape;
+    if (!footprintOverlapsShape(s.shape, body.x, body.z, body.radius)) continue;
+
+    const topY = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
+    if (!Number.isFinite(topY)) continue;
+
+    q4TransformVec3(_topNormal, rotation, _localUp);
+    if (classifyContact(_topNormal[1], floorMaxAngle) !== 'floor') continue;
+
+    consider(topY, {
+      nx: _topNormal[0],
+      ny: _topNormal[1],
+      nz: _topNormal[2],
+      depth: 0,
+    });
   }
 
   if (!bestBody || !bestContact) return null;
@@ -309,7 +346,7 @@ export const resolveCylinderMoveAndSlide = (
     }
 
     if (floor && !sliding) {
-      next = depenetrate(next, floor);
+      next = applyFloorPush(next, floor);
       onGround = true;
       sliding = false;
       v3Set(_groundNormal, floor.nx, floor.ny, floor.nz);
@@ -318,8 +355,15 @@ export const resolveCylinderMoveAndSlide = (
     }
   }
 
-  if (!sliding && velocity[1] <= 0) {
-    const snap = trySurfaceSnap(next, obstacles, groundY, floorMaxAngle, outBox);
+  if (!sliding && (velocity[1] <= 0 || _alreadyOnGround)) {
+    const snap = trySurfaceSnap(
+      next,
+      obstacles,
+      groundY,
+      floorMaxAngle,
+      outBox,
+      _alreadyOnGround || onGround,
+    );
     if (snap) {
       next = snap.body;
       onGround = true;

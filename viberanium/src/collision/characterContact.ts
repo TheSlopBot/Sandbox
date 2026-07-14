@@ -179,6 +179,10 @@ export const bodyFeetY = (body: BodyY): number => body.y - body.halfHeight - bod
 
 const BOX_SURFACE_EPS = 0.05;
 
+const _colX = v3();
+const _colY = v3();
+const _colZ = v3();
+
 export const boxTopSurfaceYAt = (
   center: Vec3,
   halfExtents: Vec3,
@@ -186,17 +190,21 @@ export const boxTopSurfaceYAt = (
   x: number,
   z: number,
 ): number => {
-  q4Conjugate(_invQ, rotation);
-  v3Set(_tmp, x - center[0], 0, z - center[2]);
-  q4TransformVec3(_p, _invQ, _tmp);
-  const hx = halfExtents[0];
-  const hz = halfExtents[2];
-  const hy = halfExtents[1];
-  if (Math.abs(_p[0]) > hx || Math.abs(_p[2]) > hz) return -Infinity;
+  q4TransformVec3(_colX, rotation, v3Set(_tmp, 1, 0, 0));
+  q4TransformVec3(_colZ, rotation, v3Set(_tmp, 0, 0, 1));
+  q4TransformVec3(_colY, rotation, v3Set(_tmp, 0, halfExtents[1], 0));
 
-  v3Set(_tmp, _p[0], hy, _p[2]);
-  worldFromLocal(_q, _tmp, center, rotation);
-  return _q[1];
+  const det = _colX[0] * _colZ[2] - _colZ[0] * _colX[2];
+  if (Math.abs(det) < 1e-8) return -Infinity;
+
+  const rx = x - center[0] - _colY[0];
+  const rz = z - center[2] - _colY[2];
+  const lx = (rx * _colZ[2] - rz * _colZ[0]) / det;
+  const lz = (rz * _colX[0] - rx * _colX[2]) / det;
+
+  if (Math.abs(lx) > halfExtents[0] || Math.abs(lz) > halfExtents[2]) return -Infinity;
+
+  return center[1] + _colY[1] + _colX[1] * lx + _colZ[1] * lz;
 };
 
 const _boxFaceLocals: readonly [number, number, number][] = [
