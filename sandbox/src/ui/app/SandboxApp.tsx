@@ -195,14 +195,15 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
     const session = sessionRef.current;
     if (!session) return;
 
+    session.input.lockPointer();
     setSwitchingLevel(true);
     setLevelModalOpen(false);
     setMainMenuOpen(false);
     setMainMenuView('root');
+
     void session.switchToLevel(levelId).finally(() => {
       setSwitchingLevel(false);
       setCurrentLevelId(session.getCurrentLevelId());
-      session.input.lockPointer();
     });
   };
 
