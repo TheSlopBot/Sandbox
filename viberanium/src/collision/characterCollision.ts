@@ -19,7 +19,7 @@ export const SLIDE_START_SPEED_FACTOR = 1.35;
 export const SLIDE_MAX_SPEED_FACTOR = 3.5;
 export const SLIDE_ACCEL_TIME_SEC = 0.55;
 
-const CONTACT_ITERS = 3;
+const CONTACT_ITERS = 2;
 const SURFACE_EPS = 0.05;
 
 const _box: Aabb = {
