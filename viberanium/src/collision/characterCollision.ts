@@ -341,7 +341,9 @@ export const resolveCylinderMoveAndSlide = (
         v3Set(_groundNormal, blocking.nx, blocking.ny, blocking.nz);
         projectOutOfNormal(velocity, blocking);
       } else {
+        const vyBefore = velocity[1];
         projectOutOfNormal(velocity, blocking);
+        if (velocity[1] > vyBefore) velocity[1] = vyBefore;
       }
     }
 
