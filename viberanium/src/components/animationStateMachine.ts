@@ -13,7 +13,6 @@ export type AnimationStateMachine = {
   jumpLandDuration: number;
   jumpStartSpeed: number;
   jumpLandSpeed: number;
-  groundHold: number;
 };
 
 export const createAnimationStateMachine = (): AnimationStateMachine => ({
@@ -26,7 +25,6 @@ export const createAnimationStateMachine = (): AnimationStateMachine => ({
   jumpLandDuration: 0.3,
   jumpStartSpeed: 4,
   jumpLandSpeed: 2,
-  groundHold: 0,
 });
 
 const MOVE_SPEED_EPS = 0.05 * 0.05;
@@ -47,13 +45,10 @@ export const stepAnimationFsm = (
 ): void => {
   if (fsm.paused) return;
 
-  if (cc.onGround || cc.sliding) fsm.groundHold = 0.1;
-  else fsm.groundHold = Math.max(0, fsm.groundHold - dt);
-
-  const grounded = cc.onGround || cc.sliding || cc.coyoteRemaining > 0 || fsm.groundHold > 0;
+  const grounded = cc.onGround || cc.sliding || cc.coyoteRemaining > 0;
   const moving = isMoving(cc, intent);
 
-  if (grounded && (fsm.current === 'jumpStart' || fsm.current === 'jumpAir')) {
+  if ((cc.onGround || cc.coyoteRemaining > 0) && (fsm.current === 'jumpStart' || fsm.current === 'jumpAir')) {
     if (moving) fsm.current = 'run';
     else {
       fsm.current = 'jumpLand';

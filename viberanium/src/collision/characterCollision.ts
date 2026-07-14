@@ -116,16 +116,9 @@ const isWalkableFloorContact = (
   contact: BodyContact,
   collider: Collider,
   floorMaxAngle: number,
-  groundY: number,
 ): boolean => {
   if (classifyContact(contact.ny, floorMaxAngle) !== 'floor') return false;
   if (!footprintOverlapsShape(collider.shape, body.x, body.z, body.radius)) return false;
-
-  if (collider.shape.kind === 'box') {
-    const { center, halfExtents, rotation } = collider.shape;
-    const topY = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
-    if (!Number.isFinite(topY) || topY <= groundY + SURFACE_EPS) return false;
-  }
 
   const foot = bodyFeetY(body);
   const surfaceFoot = contactSurfaceFootY(body, contact);
@@ -137,8 +130,7 @@ const isBlockingContact = (
   contact: BodyContact,
   collider: Collider,
   floorMaxAngle: number,
-  groundY: number,
-): boolean => !isWalkableFloorContact(body, contact, collider, floorMaxAngle, groundY);
+): boolean => !isWalkableFloorContact(body, contact, collider, floorMaxAngle);
 
 const findDeepestContact = (
   body: BodyY,
@@ -170,7 +162,6 @@ const findSupportFloorContact = (
   obstacles: Collider[],
   outBox: Aabb,
   floorMaxAngle: number,
-  groundY: number,
 ): BodyContact | null => {
   const foot = bodyFeetY(body);
   let best: BodyContact | null = null;
@@ -186,7 +177,7 @@ const findSupportFloorContact = (
     if (!hit || hit.depth <= 0) continue;
 
     const contact: BodyContact = { ...hit, shapeKind: s.shape.kind };
-    if (!isWalkableFloorContact(body, contact, s, floorMaxAngle, groundY)) continue;
+    if (!isWalkableFloorContact(body, contact, s, floorMaxAngle)) continue;
 
     const topY = contactSurfaceFootY(body, contact);
     if (!isWithinFloorSnap(foot, topY)) continue;
@@ -265,7 +256,7 @@ const trySurfaceSnap = (
     consider(groundY, { nx: 0, ny: 1, nz: 0, depth: 0 });
   }
 
-  const contact = findSupportFloorContact(body, obstacles, outBox, floorMaxAngle, groundY);
+  const contact = findSupportFloorContact(body, obstacles, outBox, floorMaxAngle);
   if (contact) {
     const snapped = applyFloorPush(body, contact);
     consider(snapped.y - snapped.halfHeight - snapped.radius, contact);
@@ -278,7 +269,7 @@ const trySurfaceSnap = (
     if (!footprintOverlapsShape(s.shape, body.x, body.z, body.radius)) continue;
 
     const topY = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
-    if (!Number.isFinite(topY) || topY <= groundY + SURFACE_EPS) continue;
+    if (!Number.isFinite(topY)) continue;
 
     q4TransformVec3(_topNormal, rotation, _localUp);
     if (classifyContact(_topNormal[1], floorMaxAngle) !== 'floor') continue;
@@ -326,12 +317,12 @@ export const resolveCylinderMoveAndSlide = (
   }
 
   for (let iter = 0; iter < CONTACT_ITERS; iter++) {
-    const floor = findSupportFloorContact(next, obstacles, outBox, floorMaxAngle, groundY);
+    const floor = findSupportFloorContact(next, obstacles, outBox, floorMaxAngle);
     const blocking = findDeepestContact(
       next,
       obstacles,
       outBox,
-      (contact, collider, angle) => isBlockingContact(next, contact, collider, angle, groundY),
+      (contact, collider, angle) => isBlockingContact(next, contact, collider, angle),
       floorMaxAngle,
     );
 
