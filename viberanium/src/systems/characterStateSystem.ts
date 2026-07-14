@@ -16,7 +16,7 @@ export const installCharacterStateSystem = (registry: Registry) => {
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
       if (!t || !cc) continue;
-      if (cc.sliding || cc.slideIgnoreInputRemaining > 0) continue;
+      if (cc.sliding) continue;
 
       const intent = e.components[COMPONENT_KEYS.movementIntent] as MovementIntent | undefined;
       const dx = intent?.desiredVelocity[0] ?? 0;

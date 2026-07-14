@@ -5,8 +5,6 @@ import {
   type BodyContact,
   type BodyY,
   bodyFeetY,
-  boxTopSurfaceNormal,
-  boxTopSurfaceYAt,
   contactBodyVsCollider,
   footprintOverlapsShape,
   isBodyOnBoxWalkableTop,
@@ -18,11 +16,9 @@ import {
 export type { BodyY, BodyContact } from './characterContact.ts';
 
 export const DEFAULT_FLOOR_MAX_ANGLE = (50 * Math.PI) / 180;
-export const FLOOR_SNAP_DISTANCE = 0.32;
 export const SLIDE_START_SPEED_FACTOR = 1.35;
 export const SLIDE_MAX_SPEED_FACTOR = 3.5;
 export const SLIDE_ACCEL_TIME_SEC = 0.55;
-export const SLIDE_INPUT_COYOTE_SEC = 0.18;
 
 const CONTACT_ITERS = 3;
 const SURFACE_EPS = 0.05;
@@ -197,7 +193,7 @@ const applyFloorPush = (body: BodyY, contact: BodyContact): BodyY => {
 
 const isWithinFloorSnap = (foot: number, surfaceFoot: number): boolean =>
   foot <= surfaceFoot + SURFACE_EPS &&
-  surfaceFoot - foot <= FLOOR_SNAP_DISTANCE + SURFACE_EPS;
+  surfaceFoot - foot <= SURFACE_EPS;
 
 const contactSurfaceFootY = (body: BodyY, contact: BodyContact): number =>
   bodyFeetY(applyFloorPush(body, contact));
@@ -359,57 +355,6 @@ const stopOnWalkableFloor = (velocity: Vec3, contact: BodyContact) => {
   velocity[2] -= down[2] * along;
 };
 
-const tryEmbedLanding = (
-  body: BodyY,
-  obstacles: Collider[],
-  floorMaxAngle: number,
-  outBox: Aabb,
-): { body: BodyY; contact: BodyContact } | null => {
-  const ext = body.halfHeight + body.radius;
-  const foot = bodyFeetY(body);
-
-  bodyToAabb(body, outBox);
-
-  let bestTop = -Infinity;
-  let bestBody: BodyY | null = null;
-  let bestContact: BodyContact | null = null;
-
-  for (const s of obstacles) {
-    if (!s.isStatic || s.shape.kind !== 'box') continue;
-    if (!aabbIntersects(outBox, s.aabb)) continue;
-    if (!footprintOverlapsShape(s.shape, body.x, body.z, body.radius)) continue;
-
-    const surface = boxTopSurfaceNormal(s.shape.rotation);
-    if (classifyContact(surface.ny, floorMaxAngle) !== 'floor') continue;
-    if (isSlideSlope(surface.ny, floorMaxAngle)) continue;
-
-    const topY = boxTopSurfaceYAt(
-      s.shape.center,
-      s.shape.halfExtents,
-      s.shape.rotation,
-      body.x,
-      body.z,
-    );
-    if (!Number.isFinite(topY)) continue;
-    if (!isBodyOnBoxWalkableTop(s.shape.center, s.shape.halfExtents, s.shape.rotation, body, SURFACE_EPS)) {
-      continue;
-    }
-
-    const embed = topY - foot;
-    if (embed <= SURFACE_EPS || embed > FLOOR_SNAP_DISTANCE + SURFACE_EPS) continue;
-
-    if (topY > bestTop) {
-      bestTop = topY;
-      bestBody = { ...body, y: topY + ext };
-      bestContact = surface;
-    }
-  }
-
-  if (!bestBody || !bestContact) return null;
-
-  return { body: bestBody, contact: bestContact };
-};
-
 const trySurfaceSnap = (
   body: BodyY,
   obstacles: Collider[],
@@ -426,7 +371,7 @@ const trySurfaceSnap = (
 
   const consider = (surfaceY: number, contact: BodyContact) => {
     if (surfaceY > foot + SURFACE_EPS) return;
-    if (foot - surfaceY > FLOOR_SNAP_DISTANCE + SURFACE_EPS) return;
+    if (foot - surfaceY > SURFACE_EPS) return;
     if (surfaceY <= bestY + 1e-4) return;
 
     bestY = surfaceY;
@@ -434,14 +379,13 @@ const trySurfaceSnap = (
     bestBody = { ...body, y: surfaceY + ext };
   };
 
-  if (foot - groundY <= FLOOR_SNAP_DISTANCE + SURFACE_EPS) {
+  if (foot - groundY <= SURFACE_EPS) {
     consider(groundY, { nx: 0, ny: 1, nz: 0, depth: 0 });
   }
 
-  const probe: BodyY = { ...body, y: body.y - FLOOR_SNAP_DISTANCE };
-  const contact = findSupportFloorContact(probe, obstacles, outBox, floorMaxAngle);
+  const contact = findSupportFloorContact(body, obstacles, outBox, floorMaxAngle);
   if (contact) {
-    const snapped = applyFloorPush(probe, contact);
+    const snapped = applyFloorPush(body, contact);
     consider(snapped.y - snapped.halfHeight - snapped.radius, contact);
   }
 
@@ -477,17 +421,6 @@ export const resolveCylinderMoveAndSlide = (
     next = { ...next, y: groundY + next.halfHeight + next.radius };
     if (velocity[1] < 0) velocity[1] = 0;
     onGround = true;
-  }
-
-  if (velocity[1] <= 0 && !alreadySliding) {
-    const embed = tryEmbedLanding(next, obstacles, floorMaxAngle, outBox);
-    if (embed) {
-      next = embed.body;
-      onGround = true;
-      sliding = false;
-      v3Set(_groundNormal, embed.contact.nx, embed.contact.ny, embed.contact.nz);
-      if (velocity[1] < 0) velocity[1] = 0;
-    }
   }
 
   for (let iter = 0; iter < CONTACT_ITERS; iter++) {

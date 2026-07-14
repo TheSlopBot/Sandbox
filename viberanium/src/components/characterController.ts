@@ -10,11 +10,9 @@ export type CharacterController = {
   onGround: boolean;
   sliding: boolean;
   slideSpeed: number;
-  slideIgnoreInputRemaining: number;
   groundNormal: Vec3;
   floorMaxAngle: number;
   obstructiveColliderKeys: readonly string[];
-  wasOnGroundPrevious: boolean;
   coyoteRemaining: number;
   jumpBufferRemaining: number;
 };
@@ -32,11 +30,9 @@ export const createCharacterController = (): CharacterController => ({
   onGround: false,
   sliding: false,
   slideSpeed: 0,
-  slideIgnoreInputRemaining: 0,
   groundNormal: v3(0, 1, 0),
   floorMaxAngle: (50 * Math.PI) / 180,
   obstructiveColliderKeys: [COMPONENT_KEYS.collider],
-  wasOnGroundPrevious: false,
   coyoteRemaining: 0,
   jumpBufferRemaining: 0,
 });

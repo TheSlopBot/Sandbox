@@ -19,16 +19,10 @@ export const installMovementSystem = (registry: Registry) => {
           | undefined;
         if (!cc || !intent) continue;
 
-        cc.wasOnGroundPrevious = cc.onGround;
-
-        if (cc.sliding || cc.slideIgnoreInputRemaining > 0) {
+        if (cc.sliding) {
           intent.desiredVelocity[0] = 0;
           intent.desiredVelocity[1] = 0;
           intent.desiredVelocity[2] = 0;
-
-          if (!cc.sliding) {
-            cc.slideIgnoreInputRemaining = Math.max(0, cc.slideIgnoreInputRemaining - ctx.dt);
-          }
 
           if (cc.onGround) cc.coyoteRemaining = COYOTE_SEC;
           else cc.coyoteRemaining = Math.max(0, cc.coyoteRemaining - ctx.dt);
@@ -45,7 +39,6 @@ export const installMovementSystem = (registry: Registry) => {
             cc.onGround = false;
             cc.sliding = false;
             cc.slideSpeed = 0;
-            cc.slideIgnoreInputRemaining = 0;
             cc.groundNormal[0] = 0;
             cc.groundNormal[1] = 1;
             cc.groundNormal[2] = 0;

@@ -32,7 +32,7 @@ const MOVE_SPEED_EPS = 0.05 * 0.05;
 const hasMoveSpeed = (x: number, z: number) => x * x + z * z > MOVE_SPEED_EPS;
 
 const isMoving = (cc: CharacterController, intent?: MovementIntent | null) => {
-  if (cc.sliding || cc.slideIgnoreInputRemaining > 0) return false;
+  if (cc.sliding) return false;
   if (intent) return hasMoveSpeed(intent.desiredVelocity[0], intent.desiredVelocity[2]);
   return hasMoveSpeed(cc.velocity[0], cc.velocity[2]);
 };
@@ -45,7 +45,7 @@ export const stepAnimationFsm = (
 ): void => {
   if (fsm.paused) return;
 
-  const grounded = cc.onGround || cc.sliding || cc.slideIgnoreInputRemaining > 0 || cc.coyoteRemaining > 0;
+  const grounded = cc.onGround || cc.sliding || cc.coyoteRemaining > 0;
   const moving = isMoving(cc, intent);
 
   if (grounded && (fsm.current === 'jumpStart' || fsm.current === 'jumpAir')) {

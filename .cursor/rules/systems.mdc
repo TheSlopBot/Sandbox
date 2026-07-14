@@ -141,7 +141,7 @@ Sandbox `createPlayableScene` installs the CPU collision stack only — not `ins
 | Installer | Order | Role |
 |-----------|-------|------|
 | `installColliderTransformSystem` | 8 | Bake static `localShape` → world `shape` when `transform.dirty` |
-| `installMovementSystem` | 8 | `movementIntent` → `character.velocity`; project onto `groundNormal` when `onGround`; zero input while `sliding` or `slideIgnoreInputRemaining > 0` |
+| `installMovementSystem` | 8 | `movementIntent` → `character.velocity`; project onto `groundNormal` when `onGround`; zero input while `sliding` |
 | `installCharacterPhysicsSystem` | 9–10 | Fixed substep (`1/144` s, max 4); gravity when `!onGround && !sliding`; integrate; `resolveCylinderMoveAndSlide`; update `onGround` / `sliding` / `groundNormal` / `slideSpeed` |
 | `installCharacterStateSystem` | 13 | Yaw toward movement intent — skipped while sliding |
 

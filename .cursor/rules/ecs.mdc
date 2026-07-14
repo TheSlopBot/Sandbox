@@ -52,7 +52,6 @@ Mesh sub-entities are allowed only for static props (`renderGroup`) until props 
 | `onGround` | Walkable floor contact (slope ≤ `floorMaxAngle`) |
 | `sliding` | Active slope-slide state (steep box faces) |
 | `slideSpeed` | Current downhill slide speed magnitude |
-| `slideIgnoreInputRemaining` | Post-slide input lockout (seconds) |
 | `groundNormal` | Surface normal when grounded or sliding |
 | `floorMaxAngle` | Max walkable slope (default 50°) |
 | `obstructiveColliderKeys` | Component keys queried as static obstacles (default `[collider]`) |

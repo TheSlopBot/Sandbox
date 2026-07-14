@@ -13,7 +13,6 @@ import {
   applySlideVelocity,
   resolveCylinderMoveAndSlide,
   SLIDE_ACCEL_TIME_SEC,
-  SLIDE_INPUT_COYOTE_SEC,
   SLIDE_MAX_SPEED_FACTOR,
   SLIDE_START_SPEED_FACTOR,
 } from '../collision/characterCollision.ts';
@@ -136,7 +135,6 @@ export const installCharacterPhysicsSystem = (
             }
 
             cc.sliding = true;
-            cc.slideIgnoreInputRemaining = SLIDE_INPUT_COYOTE_SEC;
             cc.onGround = false;
             v3Set(
               cc.groundNormal,
