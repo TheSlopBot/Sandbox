@@ -347,7 +347,7 @@ export const resolveCylinderMoveAndSlide = (
       }
     }
 
-    if (floor && !sliding && !blocking) {
+    if (floor && !sliding) {
       next = applyFloorPush(next, floor);
       onGround = true;
       sliding = false;

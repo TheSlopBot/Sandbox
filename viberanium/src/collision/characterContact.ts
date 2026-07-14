@@ -292,7 +292,7 @@ const pickBoxInsideSeparation = (
   const topAtFootprint = boxTopSurfaceYAt(center, halfExtents, rotation, body.x, body.z);
   const aboveTop = footWorld >= topAtFootprint - BOX_SURFACE_EPS;
 
-  if (overFootprint && aboveTop && dy <= dx && dy <= dz) {
+  if (overFootprint && aboveTop) {
     const highestY = Math.max(localSegA[1], localSegB[1]);
     return { lx: 0, ly: 1, lz: 0, push: Math.max(hy - highestY, 0) };
   }
