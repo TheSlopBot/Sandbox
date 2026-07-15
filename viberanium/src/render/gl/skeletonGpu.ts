@@ -2,9 +2,10 @@ import { type GpuDevice } from './device.ts';
 import { type RuntimeScene, type RuntimeSkin } from '../../assets/gltf/runtime.ts';
 import { type AnimationClipMap } from '../../components/animationClipMap.ts';
 import { type AnimationHandMasks } from '../../components/animationHandMasks.ts';
-import { type RightHandClipMap } from '../../components/rightHandClipMap.ts';
-import { type LeftHandClipMap } from '../../components/leftHandClipMap.ts';
-import { packClipsForGpu } from '../../assets/gltf/packClipsForGpu.ts';
+import {
+  packClipsForGpu,
+  type GpuClipBankEntry,
+} from '../../assets/gltf/packClipsForGpu.ts';
 import {
   createJointPaletteGpu,
   MAX_JOINTS,
@@ -36,6 +37,7 @@ export type SkeletonGpuAsset = {
   nodeCount: number;
   jointCount: number;
   rootNodeIndex: number;
+  clipCount: number;
   offsets: SkeletonGpuOffsets;
   skeleton: GPUBuffer;
   destroy: () => void;
@@ -55,8 +57,7 @@ export type SkeletonGpuInstance = {
 };
 
 export type BuildSkeletonBlobOpts = {
-  rightHandClipMap?: RightHandClipMap | null;
-  leftHandClipMap?: LeftHandClipMap | null;
+  bankEntries?: readonly GpuClipBankEntry[];
   handMasks?: AnimationHandMasks | null;
 };
 
@@ -94,12 +95,17 @@ export const buildSkeletonBlob = (
   skin: RuntimeSkin,
   clipMap: AnimationClipMap,
   opts: BuildSkeletonBlobOpts = {},
-): { words: Uint32Array; offsets: SkeletonGpuOffsets; nodeCount: number; jointCount: number } => {
+): {
+  words: Uint32Array;
+  offsets: SkeletonGpuOffsets;
+  nodeCount: number;
+  jointCount: number;
+  clipCount: number;
+} => {
   const nodeCount = Math.min(MAX_SKELETON_NODES, scene.nodes.length);
   const jointCount = Math.min(MAX_JOINTS, skin.joints.length);
   const clips = packClipsForGpu(clipMap, nodeCount, {
-    rightHandClipMap: opts.rightHandClipMap,
-    leftHandClipMap: opts.leftHandClipMap,
+    bankEntries: opts.bankEntries,
   });
   const maskWords = Math.ceil(Math.max(1, nodeCount) / 32);
   const parentsCpu = new Int32Array(nodeCount);
@@ -183,6 +189,7 @@ export const buildSkeletonBlob = (
     words,
     nodeCount,
     jointCount,
+    clipCount: clips.clipCount,
     offsets: {
       parentsOffset,
       topoOffset,
@@ -203,6 +210,17 @@ export const buildSkeletonBlob = (
   };
 };
 
+const uploadSkeletonBuffer = (device: GpuDevice, words: Uint32Array): GPUBuffer => {
+  const skeleton = device.gpu.createBuffer({
+    size: Math.max(4, words.byteLength),
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    mappedAtCreation: true,
+  });
+  new Uint32Array(skeleton.getMappedRange()).set(words);
+  skeleton.unmap();
+  return skeleton;
+};
+
 export const createSkeletonGpuAsset = (
   device: GpuDevice,
   scene: RuntimeScene,
@@ -212,24 +230,35 @@ export const createSkeletonGpuAsset = (
   opts: BuildSkeletonBlobOpts = {},
 ): SkeletonGpuAsset => {
   const packed = buildSkeletonBlob(scene, skin, clipMap, opts);
-  const skeleton = device.gpu.createBuffer({
-    size: Math.max(4, packed.words.byteLength),
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: true,
-  });
-  new Uint32Array(skeleton.getMappedRange()).set(packed.words);
-  skeleton.unmap();
-
-  return {
+  const asset: SkeletonGpuAsset = {
     nodeCount: packed.nodeCount,
     jointCount: packed.jointCount,
     rootNodeIndex,
+    clipCount: packed.clipCount,
     offsets: packed.offsets,
-    skeleton,
+    skeleton: uploadSkeletonBuffer(device, packed.words),
     destroy: () => {
-      skeleton.destroy();
+      asset.skeleton.destroy();
     },
   };
+  return asset;
+};
+
+export const rewriteSkeletonGpuAsset = (
+  device: GpuDevice,
+  asset: SkeletonGpuAsset,
+  scene: RuntimeScene,
+  skin: RuntimeSkin,
+  clipMap: AnimationClipMap,
+  opts: BuildSkeletonBlobOpts = {},
+): void => {
+  const packed = buildSkeletonBlob(scene, skin, clipMap, opts);
+  asset.skeleton.destroy();
+  asset.skeleton = uploadSkeletonBuffer(device, packed.words);
+  asset.nodeCount = packed.nodeCount;
+  asset.jointCount = packed.jointCount;
+  asset.clipCount = packed.clipCount;
+  asset.offsets = packed.offsets;
 };
 
 export const createSkeletonGpuInstance = (

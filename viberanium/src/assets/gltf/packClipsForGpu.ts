@@ -1,8 +1,6 @@
 import { type AnimClip, getClipAnimatedNodes } from '../../components/animation.ts';
 import { type AnimStateId } from '../../components/animationStateMachine.ts';
 import { type AnimationClipMap } from '../../components/animationClipMap.ts';
-import { type RightHandClipMap } from '../../components/rightHandClipMap.ts';
-import { type LeftHandClipMap } from '../../components/leftHandClipMap.ts';
 import { type RightHandStateId } from '../../components/rightHandStateMachine.ts';
 import { type LeftHandStateId } from '../../components/leftHandStateMachine.ts';
 
@@ -31,26 +29,15 @@ export const GPU_LEFT_HAND_CLIP_ORDER: readonly LeftHandStateId[] = [
 ];
 
 export const GPU_CLIP_STATE_ORDER = GPU_MOVEMENT_CLIP_ORDER;
-
 export const GPU_MOVEMENT_CLIP_COUNT = GPU_MOVEMENT_CLIP_ORDER.length;
-export const GPU_RIGHT_HAND_CLIP_COUNT = GPU_RIGHT_HAND_CLIP_ORDER.length;
-export const GPU_LEFT_HAND_CLIP_COUNT = GPU_LEFT_HAND_CLIP_ORDER.length;
-export const GPU_TOTAL_CLIP_COUNT =
-  GPU_MOVEMENT_CLIP_COUNT + GPU_RIGHT_HAND_CLIP_COUNT + GPU_LEFT_HAND_CLIP_COUNT;
 
 export const clipStateIndex = (state: AnimStateId): number => {
   const idx = GPU_MOVEMENT_CLIP_ORDER.indexOf(state);
   return idx < 0 ? 0 : idx;
 };
 
-export const rightHandClipStateIndex = (state: RightHandStateId): number => {
-  const idx = GPU_RIGHT_HAND_CLIP_ORDER.indexOf(state);
-  return GPU_MOVEMENT_CLIP_COUNT + (idx < 0 ? 0 : idx);
-};
-
-export const leftHandClipStateIndex = (state: LeftHandStateId): number => {
-  const idx = GPU_LEFT_HAND_CLIP_ORDER.indexOf(state);
-  return GPU_MOVEMENT_CLIP_COUNT + GPU_RIGHT_HAND_CLIP_COUNT + (idx < 0 ? 0 : idx);
+export type GpuClipBankEntry = {
+  clip: AnimClip | null;
 };
 
 export type GpuPackedClips = {
@@ -65,8 +52,7 @@ export type GpuPackedClips = {
 };
 
 export type PackClipsForGpuOpts = {
-  rightHandClipMap?: RightHandClipMap | null;
-  leftHandClipMap?: LeftHandClipMap | null;
+  bankEntries?: readonly GpuClipBankEntry[];
 };
 
 const PATH_TRANSLATION = 0;
@@ -79,31 +65,15 @@ const pathToCode = (path: 'translation' | 'rotation' | 'scale'): number => {
   return PATH_SCALE;
 };
 
-const rightClipOf = (
-  map: RightHandClipMap | null | undefined,
-  state: RightHandStateId,
-): AnimClip | null => {
-  if (state === 'none' || !map) return null;
-  return map.clips[state]?.clip ?? null;
-};
-
-const leftClipOf = (
-  map: LeftHandClipMap | null | undefined,
-  state: LeftHandStateId,
-): AnimClip | null => {
-  if (state === 'none' || !map) return null;
-  return map.clips[state]?.clip ?? null;
-};
-
 export const packClipsForGpu = (
   clipMap: AnimationClipMap,
   nodeCount: number,
   opts: PackClipsForGpuOpts = {},
 ): GpuPackedClips => {
+  const bankEntries = opts.bankEntries ?? [];
   const clips: (AnimClip | null)[] = [
     ...GPU_MOVEMENT_CLIP_ORDER.map((id) => clipMap.clips[id]?.clip ?? null),
-    ...GPU_RIGHT_HAND_CLIP_ORDER.map((id) => rightClipOf(opts.rightHandClipMap, id)),
-    ...GPU_LEFT_HAND_CLIP_ORDER.map((id) => leftClipOf(opts.leftHandClipMap, id)),
+    ...bankEntries.map((entry) => entry.clip),
   ];
 
   const clipHeaders = new Uint32Array(clips.length * 4);

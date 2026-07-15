@@ -9,6 +9,7 @@ import {
   spawnActorColliders,
   type TextureCache,
   type GltfCache,
+  type SharedMeshCache,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { getActorDefinition } from '../../catalog/actors/registry.ts';
@@ -30,6 +31,7 @@ export const createPlayer = async (
     position: [number, number, number];
     rotation?: [number, number, number, number];
   },
+  meshes?: SharedMeshCache,
 ) => {
   const charT = createTransform();
   const position = spawn.position;
@@ -52,11 +54,11 @@ export const createPlayer = async (
   const playerActor = getActorDefinition('space_ranger');
 
   const loaded = await loadSkeletalCharacter(
-    { device, textures, gltfCache },
+    { device, textures, gltfCache, meshes },
     actorDefinitionToSkeletalDef(playerActor),
   );
 
-  const attachmentEntityIds = spawnSkeletalCharacter(registry, entity, loaded, { device });
+  const attachmentEntityIds = spawnSkeletalCharacter(registry, entity, loaded, { device, meshes });
   attachActorBodyCollider(entity, playerActor.colliders);
   spawnActorColliders(registry, entity, playerActor.colliders, {
     attachmentEntityIds,

@@ -6,6 +6,7 @@ import {
   type AnimationClip,
   type SkeletalModel,
   type MeshDraws,
+  type SharedMeshCache,
   createSkeletalModel,
   createAnimationClip,
   createAttachmentOffset,
@@ -25,6 +26,7 @@ export type CharacterLoadDeps = {
   device: GpuDevice;
   textures: TextureCache;
   gltfCache: GltfCache;
+  meshes?: SharedMeshCache;
 };
 
 export type LoadedAttachmentPart = {
@@ -32,6 +34,7 @@ export type LoadedAttachmentPart = {
   gltfNodeIndex: number;
   vertices: Float32Array;
   indices: Uint32Array;
+  meshKey: string;
 };
 
 export type LoadedAttachment = {
@@ -41,11 +44,13 @@ export type LoadedAttachment = {
   attachScene: RuntimeScene;
   parts: LoadedAttachmentPart[];
   spawnEquipped: boolean;
+  gltfUrl: string;
 };
 
 export type SkeletalCharacterLoad = {
   model: SkeletalModel;
   meshDraws: MeshDraws;
+  sharedMeshes: boolean;
   clips: {
     idle: AnimationClip;
     run: AnimationClip;
@@ -75,7 +80,8 @@ const loadAttachment = async (
     const model = attachScene.models[pair.meshIndex];
     if (!model) continue;
 
-    for (const prim of model.primitives) {
+    for (let primIndex = 0; primIndex < model.primitives.length; primIndex++) {
+      const prim = model.primitives[primIndex]!;
       if (prim.kind === 'skinned') continue;
 
       const material = prim.materialIndex >= 0 && prim.materialIndex < mats.length
@@ -86,6 +92,7 @@ const loadAttachment = async (
         gltfNodeIndex: pair.nodeIndex,
         vertices: prim.vertices,
         indices: prim.indices,
+        meshKey: `${def.gltfUrl}#${pair.meshIndex}:${primIndex}:static`,
       });
     }
   }
@@ -97,6 +104,7 @@ const loadAttachment = async (
     attachScene,
     parts,
     spawnEquipped: def.spawnEquipped !== false,
+    gltfUrl: def.gltfUrl,
   };
 };
 
@@ -138,12 +146,15 @@ export const loadSkeletalCharacter = async (
     jumpLand: createAnimationClip(pickClip(moveClips, def.clips.jumpLand)),
   };
 
-  const meshDraws = buildMeshDrawsFromRuntimeScene(deps.device, bodyScene, bodyMats);
+  const meshDraws = buildMeshDrawsFromRuntimeScene(deps.device, bodyScene, bodyMats, {
+    meshes: deps.meshes,
+    meshKeyPrefix: def.bodyGlb,
+  });
   const model = createSkeletalModel(bodyScene, def.visualYOffset ?? -0.55);
 
   const attachments = def.attachments?.length
     ? await Promise.all(def.attachments.map((attachment) => loadAttachment(deps, bodyScene, attachment)))
     : [];
 
-  return { model, meshDraws, clips, attachments };
+  return { model, meshDraws, sharedMeshes: !!deps.meshes, clips, attachments };
 };

@@ -3,6 +3,7 @@ import {
   type Registry,
   type Entity,
   type EntityId,
+  type SharedMeshCache,
   createTransform,
   createAnimationStateMachine,
   createAnimationClipMap,
@@ -23,6 +24,7 @@ export type AttachmentTagMap = Record<string, string>;
 
 export type SpawnSkeletalCharacterOpts = {
   device: GpuDevice;
+  meshes?: SharedMeshCache;
   attachmentTags?: AttachmentTagMap;
   skipAttachmentIds?: readonly string[];
 };
@@ -30,9 +32,12 @@ export type SpawnSkeletalCharacterOpts = {
 const buildAttachmentMeshDraws = (
   device: GpuDevice,
   loaded: LoadedAttachment,
+  meshes?: SharedMeshCache,
 ): MeshDrawPart[] =>
   loaded.parts.map((part) => ({
-    mesh: createInterleavedMesh(device, part.vertices, part.indices),
+    mesh: meshes
+      ? meshes.getInterleaved(part.meshKey, part.vertices, part.indices)
+      : createInterleavedMesh(device, part.vertices, part.indices),
     material: part.material,
     gltfNodeIndex: part.gltfNodeIndex,
     visible: true,
@@ -43,6 +48,7 @@ const spawnAttachmentChild = (
   device: GpuDevice,
   parentId: EntityId,
   loaded: LoadedAttachment,
+  meshes: SharedMeshCache | undefined,
   tagKey?: string,
 ): Entity => {
   const entity = registry.createBare();
@@ -54,13 +60,15 @@ const spawnAttachmentChild = (
     loaded.localOffset,
   );
 
-  const meshDraws = createMeshDraws(buildAttachmentMeshDraws(device, loaded));
+  const meshDraws = createMeshDraws(buildAttachmentMeshDraws(device, loaded, meshes));
   entity.components[COMPONENT_KEYS.meshDraws] = meshDraws;
 
   if (tagKey) entity.components[tagKey] = {};
 
-  for (const part of meshDraws.parts) {
-    entity.onDeregister.push(() => destroyMesh(device, part.mesh));
+  if (!meshes) {
+    for (const part of meshDraws.parts) {
+      entity.onDeregister.push(() => destroyMesh(device, part.mesh));
+    }
   }
 
   registry.register(entity);
@@ -74,8 +82,9 @@ export const spawnAttachmentFromLoad = (
   parent: Entity,
   loaded: LoadedAttachment,
   tagKey?: string,
+  meshes?: SharedMeshCache,
 ): Entity => {
-  const child = spawnAttachmentChild(registry, device, parentId, loaded, tagKey);
+  const child = spawnAttachmentChild(registry, device, parentId, loaded, meshes, tagKey);
   const children = parent.components[COMPONENT_KEYS.children] as ReturnType<typeof createChildren> | undefined;
 
   if (children) addChildId(children, child.id);
@@ -101,8 +110,10 @@ export const spawnSkeletalCharacter = (
   entity.components[COMPONENT_KEYS.animationStateMachine] = fsm;
   entity.components[COMPONENT_KEYS.children] = createChildren();
 
-  for (const part of loaded.meshDraws.parts) {
-    entity.onDeregister.push(() => destroyMesh(opts.device, part.mesh));
+  if (!loaded.sharedMeshes) {
+    for (const part of loaded.meshDraws.parts) {
+      entity.onDeregister.push(() => destroyMesh(opts.device, part.mesh));
+    }
   }
 
   const skip = new Set(opts.skipAttachmentIds ?? []);
@@ -111,7 +122,15 @@ export const spawnSkeletalCharacter = (
     if (!attachment.spawnEquipped || skip.has(attachment.id)) continue;
 
     const tagKey = opts.attachmentTags?.[attachment.id];
-    const child = spawnAttachmentFromLoad(registry, opts.device, entity.id, entity, attachment, tagKey);
+    const child = spawnAttachmentFromLoad(
+      registry,
+      opts.device,
+      entity.id,
+      entity,
+      attachment,
+      tagKey,
+      opts.meshes,
+    );
     attachmentEntityIds.set(attachment.id, child.id);
   }
 

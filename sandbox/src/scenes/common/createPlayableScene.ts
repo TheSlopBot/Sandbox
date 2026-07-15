@@ -131,6 +131,7 @@ export const createPlayableScene = (
       deps.textures,
       deps.gltfCache,
       playerSpawn ?? DEFAULT_LEVEL_PLAYER_SPAWN,
+      deps.meshes,
     );
   };
 

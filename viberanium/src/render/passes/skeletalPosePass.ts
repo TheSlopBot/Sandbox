@@ -65,7 +65,7 @@ export type SkeletalPosePass = {
 };
 
 const FRAME_U32 = 20;
-const MAX_POSE_GROUPS = 32;
+const MAX_POSE_GROUPS = 8;
 const align256 = (n: number) => (n + 255) & ~255;
 
 export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
@@ -156,7 +156,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     if (count <= slotCapacity && paletteBuffer && meshModels && attachmentModels && scratchBuffer) return;
 
     destroySlabs();
-    slotCapacity = Math.max(64, count * 2);
+    slotCapacity = Math.max(64, count);
     instanceCpu = new Float32Array(slotCapacity * POSE_INSTANCE_FLOATS);
     instanceU32 = new Uint32Array(instanceCpu.buffer);
     instanceBuffer = gpu.createBuffer({
@@ -472,7 +472,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
       frameU32[16] = asset.offsets.lowerBodyMaskOffset;
       frameU32[17] = asset.offsets.rightArmMaskOffset;
       frameU32[18] = asset.offsets.leftArmMaskOffset;
-      frameU32[19] = 0;
+      frameU32[19] = asset.clipCount;
       gpu.queue.writeBuffer(frameBuf, 0, frameU32);
 
       const instanceSize = Math.max(POSE_INSTANCE_STRIDE, group.length * POSE_INSTANCE_STRIDE);

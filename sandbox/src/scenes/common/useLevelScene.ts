@@ -78,6 +78,7 @@ export const useLevelScene = (
       colliders: actorDef.colliders,
       extraComponents,
       combatActor: actorDef,
+      meshes: sceneDeps.meshes,
     });
   };
 

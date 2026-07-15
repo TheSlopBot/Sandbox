@@ -8,6 +8,7 @@ import {
   spawnActorColliders,
   type TextureCache,
   type GltfCache,
+  type SharedMeshCache,
   type CharacterController,
   type ActorColliderDef,
   type ActorDefinition,
@@ -28,6 +29,7 @@ export type SpawnActorOpts = {
   attachments?: readonly ActorAttachmentDef[];
   extraComponents?: Record<string, unknown>;
   combatActor?: ActorDefinition;
+  meshes?: SharedMeshCache;
 };
 
 export const spawnActor = async (
@@ -55,8 +57,14 @@ export const spawnActor = async (
     }
   }
 
-  const loaded = await loadSkeletalCharacter({ device, textures, gltfCache }, def);
-  const attachmentEntityIds = spawnSkeletalCharacter(registry, entity, loaded, { device });
+  const loaded = await loadSkeletalCharacter(
+    { device, textures, gltfCache, meshes: opts.meshes },
+    def,
+  );
+  const attachmentEntityIds = spawnSkeletalCharacter(registry, entity, loaded, {
+    device,
+    meshes: opts.meshes,
+  });
 
   if (opts.colliders && opts.colliders.length > 0) {
     attachActorBodyCollider(entity, opts.colliders);

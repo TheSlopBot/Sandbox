@@ -25,7 +25,7 @@ struct BatchFrame {
   lowerBodyMaskOffset: u32,
   rightArmMaskOffset: u32,
   leftArmMaskOffset: u32,
-  _padFrame: u32,
+  clipCount: u32,
 };
 
 struct PoseInstance {
@@ -259,9 +259,10 @@ fn findKeyframe(timesOffset: u32, keyCount: u32, t: f32) -> u32 {
 }
 
 fn sampleClip() {
+  if (activeClipIndex >= frame.clipCount) { return; }
   let headerBase = frame.clipHeadersOffset + activeClipIndex * 4u;
   let durationBits = u32At(headerBase);
-  let channelCount = u32At(headerBase + 1u);
+  let channelCount = min(u32At(headerBase + 1u), 512u);
   let channelOffset = u32At(headerBase + 2u);
   let valid = u32At(headerBase + 3u);
   if (valid == 0u || channelCount == 0u) { return; }
