@@ -41,3 +41,6 @@ export const SPACE_RANGER_ATTACHMENT_URLS = [SPACE_RANGER_HELMET, SPACE_RANGER_J
 
 export const ANIM_GENERAL_GLB = `${KAYKIT}/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb`;
 export const ANIM_MOVEMENT_GLB = `${KAYKIT}/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb`;
+export const ANIM_MOVEMENT_ADVANCED_GLB = `${KAYKIT}/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb`;
+export const ANIM_COMBAT_MELEE_GLB = `${KAYKIT}/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatMelee.glb`;
+export const ANIM_COMBAT_RANGED_GLB = `${KAYKIT}/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatRanged.glb`;

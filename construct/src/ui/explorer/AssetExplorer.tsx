@@ -33,6 +33,8 @@ export type AssetExplorerProps = {
   onSelectFile: (filePath: string) => void;
   onAddAssetFile?: (filePath: string) => void;
   onAddCharacterFile?: (filePath: string) => void;
+  assetFileAction?: 'add' | 'radio';
+  assetRadioPath?: string | null;
   characterFileAction?: 'add' | 'radio';
   characterRadioPath?: string | null;
   showAssets?: boolean;
@@ -63,6 +65,8 @@ export const AssetExplorer = ({
   onSelectFile,
   onAddAssetFile,
   onAddCharacterFile,
+  assetFileAction = 'add',
+  assetRadioPath = null,
   characterFileAction = 'add',
   characterRadioPath = null,
   showAssets = true,
@@ -146,8 +150,13 @@ export const AssetExplorer = ({
                       onToggleDir(scopeExplorerDirPath('assets', dirPath))
                     }
                     onSelectFile={onSelectFile}
-                    onAddFile={onAddAssetFile}
+                    onAddFile={
+                      assetFileAction === 'add' ? onAddAssetFile : undefined
+                    }
                     addEnabled={assetAddEnabled}
+                    fileAction={assetFileAction}
+                    radioSelectedPath={assetRadioPath}
+                    radioGroupName="construct-asset-select"
                   />
                 ) : null}
               </>
@@ -176,6 +185,7 @@ export const AssetExplorer = ({
                     addEnabled={characterAddEnabled}
                     fileAction={characterFileAction}
                     radioSelectedPath={characterRadioPath}
+                    radioGroupName="construct-character-select"
                   />
                 ) : null}
               </>

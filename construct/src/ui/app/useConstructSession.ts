@@ -11,6 +11,10 @@ import {
   type ActorDocument,
   createEmptyActorDocument,
 } from '../../catalog/actors/actorDocument.ts';
+import {
+  type EquipmentDocument,
+  createEmptyEquipmentDocument,
+} from '../../catalog/equipment/equipmentDocument.ts';
 import { type PropDocument, createEmptyPropDocument } from '../../catalog/props/propDocument.ts';
 import { type LevelDocument, createEmptyLevelDocument } from '../../catalog/levels/levelDocument.ts';
 
@@ -26,6 +30,9 @@ export const cloneActorDoc = (doc: ActorDocument): ActorDocument => ({
   })),
 });
 
+export const cloneEquipmentDoc = (doc: EquipmentDocument): EquipmentDocument =>
+  structuredClone(doc);
+
 export type UseConstructSessionResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   sessionRef: RefObject<ConstructSession | null>;
@@ -36,6 +43,8 @@ export type UseConstructSessionResult = {
   setActorDoc: Dispatch<SetStateAction<ActorDocument>>;
   actorBoneNames: string[];
   setActorBoneNames: Dispatch<SetStateAction<string[]>>;
+  equipmentDoc: EquipmentDocument;
+  setEquipmentDoc: Dispatch<SetStateAction<EquipmentDocument>>;
   levelDoc: LevelDocument;
   setLevelDoc: Dispatch<SetStateAction<LevelDocument>>;
 };
@@ -47,6 +56,9 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
   const [propDoc, setPropDoc] = useState<PropDocument>(() => createEmptyPropDocument());
   const [actorDoc, setActorDoc] = useState<ActorDocument>(() => createEmptyActorDocument());
   const [actorBoneNames, setActorBoneNames] = useState<string[]>([]);
+  const [equipmentDoc, setEquipmentDoc] = useState<EquipmentDocument>(() =>
+    createEmptyEquipmentDocument(),
+  );
   const [levelDoc, setLevelDoc] = useState<LevelDocument>(() => createEmptyLevelDocument());
   const [sessionReady, setSessionReady] = useState(0);
 
@@ -77,6 +89,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
 
       session.setPropDocumentListener(null);
       session.setActorDocumentListener(null);
+      session.setEquipmentDocumentListener(null);
       session.setLevelDocumentListener(null);
       session.unload();
       sessionRef.current = null;
@@ -94,6 +107,9 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
       setActorDoc(cloneActorDoc(doc));
       setActorBoneNames(session.getActorBoneNames());
     });
+    session.setEquipmentDocumentListener((doc) => {
+      setEquipmentDoc(cloneEquipmentDoc(doc));
+    });
     session.setLevelDocumentListener((doc) => {
       setLevelDoc(doc);
     });
@@ -101,6 +117,7 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
     return () => {
       session.setPropDocumentListener(null);
       session.setActorDocumentListener(null);
+      session.setEquipmentDocumentListener(null);
       session.setLevelDocumentListener(null);
     };
   }, [sessionReady]);
@@ -115,6 +132,8 @@ export const useConstructSession = (active: boolean): UseConstructSessionResult 
     setActorDoc,
     actorBoneNames,
     setActorBoneNames,
+    equipmentDoc,
+    setEquipmentDoc,
     levelDoc,
     setLevelDoc,
   };

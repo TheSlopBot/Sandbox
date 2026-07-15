@@ -89,7 +89,8 @@ export const spawnSkeletalCharacter = (
   entity: Entity,
   loaded: SkeletalCharacterLoad,
   opts: SpawnSkeletalCharacterOpts,
-): void => {
+): Map<string, EntityId> => {
+  const attachmentEntityIds = new Map<string, EntityId>();
   const fsm = createAnimationStateMachine();
   fsm.jumpStartDuration = loaded.clips.jumpStart.clip.duration;
   fsm.jumpLandDuration = loaded.clips.jumpLand.clip.duration;
@@ -110,6 +111,9 @@ export const spawnSkeletalCharacter = (
     if (!attachment.spawnEquipped || skip.has(attachment.id)) continue;
 
     const tagKey = opts.attachmentTags?.[attachment.id];
-    spawnAttachmentFromLoad(registry, opts.device, entity.id, entity, attachment, tagKey);
+    const child = spawnAttachmentFromLoad(registry, opts.device, entity.id, entity, attachment, tagKey);
+    attachmentEntityIds.set(attachment.id, child.id);
   }
+
+  return attachmentEntityIds;
 };

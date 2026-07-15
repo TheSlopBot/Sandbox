@@ -2,10 +2,15 @@ import { type RefObject } from 'react';
 import { type LevelGroundVariant } from 'viberanium';
 import { type PropDocument } from '../../catalog/props/propDocument.ts';
 import { type ActorAiPackage, type ActorDocument, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
+import {
+  type EquipmentDocument,
+  type EquipmentDocumentProjectile,
+  type EquipmentEditorSelection,
+} from '../../catalog/equipment/equipmentDocument.ts';
 import { type LevelDocument } from '../../catalog/levels/levelDocument.ts';
 import { type ConstructSession } from '../../globals/bootstrap.ts';
 import { type ConstructLevelSelection, type ConstructTransformPatch } from '../../session/types.ts';
-import { cloneActorDoc } from './useConstructSession.ts';
+import { cloneActorDoc, cloneEquipmentDoc } from './useConstructSession.ts';
 
 export type UseConstructInspectorActionsParams = {
   sessionRef: RefObject<ConstructSession | null>;
@@ -14,6 +19,8 @@ export type UseConstructInspectorActionsParams = {
   setActorDoc: (doc: ActorDocument) => void;
   setSelectedPartId: (id: string | null) => void;
   setActorSelection: (selection: ActorEditorSelection) => void;
+  setEquipmentDoc: (doc: EquipmentDocument) => void;
+  setEquipmentSelection: (selection: EquipmentEditorSelection) => void;
   setLevelDoc: (doc: LevelDocument) => void;
   setLevelSelection: (selection: ConstructLevelSelection) => void;
   setStatus: (status: string) => void;
@@ -26,6 +33,8 @@ export const useConstructInspectorActions = ({
   setActorDoc,
   setSelectedPartId,
   setActorSelection,
+  setEquipmentDoc,
+  setEquipmentSelection,
   setLevelDoc,
   setLevelSelection,
   setStatus,
@@ -249,7 +258,66 @@ export const useConstructInspectorActions = ({
     },
   };
 
-  return { propInspectorActions, actorInspectorActions, levelInspectorActions };
+  const equipmentInspectorActions = {
+    onKindChange: (kind: EquipmentDocument['kind']) => {
+      const doc = sessionRef.current?.updateEquipmentKind(kind);
+      if (doc) setEquipmentDoc(cloneEquipmentDoc(doc));
+    },
+    onSlotTagsChange: (tags: string[]) => {
+      const doc = sessionRef.current?.updateEquipmentSlotTags(tags);
+      if (doc) setEquipmentDoc(cloneEquipmentDoc(doc));
+    },
+    onStatsChange: (partial: Partial<EquipmentDocument['stats']>) => {
+      const doc = sessionRef.current?.updateEquipmentStats(partial);
+      if (doc) setEquipmentDoc(cloneEquipmentDoc(doc));
+    },
+    onClipsChange: (partial: Partial<EquipmentDocument['clips']>) => {
+      const doc = sessionRef.current?.updateEquipmentClips(partial);
+      if (doc) setEquipmentDoc(cloneEquipmentDoc(doc));
+    },
+    onProjectileChange: (projectile: EquipmentDocumentProjectile | undefined) => {
+      const doc = sessionRef.current?.updateEquipmentProjectile(projectile);
+      if (doc) setEquipmentDoc(cloneEquipmentDoc(doc));
+    },
+    onCommitLocal: (
+      partId: string,
+      patch: {
+        position?: [number, number, number];
+        scale?: [number, number, number];
+        rotation?: [number, number, number, number];
+      },
+    ) => {
+      const doc = sessionRef.current?.updateEquipmentPartLocal(partId, patch);
+      if (doc) setEquipmentDoc(cloneEquipmentDoc(doc));
+    },
+    onColliderRename: (colliderId: string, name: string) => {
+      const doc = sessionRef.current?.updateEquipmentColliderName(colliderId, name);
+      if (doc) setEquipmentDoc(cloneEquipmentDoc(doc));
+    },
+    onColliderRoleChange: (colliderId: string, role: 'weapon' | 'shield') => {
+      const doc = sessionRef.current?.updateEquipmentColliderRole(colliderId, role);
+      if (doc) setEquipmentDoc(cloneEquipmentDoc(doc));
+    },
+    onColliderDelete: (colliderId: string) => {
+      const doc = sessionRef.current?.removeEquipmentCollider(colliderId);
+      if (!doc) return;
+      setEquipmentDoc(cloneEquipmentDoc(doc));
+      setEquipmentSelection({ kind: 'root' });
+    },
+    onClearMesh: () => {
+      const doc = sessionRef.current?.clearEquipmentMesh();
+      if (!doc) return;
+      setEquipmentDoc(cloneEquipmentDoc(doc));
+      setEquipmentSelection({ kind: 'root' });
+    },
+  };
+
+  return {
+    propInspectorActions,
+    actorInspectorActions,
+    equipmentInspectorActions,
+    levelInspectorActions,
+  };
 };
 
 export type UseConstructInspectorActionsResult = ReturnType<typeof useConstructInspectorActions>;

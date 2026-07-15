@@ -53,7 +53,7 @@ export const useConstructViewer = ({
   useEffect(() => {
     if (!active) return;
     if (!sessionRef.current) return;
-    if (mode === 'prop' || mode === 'actor') return;
+    if (mode === 'prop' || mode === 'actor' || mode === 'equipment') return;
 
     defaultLoadedRef.current = false;
   }, [active, mode]);

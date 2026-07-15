@@ -49,6 +49,7 @@ export type SkeletalCharacterLoad = {
   clips: {
     idle: AnimationClip;
     run: AnimationClip;
+    walkBack: AnimationClip;
     jumpStart: AnimationClip;
     jumpIdle: AnimationClip;
     jumpLand: AnimationClip;
@@ -103,10 +104,12 @@ export const loadSkeletalCharacter = async (
   deps: CharacterLoadDeps,
   def: SkeletalCharacterDef,
 ): Promise<SkeletalCharacterLoad> => {
-  const [bodyLoaded, idleLoaded, moveLoaded] = await Promise.all([
+  const advancedUrl = def.animPack.movementAdvancedGlb;
+  const [bodyLoaded, idleLoaded, moveLoaded, advancedLoaded] = await Promise.all([
     deps.gltfCache.getOrLoad(def.bodyGlb),
     deps.gltfCache.getOrLoad(def.animPack.generalGlb),
     deps.gltfCache.getOrLoad(def.animPack.movementGlb),
+    advancedUrl ? deps.gltfCache.getOrLoad(advancedUrl) : Promise.resolve(null),
   ]);
 
   const bodyScene = getOrBuildRuntimeScene(bodyLoaded);
@@ -116,10 +119,20 @@ export const loadSkeletalCharacter = async (
   const bodyMats = buildGltfMaterials(bodyLoaded, def.materialPrefix, deps.textures, baseColorOverride);
   const idleClips = buildRetargetedClips(idleLoaded, bodyScene.nodes);
   const moveClips = buildRetargetedClips(moveLoaded, bodyScene.nodes);
+  const advancedClips = advancedLoaded
+    ? buildRetargetedClips(advancedLoaded, bodyScene.nodes)
+    : moveClips;
+
+  const walkBackName = def.clips.walkBack;
+  const walkBackSource = walkBackName && advancedLoaded ? advancedClips : moveClips;
+  const walkBackClip = walkBackName
+    ? pickClip(walkBackSource, walkBackName)
+    : pickClip(moveClips, def.clips.run);
 
   const clips = {
     idle: createAnimationClip(pickClip(idleClips, def.clips.idle)),
     run: createAnimationClip(pickClip(moveClips, def.clips.run)),
+    walkBack: createAnimationClip(walkBackClip),
     jumpStart: createAnimationClip(pickClip(moveClips, def.clips.jumpStart)),
     jumpIdle: createAnimationClip(pickClip(moveClips, def.clips.jumpIdle)),
     jumpLand: createAnimationClip(pickClip(moveClips, def.clips.jumpLand)),

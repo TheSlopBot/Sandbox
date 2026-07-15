@@ -154,7 +154,7 @@ const toActorDefinition = (raw: unknown): ActorDefinition => {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid actor in .level');
   const doc = raw as Partial<ActorDefinition> & {
     character?: { url?: string; materialPrefix?: string; textureVariantUrl?: string | null };
-    animPack?: { generalGlb?: string; movementGlb?: string };
+    animPack?: { generalGlb?: string; movementGlb?: string; movementAdvancedGlb?: string };
     clips?: Record<string, string>;
   };
   if (typeof doc.id !== 'string' || typeof doc.displayName !== 'string') {
@@ -192,10 +192,14 @@ const toActorDefinition = (raw: unknown): ActorDefinition => {
     animPack: {
       generalGlb: doc.animPack.generalGlb,
       movementGlb: doc.animPack.movementGlb,
+      ...(typeof doc.animPack.movementAdvancedGlb === 'string'
+        ? { movementAdvancedGlb: doc.animPack.movementAdvancedGlb }
+        : {}),
     },
     clips: {
       idle: doc.clips.idle,
       run: doc.clips.run,
+      ...(typeof doc.clips.walkBack === 'string' ? { walkBack: doc.clips.walkBack } : {}),
       jumpStart: doc.clips.jumpStart,
       jumpIdle: doc.clips.jumpIdle,
       jumpLand: doc.clips.jumpLand,

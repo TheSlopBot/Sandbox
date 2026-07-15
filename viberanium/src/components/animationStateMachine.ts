@@ -1,7 +1,7 @@
 import { type CharacterController } from './characterController.ts';
 import { type MovementIntent } from './movementIntent.ts';
 
-export type AnimStateId = 'idle' | 'run' | 'jumpStart' | 'jumpAir' | 'jumpLand';
+export type AnimStateId = 'idle' | 'run' | 'walkBack' | 'jumpStart' | 'jumpAir' | 'jumpLand';
 
 export type AnimationStateMachine = {
   current: AnimStateId;
@@ -37,34 +37,39 @@ const isMoving = (cc: CharacterController, intent?: MovementIntent | null) => {
   return hasMoveSpeed(cc.velocity[0], cc.velocity[2]);
 };
 
+const groundedMoveState = (walkingBackwards: boolean): AnimStateId =>
+  walkingBackwards ? 'walkBack' : 'run';
+
 export const stepAnimationFsm = (
   cc: CharacterController,
   fsm: AnimationStateMachine,
   dt: number,
   intent?: MovementIntent | null,
+  walkingBackwards = false,
 ): void => {
   if (fsm.paused) return;
 
   const grounded = cc.onGround || cc.sliding || cc.coyoteRemaining > 0;
   const moving = isMoving(cc, intent);
+  const moveState = groundedMoveState(walkingBackwards);
 
   if ((cc.onGround || cc.coyoteRemaining > 0) && (fsm.current === 'jumpStart' || fsm.current === 'jumpAir')) {
-    if (moving) fsm.current = 'run';
+    if (moving) fsm.current = moveState;
     else {
       fsm.current = 'jumpLand';
       fsm.stateTime = 0;
     }
-  } else if (!grounded && (fsm.current === 'idle' || fsm.current === 'run')) {
+  } else if (!grounded && (fsm.current === 'idle' || fsm.current === 'run' || fsm.current === 'walkBack')) {
     fsm.current = 'jumpAir';
     fsm.stateTime = 0;
   } else if (fsm.current === 'jumpStart' && fsm.stateTime >= fsm.jumpStartDuration) {
     fsm.current = 'jumpAir';
     fsm.stateTime = 0;
   } else if (fsm.current === 'jumpLand') {
-    if (moving) fsm.current = 'run';
+    if (moving) fsm.current = moveState;
     else if (fsm.stateTime >= fsm.jumpLandDuration) fsm.current = 'idle';
-  } else if (grounded && (fsm.current === 'idle' || fsm.current === 'run')) {
-    fsm.current = moving ? 'run' : 'idle';
+  } else if (grounded && (fsm.current === 'idle' || fsm.current === 'run' || fsm.current === 'walkBack')) {
+    fsm.current = moving ? moveState : 'idle';
   }
 
   if (fsm.current === 'jumpStart') fsm.stateTime += dt * fsm.jumpStartSpeed;

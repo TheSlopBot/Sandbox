@@ -4,6 +4,7 @@ import {
   type Transform,
   type MovementIntent,
   type CharacterController,
+  type CombatIntent,
   type NavGrid,
   COMPONENT_KEYS,
   findPath,
@@ -17,6 +18,23 @@ const WAYPOINT_RADIUS = 0.45;
 const OBJECTIVE_MIN_DIST = 3;
 const OBJECTIVE_MAX_DIST = 16;
 const MAX_REPATHS_PER_FRAME = 8;
+const AIM_EPS = 1e-6;
+
+const aimTowardObjective = (
+  combat: CombatIntent | undefined,
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+) => {
+  if (!combat) return;
+
+  const dx = toX - fromX;
+  const dz = toZ - fromZ;
+  if (dx * dx + dz * dz <= AIM_EPS) return;
+
+  combat.aimYawRad = Math.atan2(dx, dz);
+};
 
 const getSceneNavGrid = (registry: Registry): NavGrid | null => {
   for (const e of registry.view(COMPONENT_KEYS.navGrid)) {
@@ -91,8 +109,11 @@ export const installTestAiSystem = (registry: Registry) => {
         const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
         const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
         const intent = e.components[COMPONENT_KEYS.movementIntent] as MovementIntent | undefined;
+        const combat = e.components[COMPONENT_KEYS.combatIntent] as CombatIntent | undefined;
         const ai = e.components[GAME_COMPONENT_KEYS.testAi] as TestAi;
         if (!t || !cc || !intent) continue;
+
+        aimTowardObjective(combat, t.position[0], t.position[2], ai.target[0], ai.target[2]);
 
         if (ai.state === 'pausing') {
           ai.pauseRemaining -= ctx.dt;

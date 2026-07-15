@@ -216,6 +216,10 @@ export const loadActorDocument = async (
       parent: { ...c.parent },
       halfExtents: c.halfExtents ? ([...c.halfExtents] as [number, number, number]) : undefined,
     })),
+    animPack: doc.animPack ? { ...doc.animPack } : null,
+    clips: doc.clips ? { ...doc.clips } : null,
+    ...(doc.baseColorTextureUrl ? { baseColorTextureUrl: doc.baseColorTextureUrl } : {}),
+    ...(doc.visualYOffset !== undefined ? { visualYOffset: doc.visualYOffset } : {}),
   };
   state.attachmentCounter = state.actorDocument.attachments.length;
   state.colliderCounter = state.actorDocument.colliders.length;

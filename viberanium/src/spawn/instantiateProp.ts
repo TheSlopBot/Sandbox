@@ -1,5 +1,6 @@
 import { type TextureHandle, type TextureCache } from '../render/gl/texture.ts';
 import { type Registry } from '../engine/registry.ts';
+import { type Entity } from '../engine/entity.ts';
 import { type Material } from '../render/types.ts';
 import { type Collider, bakeColliderWorldFromLocal } from '../components/collider.ts';
 import { type Mat4, m4, m4Copy, m4FromTRS, m4FromTRSQuat, m4Mul } from '../math/mat4.ts';
@@ -39,6 +40,7 @@ export type InstantiatePropOptions = {
   meshes?: SharedMeshCache;
   markNavDirty?: boolean;
   batcher?: StaticPropBatcher;
+  onRoot?: (root: Entity) => void;
 };
 
 const worldSphereFromLocal = (
@@ -289,5 +291,6 @@ export const instantiateProp = async (
   for (const childId of children.ids) finalizeStaticChild(registry, childId);
 
   if (options.markNavDirty !== false) markNavGridDirty(registry);
+  options.onRoot?.(root);
   return true;
 };

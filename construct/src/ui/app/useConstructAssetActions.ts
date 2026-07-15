@@ -2,11 +2,15 @@ import { type RefObject } from 'react';
 import { type KaykitManifestEntry } from '../../catalog/manifest/kaykitManifest.ts';
 import { type PropDocument } from '../../catalog/props/propDocument.ts';
 import { type ActorDocument, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
+import {
+  type EquipmentDocument,
+  type EquipmentEditorSelection,
+} from '../../catalog/equipment/equipmentDocument.ts';
 import { type LevelDocument } from '../../catalog/levels/levelDocument.ts';
 import { type ConstructSession } from '../../globals/bootstrap.ts';
 import { type ConstructLevelSelection } from '../../session/types.ts';
 import { type ConstructMode } from '../menu/AppMenu.tsx';
-import { cloneActorDoc } from './useConstructSession.ts';
+import { cloneActorDoc, cloneEquipmentDoc } from './useConstructSession.ts';
 
 const fileBaseName = (path: string) => {
   const name = path.split('/').slice(-1)[0] ?? path;
@@ -23,6 +27,8 @@ export type UseConstructAssetActionsParams = {
   setSelectedPartId: (id: string | null) => void;
   setActorDoc: (doc: ActorDocument) => void;
   setActorBoneNames: (names: string[]) => void;
+  setEquipmentDoc: (doc: EquipmentDocument) => void;
+  setEquipmentSelection: (selection: EquipmentEditorSelection) => void;
   setAnimPackUrl: (url: string | null) => void;
   setAvailableClipNames: (names: string[]) => void;
   setClipName: (name: string | null) => void;
@@ -41,6 +47,8 @@ export const useConstructAssetActions = ({
   setSelectedPartId,
   setActorDoc,
   setActorBoneNames,
+  setEquipmentDoc,
+  setEquipmentSelection,
   setAnimPackUrl,
   setAvailableClipNames,
   setClipName,
@@ -66,6 +74,21 @@ export const useConstructAssetActions = ({
           setStatus(`Added asset ${entry.path.split('/').slice(-1)[0] ?? entry.path}`);
         } catch (err) {
           setStatus(`Add asset error: ${String(err)}`);
+        }
+      })();
+      return;
+    }
+
+    if (mode === 'equipment') {
+      void (async () => {
+        try {
+          const doc = await session.setEquipmentMesh(url, 'prop');
+          setEquipmentDoc(cloneEquipmentDoc(doc));
+          setEquipmentSelection({ kind: 'mesh' });
+          session.selectEquipment({ kind: 'mesh' });
+          setStatus(`Set mesh ${entry.path.split('/').slice(-1)[0] ?? entry.path}`);
+        } catch (err) {
+          setStatus(`Set mesh error: ${String(err)}`);
         }
       })();
       return;
@@ -194,6 +217,18 @@ export const useConstructAssetActions = ({
         setLevelSelection(session.getLevelSelection());
         setStatus(`Added ${shape} collider`);
       })();
+      return;
+    }
+
+    if (mode === 'equipment') {
+      const doc = session.addEquipmentCollider(shape);
+      setEquipmentDoc(cloneEquipmentDoc(doc));
+      const last = doc.colliders[doc.colliders.length - 1];
+      if (last) {
+        setEquipmentSelection({ kind: 'collider', colliderId: last.id });
+        session.selectEquipment({ kind: 'collider', colliderId: last.id });
+      }
+      setStatus(`Added ${shape} collider`);
       return;
     }
 

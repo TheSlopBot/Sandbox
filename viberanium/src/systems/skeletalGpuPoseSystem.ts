@@ -10,6 +10,14 @@ import { type BoneAttachment } from '../components/boneAttachment.ts';
 import { type Collider, bakeColliderWorldFromLocal } from '../components/collider.ts';
 import { type SkinInstance } from '../components/skin.ts';
 import { type Gltf } from '../assets/gltf/types.ts';
+import { type RightHandStateMachine } from '../components/rightHandStateMachine.ts';
+import { type LeftHandStateMachine } from '../components/leftHandStateMachine.ts';
+import { type RightHandClipMap } from '../components/rightHandClipMap.ts';
+import { type LeftHandClipMap } from '../components/leftHandClipMap.ts';
+import { type AnimationHandMasks } from '../components/animationHandMasks.ts';
+import { type AnimationAimOffset } from '../components/animationAimOffset.ts';
+import { type AnimationPoseOverlay } from '../components/animationPoseOverlay.ts';
+import { type AnimationFullBody } from '../components/animationFullBody.ts';
 import {
   DEFAULT_ENGINE_OPTIMIZATION,
   type EngineOptimizationOptions,
@@ -24,12 +32,17 @@ import {
 } from '../render/gl/skeletonGpu.ts';
 import {
   createSkeletalPosePass,
+  FULL_BODY_CLIP_DISABLED,
   type PoseAttachmentJob,
   type PoseDispatchEntry,
   type PoseMeshJob,
   type SkeletalPosePass,
 } from '../render/passes/skeletalPosePass.ts';
-import { clipStateIndex } from '../assets/gltf/packClipsForGpu.ts';
+import {
+  clipStateIndex,
+  leftHandClipStateIndex,
+  rightHandClipStateIndex,
+} from '../assets/gltf/packClipsForGpu.ts';
 import { type Entity } from '../engine/entity.ts';
 
 const _boneAttachedWorld = m4();
@@ -45,6 +58,7 @@ type GpuPoseState = {
   asset: SkeletonGpuAsset;
   slotIndex: number;
   lodAccum: number;
+  ownedAsset: boolean;
 };
 
 type SharedAssetEntry = {
@@ -62,6 +76,7 @@ type PendingPose = {
   renderRoot: Mat4;
   skip: boolean;
   castShadow: boolean;
+  layered: boolean;
 };
 
 const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
@@ -71,7 +86,11 @@ const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
 };
 
 const isLoopingState = (state: AnimStateId) =>
-  state === 'idle' || state === 'run' || state === 'jumpAir';
+  state === 'idle' || state === 'run' || state === 'walkBack' || state === 'jumpAir';
+
+const isRightHandLooping = (state: string) => state === 'idleHold' || state === 'aim';
+
+const isLeftHandLooping = (state: string) => state === 'idleHold' || state === 'block';
 
 export const installSkeletalGpuPoseSystem = (
   registry: Registry,
@@ -90,8 +109,37 @@ export const installSkeletalGpuPoseSystem = (
     model: SkeletalModel,
     skin: SkinInstance,
     clipMap: AnimationClipMap,
-  ): SkeletonGpuAsset => {
+    layered: boolean,
+    rightHandClipMap: RightHandClipMap | undefined,
+    leftHandClipMap: LeftHandClipMap | undefined,
+    handMasks: AnimationHandMasks | undefined,
+  ): { asset: SkeletonGpuAsset; ownedAsset: boolean } => {
     const gltf = model.bodyScene.gltf;
+    const existing = stateByModel.get(model);
+
+    if (layered) {
+      if (model.clipsDirty && existing?.ownedAsset) {
+        existing.asset.destroy();
+        existing.ownedAsset = false;
+      }
+      model.clipsDirty = false;
+
+      if (existing?.ownedAsset) return { asset: existing.asset, ownedAsset: true };
+
+      const asset = createSkeletonGpuAsset(
+        options.device,
+        model.bodyScene,
+        skin.skin,
+        skin.rootNodeIndex,
+        clipMap,
+        {
+          rightHandClipMap,
+          leftHandClipMap,
+          handMasks,
+        },
+      );
+      return { asset, ownedAsset: true };
+    }
 
     if (model.clipsDirty) {
       const stale = sharedAssets.get(gltf);
@@ -99,11 +147,15 @@ export const installSkeletalGpuPoseSystem = (
         stale.asset.destroy();
         sharedAssets.delete(gltf);
       }
+      if (existing?.ownedAsset) {
+        existing.asset.destroy();
+        existing.ownedAsset = false;
+      }
       model.clipsDirty = false;
     }
 
     const cached = sharedAssets.get(gltf);
-    if (cached) return cached.asset;
+    if (cached) return { asset: cached.asset, ownedAsset: false };
 
     const asset = createSkeletonGpuAsset(
       options.device,
@@ -113,18 +165,31 @@ export const installSkeletalGpuPoseSystem = (
       clipMap,
     );
     sharedAssets.set(gltf, { asset });
-    return asset;
+    return { asset, ownedAsset: false };
   };
 
   const ensureState = (
     model: SkeletalModel,
     skin: SkinInstance,
     clipMap: AnimationClipMap,
+    layered: boolean,
+    rightHandClipMap: RightHandClipMap | undefined,
+    leftHandClipMap: LeftHandClipMap | undefined,
+    handMasks: AnimationHandMasks | undefined,
   ): GpuPoseState => {
-    const asset = ensureAsset(model, skin, clipMap);
+    const { asset, ownedAsset } = ensureAsset(
+      model,
+      skin,
+      clipMap,
+      layered,
+      rightHandClipMap,
+      leftHandClipMap,
+      handMasks,
+    );
     let state = stateByModel.get(model);
     if (state) {
       state.asset = asset;
+      state.ownedAsset = ownedAsset;
       return state;
     }
 
@@ -132,6 +197,7 @@ export const installSkeletalGpuPoseSystem = (
       asset,
       slotIndex: posePass.allocSlot(),
       lodAccum: 0,
+      ownedAsset,
     };
     stateByModel.set(model, state);
     return state;
@@ -164,9 +230,37 @@ export const installSkeletalGpuPoseSystem = (
 
       updateWorldMatrix(t);
 
+      const rightFsm = e.components[COMPONENT_KEYS.rightHandStateMachine] as
+        | RightHandStateMachine
+        | undefined;
+      const leftFsm = e.components[COMPONENT_KEYS.leftHandStateMachine] as
+        | LeftHandStateMachine
+        | undefined;
+      const rightHandClipMap = e.components[COMPONENT_KEYS.rightHandClipMap] as
+        | RightHandClipMap
+        | undefined;
+      const leftHandClipMap = e.components[COMPONENT_KEYS.leftHandClipMap] as
+        | LeftHandClipMap
+        | undefined;
+      const handMasks = e.components[COMPONENT_KEYS.animationHandMasks] as
+        | AnimationHandMasks
+        | undefined;
+      const hasHandFsm = !!(rightFsm || leftFsm);
+      const rightActive = !!rightFsm && rightFsm.current !== 'none';
+      const leftActive = !!leftFsm && leftFsm.current !== 'none';
+      const layered = hasHandFsm && (rightActive || leftActive);
+
       const d2 = origin ? distSqXZ(t.position[0], t.position[2], ox, oz) : 0;
       const dist = origin ? Math.sqrt(d2) : 0;
-      const state = ensureState(model, skin, clipMap);
+      const state = ensureState(
+        model,
+        skin,
+        clipMap,
+        hasHandFsm,
+        rightHandClipMap,
+        leftHandClipMap,
+        handMasks,
+      );
       const interval = origin ? skeletonLodUpdateInterval(dist, optimization.skeletonLod) : 1;
       let skip = false;
       if (interval === 0) {
@@ -199,6 +293,7 @@ export const installSkeletalGpuPoseSystem = (
         renderRoot,
         skip,
         castShadow,
+        layered,
       });
     }
 
@@ -206,7 +301,7 @@ export const installSkeletalGpuPoseSystem = (
     const attachmentBuffer = posePass.attachmentModelsBuffer();
 
     for (const item of pending) {
-      const { meshDraws, fsm, skin, state, renderRoot, skip, castShadow, model } = item;
+      const { meshDraws, fsm, skin, state, renderRoot, skip, castShadow, model, layered } = item;
       skin.paletteGpu = posePass.paletteBinding(state.slotIndex);
 
       const meshJobs: PoseMeshJob[] = [];
@@ -280,17 +375,76 @@ export const installSkeletalGpuPoseSystem = (
       }
 
       const oneShot = fsm.current === 'jumpStart' || fsm.current === 'jumpLand';
-      const time = oneShot ? fsm.stateTime : fsm.animTime;
-      const speed = fsm.current === 'run' ? fsm.runPlaybackSpeed : 1;
+      const movePlaybackSpeed =
+        fsm.current === 'run'
+          ? fsm.runPlaybackSpeed
+          : fsm.current === 'walkBack'
+            ? fsm.runPlaybackSpeed * 1.5
+            : 1;
+      const moveTime = (oneShot ? fsm.stateTime : fsm.animTime) * movePlaybackSpeed;
+
+      const rightFsm = item.entity.components[COMPONENT_KEYS.rightHandStateMachine] as
+        | RightHandStateMachine
+        | undefined;
+      const leftFsm = item.entity.components[COMPONENT_KEYS.leftHandStateMachine] as
+        | LeftHandStateMachine
+        | undefined;
+      const aim = item.entity.components[COMPONENT_KEYS.animationAimOffset] as
+        | AnimationAimOffset
+        | undefined;
+      const overlay = item.entity.components[COMPONENT_KEYS.animationPoseOverlay] as
+        | AnimationPoseOverlay
+        | undefined;
+      const fullBody = item.entity.components[COMPONENT_KEYS.animationFullBody] as
+        | AnimationFullBody
+        | undefined;
+      const handMasks = item.entity.components[COMPONENT_KEYS.animationHandMasks] as
+        | AnimationHandMasks
+        | undefined;
+
+      const rightState = rightFsm?.current ?? 'none';
+      const leftState = leftFsm?.current ?? 'none';
+      const moveClip = clipStateIndex(fsm.current);
+      const moveLoop = isLoopingState(fsm.current);
+
+      const rightUsesMove = rightState === 'none';
+      const leftUsesMove = leftState === 'none';
 
       entries.push({
         asset: state.asset,
         slotIndex: state.slotIndex,
         skin,
         renderRoot,
-        animTime: time * speed,
-        clipIndex: clipStateIndex(fsm.current),
-        loop: isLoopingState(fsm.current),
+        moveAnimTime: moveTime,
+        moveClipIndex: moveClip,
+        moveLoop,
+        rightAnimTime: rightUsesMove
+          ? moveTime
+          : rightFsm
+            ? rightState === 'attack' || rightState === 'reload'
+              ? rightFsm.stateTime
+              : rightFsm.animTime
+            : 0,
+        rightClipIndex: rightUsesMove ? moveClip : rightHandClipStateIndex(rightState),
+        rightLoop: rightUsesMove ? moveLoop : isRightHandLooping(rightState),
+        leftAnimTime: leftUsesMove
+          ? moveTime
+          : leftFsm
+            ? leftState === 'attack'
+              ? leftFsm.stateTime
+              : leftFsm.animTime
+            : 0,
+        leftClipIndex: leftUsesMove ? moveClip : leftHandClipStateIndex(leftState),
+        leftLoop: leftUsesMove ? moveLoop : isLeftHandLooping(leftState),
+        fullBodyClipIndex:
+          fullBody?.active != null ? clipStateIndex('idle') : FULL_BODY_CLIP_DISABLED,
+        torsoYawRad:
+          (aim?.enabled ? (aim.torsoYawRad ?? 0) : 0) + (overlay?.spineYawRad ?? 0),
+        headYawRad:
+          (aim?.enabled ? (aim.headYawRad ?? 0) : 0) + (overlay?.headYawRad ?? 0),
+        spineNodeIndex: handMasks?.spineNodeIndex ?? 0,
+        headNodeIndex: handMasks?.headNodeIndex ?? 0,
+        layerMode: layered ? 1 : 0,
         skip,
         meshJobs,
         attachmentJobs,

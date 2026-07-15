@@ -9,9 +9,10 @@ import { JOINT_BUFFER_SIZE, type JointPaletteGpu } from '../gl/jointPalette.ts';
 import { type Mat4 } from '../../math/mat4.ts';
 import { type SkinInstance } from '../../components/skin.ts';
 
-export const POSE_INSTANCE_FLOATS = 32;
+export const POSE_INSTANCE_FLOATS = 48;
 export const POSE_INSTANCE_STRIDE = POSE_INSTANCE_FLOATS * 4;
 export const SCRATCH_FLOATS_PER_SLOT = MAX_SKELETON_NODES * 10 + MAX_SKELETON_NODES * 16;
+export const FULL_BODY_CLIP_DISABLED = 0xffffffff;
 
 export type PoseMeshJob = {
   nodeIndex: number;
@@ -30,9 +31,21 @@ export type PoseDispatchEntry = {
   slotIndex: number;
   skin: SkinInstance;
   renderRoot: Mat4;
-  animTime: number;
-  clipIndex: number;
-  loop: boolean;
+  moveAnimTime: number;
+  moveClipIndex: number;
+  moveLoop: boolean;
+  rightAnimTime: number;
+  rightClipIndex: number;
+  rightLoop: boolean;
+  leftAnimTime: number;
+  leftClipIndex: number;
+  leftLoop: boolean;
+  fullBodyClipIndex: number;
+  torsoYawRad: number;
+  headYawRad: number;
+  spineNodeIndex: number;
+  headNodeIndex: number;
+  layerMode: 0 | 1;
   skip: boolean;
   meshJobs: readonly PoseMeshJob[];
   attachmentJobs: readonly PoseAttachmentJob[];
@@ -51,7 +64,7 @@ export type SkeletalPosePass = {
   destroy: () => void;
 };
 
-const FRAME_U32 = 16;
+const FRAME_U32 = 20;
 const MAX_POSE_GROUPS = 8;
 const align256 = (n: number) => (n + 255) & ~255;
 
@@ -225,22 +238,27 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
   ) => {
     const base = instanceIndex * POSE_INSTANCE_FLOATS;
     instanceCpu.set(entry.renderRoot, base);
-    instanceCpu[base + 16] = entry.animTime;
-    instanceU32[base + 17] = entry.clipIndex;
-    instanceU32[base + 18] = entry.loop ? 1 : 0;
-    instanceU32[base + 19] = entry.slotIndex;
-    instanceU32[base + 20] = meshStart;
-    instanceU32[base + 21] = entry.meshJobs.length;
-    instanceU32[base + 22] = attachStart;
-    instanceU32[base + 23] = entry.attachmentJobs.length;
-    instanceU32[base + 24] = 0;
-    instanceU32[base + 25] = 0;
-    instanceU32[base + 26] = 0;
-    instanceU32[base + 27] = 0;
-    instanceU32[base + 28] = 0;
-    instanceU32[base + 29] = 0;
-    instanceU32[base + 30] = 0;
-    instanceU32[base + 31] = 0;
+    instanceCpu[base + 16] = entry.moveAnimTime;
+    instanceCpu[base + 17] = entry.rightAnimTime;
+    instanceCpu[base + 18] = entry.leftAnimTime;
+    instanceCpu[base + 19] = entry.torsoYawRad;
+    instanceU32[base + 20] = entry.moveClipIndex;
+    instanceU32[base + 21] = entry.moveLoop ? 1 : 0;
+    instanceU32[base + 22] = entry.rightClipIndex;
+    instanceU32[base + 23] = entry.rightLoop ? 1 : 0;
+    instanceU32[base + 24] = entry.leftClipIndex;
+    instanceU32[base + 25] = entry.leftLoop ? 1 : 0;
+    instanceU32[base + 26] = entry.fullBodyClipIndex;
+    instanceU32[base + 27] = entry.spineNodeIndex;
+    instanceU32[base + 28] = entry.slotIndex;
+    instanceU32[base + 29] = meshStart;
+    instanceU32[base + 30] = entry.meshJobs.length;
+    instanceU32[base + 31] = attachStart;
+    instanceU32[base + 32] = entry.attachmentJobs.length;
+    instanceU32[base + 33] = entry.layerMode;
+    instanceCpu[base + 34] = entry.headYawRad;
+    instanceU32[base + 35] = entry.headNodeIndex;
+    for (let i = 36; i < POSE_INSTANCE_FLOATS; i++) instanceU32[base + i] = 0;
   };
 
   const createGroupBindGroup = (
@@ -451,6 +469,10 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
       frameU32[13] = asset.offsets.animatedMaskOffset;
       frameU32[14] = asset.offsets.maskWords;
       frameU32[15] = SCRATCH_FLOATS_PER_SLOT;
+      frameU32[16] = asset.offsets.lowerBodyMaskOffset;
+      frameU32[17] = asset.offsets.rightArmMaskOffset;
+      frameU32[18] = asset.offsets.leftArmMaskOffset;
+      frameU32[19] = 0;
       gpu.queue.writeBuffer(frameBuf, 0, frameU32);
 
       const instanceSize = Math.max(POSE_INSTANCE_STRIDE, group.length * POSE_INSTANCE_STRIDE);

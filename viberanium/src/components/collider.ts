@@ -20,6 +20,9 @@ export type Collider = {
   isStatic: boolean;
   shape: ColliderShape;
   localShape?: ColliderShape;
+  combatLayer?: number;
+  combatMask?: number;
+  ownerId?: EntityId;
 };
 
 export const aabb = (

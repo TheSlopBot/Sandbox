@@ -2,6 +2,7 @@ import { type Registry } from '../engine/registry.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type CharacterController } from '../components/characterController.ts';
 import { type MovementIntent } from '../components/movementIntent.ts';
+import { type CombatIntent } from '../components/combatIntent.ts';
 import { type AnimationStateMachine, stepAnimationFsm } from '../components/animationStateMachine.ts';
 
 export const installAnimationFsmSystem = (registry: Registry) =>
@@ -12,6 +13,7 @@ export const installAnimationFsmSystem = (registry: Registry) =>
       if (!cc || !fsm) continue;
 
       const intent = e.components[COMPONENT_KEYS.movementIntent] as MovementIntent | undefined;
-      stepAnimationFsm(cc, fsm, ctx.dt, intent);
+      const combat = e.components[COMPONENT_KEYS.combatIntent] as CombatIntent | undefined;
+      stepAnimationFsm(cc, fsm, ctx.dt, intent, combat?.walkingBackwards ?? false);
     }
   }, 12);

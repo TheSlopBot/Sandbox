@@ -28,6 +28,13 @@ import {
   type PropEditorTransformMode,
   createEmptyPropDocument,
 } from '../catalog/props/propDocument.ts';
+import {
+  type EquipmentDocument,
+  type EquipmentDocumentCollider,
+  type EquipmentDocumentProjectile,
+  type EquipmentEditorSelection,
+  createEmptyEquipmentDocument,
+} from '../catalog/equipment/equipmentDocument.ts';
 import { type LevelDocument, createEmptyLevelDocument } from '../catalog/levels/levelDocument.ts';
 
 export type ConstructTextureVariant = {
@@ -120,6 +127,28 @@ export type ConstructSession = {
   setActorDocumentListener: (fn: ((doc: ActorDocument) => void) | null) => void;
   getActorBoneNames: () => string[];
   getOrbitAngles: () => { yawRad: number; pitchRad: number };
+  newEquipment: () => EquipmentDocument;
+  enterEquipmentMode: () => Promise<EquipmentDocument>;
+  getEquipmentDocument: () => EquipmentDocument;
+  loadEquipmentDocument: (doc: EquipmentDocument) => Promise<EquipmentDocument>;
+  setEquipmentMesh: (url: string, materialPrefix?: string) => Promise<EquipmentDocument>;
+  addEquipmentCollider: (shape: 'box' | 'cylinder' | 'sphere') => EquipmentDocument;
+  selectEquipment: (sel: EquipmentEditorSelection) => void;
+  renameEquipment: (name: string) => EquipmentDocument;
+  updateEquipmentKind: (kind: EquipmentDocument['kind']) => EquipmentDocument;
+  updateEquipmentSlotTags: (tags: string[]) => EquipmentDocument;
+  updateEquipmentStats: (partial: Partial<EquipmentDocument['stats']>) => EquipmentDocument;
+  updateEquipmentClips: (partial: Partial<EquipmentDocument['clips']>) => EquipmentDocument;
+  updateEquipmentProjectile: (projectile: EquipmentDocumentProjectile | undefined) => EquipmentDocument;
+  updateEquipmentColliderRole: (
+    colliderId: string,
+    role: EquipmentDocumentCollider['role'],
+  ) => EquipmentDocument;
+  updateEquipmentColliderName: (colliderId: string, name: string) => EquipmentDocument;
+  updateEquipmentPartLocal: (partId: string, patch: ConstructTransformPatch) => EquipmentDocument;
+  removeEquipmentCollider: (colliderId: string) => EquipmentDocument;
+  clearEquipmentMesh: () => EquipmentDocument;
+  setEquipmentDocumentListener: (fn: ((doc: EquipmentDocument) => void) | null) => void;
   enterLevelMode: () => Promise<LevelDocument>;
   newLevel: () => Promise<LevelDocument>;
   getLevelDocument: () => LevelDocument;
@@ -168,7 +197,7 @@ export type ConstructSession = {
   unload: () => void;
 };
 
-export type ConstructEditorMode = 'preview' | 'prop' | 'actor' | 'level';
+export type ConstructEditorMode = 'preview' | 'prop' | 'actor' | 'equipment' | 'level';
 
 export type ConstructSessionDeps = {
   device: GpuDevice;
@@ -194,6 +223,8 @@ export type ConstructSessionState = {
   propDocListener: ((doc: PropDocument) => void) | null;
   actorDocument: ActorDocument;
   actorDocListener: ((doc: ActorDocument) => void) | null;
+  equipmentDocument: EquipmentDocument;
+  equipmentDocListener: ((doc: EquipmentDocument) => void) | null;
   levelDocument: LevelDocument;
   levelDocListener: ((doc: LevelDocument) => void) | null;
   levelSelection: ConstructLevelSelection;
@@ -228,6 +259,8 @@ export const createConstructSessionState = (selectionEnt: Entity): ConstructSess
   propDocListener: null,
   actorDocument: createEmptyActorDocument(),
   actorDocListener: null,
+  equipmentDocument: createEmptyEquipmentDocument(),
+  equipmentDocListener: null,
   levelDocument: createEmptyLevelDocument(),
   levelDocListener: null,
   levelSelection: { instanceIds: [], groupId: null },

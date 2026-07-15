@@ -1,4 +1,4 @@
-export type ConstructMode = 'preview' | 'prop' | 'actor' | 'level';
+export type ConstructMode = 'preview' | 'prop' | 'actor' | 'equipment' | 'level';
 
 export type AppMenuProps = {
   mode: ConstructMode;
@@ -17,6 +17,7 @@ export type AppMenuProps = {
 const MODES: { id: ConstructMode; label: string; enabled: boolean }[] = [
   { id: 'preview', label: 'Preview', enabled: true },
   { id: 'prop', label: 'Prop', enabled: true },
+  { id: 'equipment', label: 'Equipment', enabled: true },
   { id: 'actor', label: 'Actor', enabled: true },
   { id: 'level', label: 'Level', enabled: true },
 ];
@@ -34,7 +35,8 @@ export const AppMenu = ({
   onExport,
   onOpenSandbox,
 }: AppMenuProps) => {
-  const propFileActionsEnabled = mode === 'prop' || mode === 'actor' || mode === 'level';
+  const propFileActionsEnabled =
+    mode === 'prop' || mode === 'actor' || mode === 'equipment' || mode === 'level';
 
   return (
   <div className="construct-menuBar">
@@ -63,7 +65,11 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
+            title={
+              propFileActionsEnabled
+                ? undefined
+                : 'Available in Prop, Actor, Equipment, or Level mode'
+            }
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -77,7 +83,11 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
+            title={
+              propFileActionsEnabled
+                ? undefined
+                : 'Available in Prop, Actor, Equipment, or Level mode'
+            }
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -90,7 +100,11 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
+            title={
+              propFileActionsEnabled
+                ? undefined
+                : 'Available in Prop, Actor, Equipment, or Level mode'
+            }
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -103,7 +117,11 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
+            title={
+              propFileActionsEnabled
+                ? undefined
+                : 'Available in Prop, Actor, Equipment, or Level mode'
+            }
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -116,7 +134,11 @@ export const AppMenu = ({
             type="button"
             className="construct-menuDropdownItem"
             disabled={!propFileActionsEnabled}
-            title={propFileActionsEnabled ? undefined : 'Available in Prop, Actor, or Level mode'}
+            title={
+              propFileActionsEnabled
+                ? undefined
+                : 'Available in Prop, Actor, Equipment, or Level mode'
+            }
             onClick={() => {
               if (!propFileActionsEnabled) return;
               onFileOpenChange(false);
@@ -165,4 +187,3 @@ export const AppMenu = ({
   </div>
   );
 };
-

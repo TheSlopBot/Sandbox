@@ -6,17 +6,20 @@ import {
   createCameraFollow,
   createMovementIntent,
   attachActorBodyCollider,
+  spawnActorColliders,
   type TextureCache,
   type GltfCache,
   COMPONENT_KEYS,
 } from 'viberanium';
-import { SPACE_RANGER_ACTOR } from '../../catalog/actors/kaykitActors.ts';
+import { getActorDefinition } from '../../catalog/actors/registry.ts';
 import { actorDefinitionToSkeletalDef } from '../../catalog/actors/actorDefinitionToSkeletalDef.ts';
 import { GAME_COMPONENT_KEYS } from '../../catalog/keys/components.ts';
-import { PLAYER_ATTACHMENT_TAGS } from '../../catalog/keys/attachments.ts';
 import { loadSkeletalCharacter } from '../actor/loadSkeletalCharacter.ts';
 import { spawnSkeletalCharacter } from '../actor/spawnSkeletalCharacter.ts';
 import { createPlayerController } from './components/playerController.ts';
+import { attachCombatActor } from '../combat/attachCombatActor.ts';
+import { getWeaponDef } from '../../catalog/weapons/registry.ts';
+import { equipWeapon } from '../combat/equipWeapon.ts';
 
 export const createPlayer = async (
   registry: Registry,
@@ -46,31 +49,25 @@ export const createPlayer = async (
   entity.components[COMPONENT_KEYS.cameraFollow] = createCameraFollow();
   entity.components[GAME_COMPONENT_KEYS.playerController] = createPlayerController();
 
+  const playerActor = getActorDefinition('space_ranger');
+
   const loaded = await loadSkeletalCharacter(
     { device, textures, gltfCache },
-    actorDefinitionToSkeletalDef(SPACE_RANGER_ACTOR),
+    actorDefinitionToSkeletalDef(playerActor),
   );
 
-  spawnSkeletalCharacter(registry, entity, loaded, {
-    device,
-    attachmentTags: PLAYER_ATTACHMENT_TAGS,
+  const attachmentEntityIds = spawnSkeletalCharacter(registry, entity, loaded, { device });
+  attachActorBodyCollider(entity, playerActor.colliders);
+  spawnActorColliders(registry, entity, playerActor.colliders, {
+    attachmentEntityIds,
+    attachments: playerActor.attachments,
   });
-
-  attachActorBodyCollider(entity, SPACE_RANGER_ACTOR.colliders);
+  attachCombatActor(entity, playerActor);
 
   registry.register(entity);
 
-  const pc = entity.components[GAME_COMPONENT_KEYS.playerController] as ReturnType<typeof createPlayerController>;
-  const children = entity.components[COMPONENT_KEYS.children] as { ids: number[] };
-
-  for (const childId of children.ids) {
-    const child = registry.get(childId);
-    if (!child) continue;
-
-    if (child.components[GAME_COMPONENT_KEYS.playerHelmet]) pc.helmetEntityId = childId;
-  }
-
-  pc.stowedHelmet = loaded.attachments.find((attachment) => attachment.id === 'helmet') ?? null;
+  const blade = getWeaponDef('ranger_blade');
+  if (blade) await equipWeapon(registry, device, textures, gltfCache, entity, blade);
 
   return { entity };
 };

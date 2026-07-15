@@ -1,11 +1,15 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { type PropDocument, type PropEditorTransformMode } from '../../catalog/props/propDocument.ts';
 import { type ActorDocument, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
+import {
+  type EquipmentDocument,
+  type EquipmentEditorSelection,
+} from '../../catalog/equipment/equipmentDocument.ts';
 import { type LevelDocument } from '../../catalog/levels/levelDocument.ts';
 import { type ConstructSession } from '../../globals/bootstrap.ts';
 import { type ConstructLevelSelection } from '../../session/types.ts';
 import { type ConstructMode } from '../menu/AppMenu.tsx';
-import { cloneActorDoc } from './useConstructSession.ts';
+import { cloneActorDoc, cloneEquipmentDoc } from './useConstructSession.ts';
 
 export const TRANSFORM_MODES: readonly PropEditorTransformMode[] = ['move', 'scale', 'rotate'];
 
@@ -42,11 +46,14 @@ export type UseConstructModeParams = {
   sessionRef: RefObject<ConstructSession | null>;
   levelScaleAllowed: boolean;
   levelRotateAllowed: boolean;
+  equipmentRotateAllowed: boolean;
   setPropDoc: (doc: PropDocument) => void;
   setActorDoc: (doc: ActorDocument) => void;
   setActorBoneNames: (names: string[]) => void;
   setSelectedPartId: (id: string | null) => void;
   setActorSelection: (selection: ActorEditorSelection) => void;
+  setEquipmentDoc: (doc: EquipmentDocument) => void;
+  setEquipmentSelection: (selection: EquipmentEditorSelection) => void;
   setAnimPackUrl: (url: string | null) => void;
   setAvailableClipNames: (names: string[]) => void;
   setClipName: (name: string | null) => void;
@@ -60,11 +67,14 @@ export const useConstructMode = ({
   sessionRef,
   levelScaleAllowed,
   levelRotateAllowed,
+  equipmentRotateAllowed,
   setPropDoc,
   setActorDoc,
   setActorBoneNames,
   setSelectedPartId,
   setActorSelection,
+  setEquipmentDoc,
+  setEquipmentSelection,
   setAnimPackUrl,
   setAvailableClipNames,
   setClipName,
@@ -86,6 +96,7 @@ export const useConstructMode = ({
         setPropDoc({ ...doc, parts: [...doc.parts] });
         setSelectedPartId(null);
         setActorSelection(null);
+        setEquipmentSelection({ kind: 'root' });
         setStatus(
           doc.parts.length > 0
             ? 'Prop editor ready.'
@@ -102,6 +113,7 @@ export const useConstructMode = ({
         setActorBoneNames(session.getActorBoneNames());
         setActorSelection(doc.character ? { kind: 'actor' } : null);
         setSelectedPartId(null);
+        setEquipmentSelection({ kind: 'root' });
         setAnimPackUrl(null);
         setAvailableClipNames([]);
         setClipName(null);
@@ -110,6 +122,22 @@ export const useConstructMode = ({
           doc.character
             ? 'Actor editor ready.'
             : 'Actor editor ready. Add a character from the explorer.',
+        );
+      })();
+      return;
+    }
+
+    if (mode === 'equipment') {
+      void (async () => {
+        const doc = await session.enterEquipmentMode();
+        setEquipmentDoc(cloneEquipmentDoc(doc));
+        setEquipmentSelection({ kind: 'root' });
+        setSelectedPartId(null);
+        setActorSelection(null);
+        setStatus(
+          doc.mesh.url
+            ? 'Equipment editor ready.'
+            : 'Equipment editor ready. Add a mesh or colliders.',
         );
       })();
       return;
@@ -149,7 +177,20 @@ export const useConstructMode = ({
   }, [active, mode, transformMode, levelScaleAllowed, levelRotateAllowed]);
 
   useEffect(() => {
-    if (!active || (mode !== 'prop' && mode !== 'actor' && mode !== 'level')) return;
+    if (!active || mode !== 'equipment') return;
+    if (transformMode === 'rotate' && !equipmentRotateAllowed) {
+      setTransformMode('move');
+      sessionRef.current?.setTransformMode('move');
+    }
+  }, [active, mode, transformMode, equipmentRotateAllowed]);
+
+  useEffect(() => {
+    if (
+      !active ||
+      (mode !== 'prop' && mode !== 'actor' && mode !== 'equipment' && mode !== 'level')
+    ) {
+      return;
+    }
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
@@ -161,7 +202,9 @@ export const useConstructMode = ({
       const modes =
         mode === 'level'
           ? levelTransformModes(levelScaleAllowed, levelRotateAllowed)
-          : TRANSFORM_MODES;
+          : mode === 'equipment'
+            ? levelTransformModes(true, equipmentRotateAllowed)
+            : TRANSFORM_MODES;
       setTransformMode((current) => {
         const next = cycleTransformMode(current, direction, modes);
         sessionRef.current?.setTransformMode(next);
@@ -171,7 +214,7 @@ export const useConstructMode = ({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [active, mode, levelScaleAllowed, levelRotateAllowed]);
+  }, [active, mode, levelScaleAllowed, levelRotateAllowed, equipmentRotateAllowed]);
 
   return { mode, setMode, transformMode, setTransformMode };
 };

@@ -6,6 +6,7 @@ export const animationClipsFromLoad = (
 ): Record<AnimStateId, AnimationClip> => ({
   idle: clips.idle,
   run: clips.run,
+  walkBack: clips.walkBack,
   jumpStart: clips.jumpStart,
   jumpAir: clips.jumpIdle,
   jumpLand: clips.jumpLand,
