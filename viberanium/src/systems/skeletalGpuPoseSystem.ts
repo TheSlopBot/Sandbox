@@ -92,6 +92,25 @@ const isRightHandLooping = (state: string) => state === 'idleHold' || state === 
 
 const isLeftHandLooping = (state: string) => state === 'idleHold' || state === 'block';
 
+const handClipMapsHaveContent = (
+  rightHandClipMap: RightHandClipMap | undefined,
+  leftHandClipMap: LeftHandClipMap | undefined,
+): boolean => {
+  if (rightHandClipMap) {
+    for (const key of Object.keys(rightHandClipMap.clips) as (keyof RightHandClipMap['clips'])[]) {
+      if (rightHandClipMap.clips[key]) return true;
+    }
+  }
+
+  if (leftHandClipMap) {
+    for (const key of Object.keys(leftHandClipMap.clips) as (keyof LeftHandClipMap['clips'])[]) {
+      if (leftHandClipMap.clips[key]) return true;
+    }
+  }
+
+  return false;
+};
+
 export const installSkeletalGpuPoseSystem = (
   registry: Registry,
   options: SkeletalGpuPoseOptions,
@@ -109,7 +128,7 @@ export const installSkeletalGpuPoseSystem = (
     model: SkeletalModel,
     skin: SkinInstance,
     clipMap: AnimationClipMap,
-    layered: boolean,
+    needsOwnedAsset: boolean,
     rightHandClipMap: RightHandClipMap | undefined,
     leftHandClipMap: LeftHandClipMap | undefined,
     handMasks: AnimationHandMasks | undefined,
@@ -117,7 +136,7 @@ export const installSkeletalGpuPoseSystem = (
     const gltf = model.bodyScene.gltf;
     const existing = stateByModel.get(model);
 
-    if (layered) {
+    if (needsOwnedAsset) {
       if (model.clipsDirty && existing?.ownedAsset) {
         existing.asset.destroy();
         existing.ownedAsset = false;
@@ -141,15 +160,16 @@ export const installSkeletalGpuPoseSystem = (
       return { asset, ownedAsset: true };
     }
 
+    if (existing?.ownedAsset) {
+      existing.asset.destroy();
+      existing.ownedAsset = false;
+    }
+
     if (model.clipsDirty) {
       const stale = sharedAssets.get(gltf);
       if (stale) {
         stale.asset.destroy();
         sharedAssets.delete(gltf);
-      }
-      if (existing?.ownedAsset) {
-        existing.asset.destroy();
-        existing.ownedAsset = false;
       }
       model.clipsDirty = false;
     }
@@ -172,7 +192,7 @@ export const installSkeletalGpuPoseSystem = (
     model: SkeletalModel,
     skin: SkinInstance,
     clipMap: AnimationClipMap,
-    layered: boolean,
+    needsOwnedAsset: boolean,
     rightHandClipMap: RightHandClipMap | undefined,
     leftHandClipMap: LeftHandClipMap | undefined,
     handMasks: AnimationHandMasks | undefined,
@@ -181,7 +201,7 @@ export const installSkeletalGpuPoseSystem = (
       model,
       skin,
       clipMap,
-      layered,
+      needsOwnedAsset,
       rightHandClipMap,
       leftHandClipMap,
       handMasks,
@@ -245,10 +265,10 @@ export const installSkeletalGpuPoseSystem = (
       const handMasks = e.components[COMPONENT_KEYS.animationHandMasks] as
         | AnimationHandMasks
         | undefined;
-      const hasHandFsm = !!(rightFsm || leftFsm);
       const rightActive = !!rightFsm && rightFsm.current !== 'none';
       const leftActive = !!leftFsm && leftFsm.current !== 'none';
-      const layered = hasHandFsm && (rightActive || leftActive);
+      const layered = rightActive || leftActive;
+      const needsOwnedAsset = handClipMapsHaveContent(rightHandClipMap, leftHandClipMap);
 
       const d2 = origin ? distSqXZ(t.position[0], t.position[2], ox, oz) : 0;
       const dist = origin ? Math.sqrt(d2) : 0;
@@ -256,7 +276,7 @@ export const installSkeletalGpuPoseSystem = (
         model,
         skin,
         clipMap,
-        hasHandFsm,
+        needsOwnedAsset,
         rightHandClipMap,
         leftHandClipMap,
         handMasks,
@@ -444,7 +464,7 @@ export const installSkeletalGpuPoseSystem = (
           (aim?.enabled ? (aim.headYawRad ?? 0) : 0) + (overlay?.headYawRad ?? 0),
         spineNodeIndex: handMasks?.spineNodeIndex ?? 0,
         headNodeIndex: handMasks?.headNodeIndex ?? 0,
-        layerMode: layered ? 1 : 0,
+        layerMode: layered && state.ownedAsset ? 1 : 0,
         skip,
         meshJobs,
         attachmentJobs,

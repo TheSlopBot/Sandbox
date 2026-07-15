@@ -65,7 +65,7 @@ export type SkeletalPosePass = {
 };
 
 const FRAME_U32 = 20;
-const MAX_POSE_GROUPS = 8;
+const MAX_POSE_GROUPS = 32;
 const align256 = (n: number) => (n + 255) & ~255;
 
 export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {

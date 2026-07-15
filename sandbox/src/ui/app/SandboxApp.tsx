@@ -199,10 +199,11 @@ export const SandboxApp = ({ active, onOpenConstruct }: SandboxAppProps) => {
     setLevelModalOpen(false);
     setMainMenuOpen(false);
     setMainMenuView('root');
+    session.input.lockPointer();
+    
     void session.switchToLevel(levelId).finally(() => {
       setSwitchingLevel(false);
       setCurrentLevelId(session.getCurrentLevelId());
-      session.input.lockPointer();
     });
   };
 
