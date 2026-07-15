@@ -13,6 +13,7 @@
 import { parseLevelFile } from '../catalog/levels/levelFile.ts';
 import { type LevelSeedDocument } from '../catalog/levels/levelSeed.ts';
 import { LEVEL_SEED_DOCUMENTS } from '../catalog/levels/registry.ts';
+import { ACTOR_SEED_DOCUMENTS } from '../catalog/actors/actorSeed.ts';
 import {
   type LevelLocalStoreEntry,
   listLocalLevelEntries,
@@ -20,6 +21,7 @@ import {
   saveLocalLevel,
   seedLocalLevelsIfEmpty,
 } from '../storage/levelLocalStore.ts';
+import { seedLocalActorsIfEmpty } from '../storage/actorLocalStore.ts';
 import {
   createOptimizationForQualityChoice,
   readStoredQualityChoice,
@@ -115,6 +117,7 @@ export const bootstrap = async (
   }, 0);
 
   seedLocalLevelsIfEmpty(LEVEL_SEED_DOCUMENTS);
+  seedLocalActorsIfEmpty(ACTOR_SEED_DOCUMENTS);
 
   const sceneManager = installSceneManager(game.registry, {
     game,

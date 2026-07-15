@@ -19,6 +19,20 @@ export const COMPONENT_KEYS = {
   skin: 'skin',
   gltfNodeIndex: 'gltfNodeIndex',
   groundPlane: 'groundPlane',
+  health: 'health',
+  combatIntent: 'combatIntent',
+  weapon: 'weapon',
+  projectile: 'projectile',
+  equipmentSlots: 'equipmentSlots',
+  rightHandStateMachine: 'rightHandStateMachine',
+  leftHandStateMachine: 'leftHandStateMachine',
+  rightHandClipMap: 'rightHandClipMap',
+  leftHandClipMap: 'leftHandClipMap',
+  animationHandMasks: 'animationHandMasks',
+  animationAimOffset: 'animationAimOffset',
+  animationPoseOverlay: 'animationPoseOverlay',
+  animationFullBody: 'animationFullBody',
+  destructible: 'destructible',
 } as const;
 
 export type ComponentKey = (typeof COMPONENT_KEYS)[keyof typeof COMPONENT_KEYS];

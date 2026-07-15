@@ -7,7 +7,7 @@ import {
 } from '../../catalog/levels/levelDefinition.ts';
 import { type LevelAiPackage } from '../../catalog/levels/levelFile.ts';
 import { actorDefinitionToSkeletalDef } from '../../catalog/actors/actorDefinitionToSkeletalDef.ts';
-import { ACTOR_CATALOG } from '../../catalog/actors/registry.ts';
+import { resolveActorDefinition } from '../../catalog/actors/registry.ts';
 import { GAME_COMPONENT_KEYS } from '../../catalog/keys/components.ts';
 import { createTestAi } from '../../entities/enemies/components/testAi.ts';
 import { spawnActor } from '../../entities/actor/spawnActor.ts';
@@ -57,7 +57,7 @@ export const useLevelScene = (
     const resolved = resolveLevelActorDefinition(definition, instance);
     if (!resolved) return;
 
-    const actorDef = ACTOR_CATALOG[resolved.id] ?? resolved;
+    const actorDef = resolveActorDefinition(resolved.id) ?? resolved;
 
     const aiPackage = aiPackages[instance.id] ?? 'none';
     const extraComponents =
@@ -77,6 +77,8 @@ export const useLevelScene = (
       z: instance.position[2],
       colliders: actorDef.colliders,
       extraComponents,
+      combatActor: actorDef,
+      meshes: sceneDeps.meshes,
     });
   };
 

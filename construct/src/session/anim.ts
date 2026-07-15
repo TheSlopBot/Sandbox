@@ -17,7 +17,7 @@ import {
   type ConstructSessionState,
 } from './types.ts';
 
-const ANIMATION_STATES = ['idle', 'run', 'jumpStart', 'jumpAir', 'jumpLand'] as const;
+const ANIMATION_STATES = ['idle', 'run', 'walkBack', 'jumpStart', 'jumpAir', 'jumpLand'] as const;
 
 const getActiveCharacterEntity = (registry: Registry): Entity | undefined =>
   registry.view(COMPONENT_KEYS.skeletalModel)[0];

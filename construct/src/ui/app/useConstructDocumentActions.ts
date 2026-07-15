@@ -13,6 +13,13 @@ import {
   serializeActorDocument,
 } from '../../catalog/actors/actorDocument.ts';
 import {
+  type EquipmentDocument,
+  type EquipmentEditorSelection,
+  equipmentNeedsName,
+  parseEquipmentDocumentStrict,
+  serializeEquipmentDocument,
+} from '../../catalog/equipment/equipmentDocument.ts';
+import {
   type LevelDocument,
   levelNeedsName,
   parseLevelDocument,
@@ -34,6 +41,13 @@ import {
   type ActorLocalStoreEntry,
 } from '../../storage/actorLocalStore.ts';
 import {
+  getLocalEquipmentEntry,
+  listLocalEquipmentEntries,
+  removeLocalEquipment,
+  saveLocalEquipment,
+  type EquipmentLocalStoreEntry,
+} from '../../storage/equipmentLocalStore.ts';
+import {
   getLocalLevelEntry,
   listLocalLevelEntries,
   removeLocalLevel,
@@ -42,7 +56,7 @@ import {
 } from '../../storage/levelLocalStore.ts';
 import { type ConstructSession } from '../../globals/bootstrap.ts';
 import { type ConstructMode } from '../menu/AppMenu.tsx';
-import { cloneActorDoc } from './useConstructSession.ts';
+import { cloneActorDoc, cloneEquipmentDoc } from './useConstructSession.ts';
 
 type RenameIntent = 'edit' | 'save' | 'saveAs' | 'export';
 
@@ -68,6 +82,17 @@ const downloadActorDocument = (doc: ActorDocument) => {
   return a.download;
 };
 
+const downloadEquipmentDocument = (doc: EquipmentDocument) => {
+  const blob = new Blob([serializeEquipmentDocument(doc)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${doc.id || 'untitled'}.equipment`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return a.download;
+};
+
 const downloadLevelDocument = (doc: LevelDocument) => {
   const blob = new Blob([serializeLevelDocument(doc)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -87,6 +112,9 @@ export type UseConstructDocumentActionsParams = {
   actorDoc: ActorDocument;
   setActorDoc: (doc: ActorDocument) => void;
   setActorBoneNames: (names: string[]) => void;
+  equipmentDoc: EquipmentDocument;
+  setEquipmentDoc: (doc: EquipmentDocument) => void;
+  setEquipmentSelection: (selection: EquipmentEditorSelection) => void;
   levelDoc: LevelDocument;
   setLevelDoc: (doc: LevelDocument) => void;
   setLevelSelection: (selection: ConstructLevelSelection) => void;
@@ -105,6 +133,9 @@ export const useConstructDocumentActions = ({
   actorDoc,
   setActorDoc,
   setActorBoneNames,
+  equipmentDoc,
+  setEquipmentDoc,
+  setEquipmentSelection,
   levelDoc,
   setLevelDoc,
   setLevelSelection,
@@ -119,14 +150,17 @@ export const useConstructDocumentActions = ({
   const [confirmNewOpen, setConfirmNewOpen] = useState(false);
   const [loadPropModalOpen, setLoadPropModalOpen] = useState(false);
   const [loadActorModalOpen, setLoadActorModalOpen] = useState(false);
+  const [loadEquipmentModalOpen, setLoadEquipmentModalOpen] = useState(false);
   const [loadLevelModalOpen, setLoadLevelModalOpen] = useState(false);
   const [localPropEntries, setLocalPropEntries] = useState<PropLocalStoreEntry[]>([]);
   const [localActorEntries, setLocalActorEntries] = useState<ActorLocalStoreEntry[]>([]);
+  const [localEquipmentEntries, setLocalEquipmentEntries] = useState<EquipmentLocalStoreEntry[]>([]);
   const [localLevelEntries, setLocalLevelEntries] = useState<LevelLocalStoreEntry[]>([]);
   const [renameIntent, setRenameIntent] = useState<RenameIntent | null>(null);
 
   const currentPropDoc = () => sessionRef.current?.getPropDocument() ?? propDoc;
   const currentActorDoc = () => sessionRef.current?.getActorDocument() ?? actorDoc;
+  const currentEquipmentDoc = () => sessionRef.current?.getEquipmentDocument() ?? equipmentDoc;
   const currentLevelDoc = () => sessionRef.current?.getLevelDocument() ?? levelDoc;
 
   const applyRenamedProp = (name: string) => {
@@ -163,6 +197,23 @@ export const useConstructDocumentActions = ({
     return doc;
   };
 
+  const applyRenamedEquipment = (name: string) => {
+    const session = sessionRef.current;
+    if (!session) return null;
+
+    const previousId = session.getEquipmentDocument().id;
+    const doc = session.renameEquipment(name);
+    setEquipmentDoc(cloneEquipmentDoc(doc));
+
+    if (previousId !== doc.id && getLocalEquipmentEntry(previousId)) {
+      removeLocalEquipment(previousId);
+      saveLocalEquipment(doc);
+      onLocalLibraryChange?.();
+    }
+
+    return doc;
+  };
+
   const applyRenamedLevel = (name: string) => {
     const session = sessionRef.current;
     if (!session) return null;
@@ -191,6 +242,12 @@ export const useConstructDocumentActions = ({
     setStatus(asNew ? `Saved as ${entry.displayName}` : `Saved ${entry.displayName}`);
   };
 
+  const persistLocalEquipment = (doc: EquipmentDocument, asNew = false) => {
+    const entry = saveLocalEquipment(doc);
+    onLocalLibraryChange?.();
+    setStatus(asNew ? `Saved as ${entry.displayName}` : `Saved ${entry.displayName}`);
+  };
+
   const persistLocalLevel = (doc: LevelDocument, asNew = false) => {
     const entry = saveLocalLevel(doc);
     setStatus(asNew ? `Saved as ${entry.displayName}` : `Saved ${entry.displayName}`);
@@ -203,6 +260,11 @@ export const useConstructDocumentActions = ({
 
   const exportActorFile = (doc: ActorDocument) => {
     const filename = downloadActorDocument(doc);
+    setStatus(`Exported ${filename}`);
+  };
+
+  const exportEquipmentFile = (doc: EquipmentDocument) => {
+    const filename = downloadEquipmentDocument(doc);
     setStatus(`Exported ${filename}`);
   };
 
@@ -232,6 +294,14 @@ export const useConstructDocumentActions = ({
       return;
     }
 
+    if (mode === 'equipment') {
+      const doc = session.newEquipment();
+      setEquipmentDoc(cloneEquipmentDoc(doc));
+      setEquipmentSelection({ kind: 'root' });
+      setStatus('New equipment document.');
+      return;
+    }
+
     if (mode === 'level') {
       void (async () => {
         const doc = await session.newLevel();
@@ -243,8 +313,8 @@ export const useConstructDocumentActions = ({
   };
 
   const onNew = () => {
-    if (mode !== 'prop' && mode !== 'actor' && mode !== 'level') {
-      setStatus('New is available in Prop, Actor, or Level mode.');
+    if (mode !== 'prop' && mode !== 'actor' && mode !== 'equipment' && mode !== 'level') {
+      setStatus('New is available in Prop, Actor, Equipment, or Level mode.');
       return;
     }
     setConfirmNewOpen(true);
@@ -271,6 +341,16 @@ export const useConstructDocumentActions = ({
       return;
     }
 
+    if (mode === 'equipment') {
+      const doc = currentEquipmentDoc();
+      if (equipmentNeedsName(doc)) {
+        setRenameIntent('save');
+        return;
+      }
+      persistLocalEquipment(doc);
+      return;
+    }
+
     if (mode === 'level') {
       const doc = currentLevelDoc();
       if (levelNeedsName(doc)) {
@@ -281,7 +361,7 @@ export const useConstructDocumentActions = ({
       return;
     }
 
-    setStatus('Save is available in Prop, Actor, or Level mode.');
+    setStatus('Save is available in Prop, Actor, Equipment, or Level mode.');
   };
 
   useEffect(() => {
@@ -297,8 +377,8 @@ export const useConstructDocumentActions = ({
   }, [mode]);
 
   const onSaveAs = () => {
-    if (mode !== 'prop' && mode !== 'actor' && mode !== 'level') {
-      setStatus('Save As is available in Prop, Actor, or Level mode.');
+    if (mode !== 'prop' && mode !== 'actor' && mode !== 'equipment' && mode !== 'level') {
+      setStatus('Save As is available in Prop, Actor, Equipment, or Level mode.');
       return;
     }
     setRenameIntent('saveAs');
@@ -317,18 +397,24 @@ export const useConstructDocumentActions = ({
       return;
     }
 
+    if (mode === 'equipment') {
+      setLocalEquipmentEntries(listLocalEquipmentEntries());
+      setLoadEquipmentModalOpen(true);
+      return;
+    }
+
     if (mode === 'level') {
       setLocalLevelEntries(listLocalLevelEntries());
       setLoadLevelModalOpen(true);
       return;
     }
 
-    setStatus('Load is available in Prop, Actor, or Level mode.');
+    setStatus('Load is available in Prop, Actor, Equipment, or Level mode.');
   };
 
   const onImport = () => {
-    if (mode !== 'prop' && mode !== 'actor' && mode !== 'level') {
-      setStatus('Import is available in Prop, Actor, or Level mode.');
+    if (mode !== 'prop' && mode !== 'actor' && mode !== 'equipment' && mode !== 'level') {
+      setStatus('Import is available in Prop, Actor, Equipment, or Level mode.');
       return;
     }
     fileInputRef.current?.click();
@@ -355,6 +441,16 @@ export const useConstructDocumentActions = ({
       return;
     }
 
+    if (mode === 'equipment') {
+      const doc = currentEquipmentDoc();
+      if (equipmentNeedsName(doc)) {
+        setRenameIntent('export');
+        return;
+      }
+      exportEquipmentFile(doc);
+      return;
+    }
+
     if (mode === 'level') {
       const doc = currentLevelDoc();
       if (levelNeedsName(doc)) {
@@ -365,11 +461,11 @@ export const useConstructDocumentActions = ({
       return;
     }
 
-    setStatus('Export is available in Prop, Actor, or Level mode.');
+    setStatus('Export is available in Prop, Actor, Equipment, or Level mode.');
   };
 
   const onRenameDocument = () => {
-    if (mode !== 'prop' && mode !== 'actor' && mode !== 'level') return;
+    if (mode !== 'prop' && mode !== 'actor' && mode !== 'equipment' && mode !== 'level') return;
     setRenameIntent('edit');
   };
 
@@ -421,6 +517,29 @@ export const useConstructDocumentActions = ({
         return;
       }
       setStatus(`Renamed actor to ${doc.displayName}`);
+      return;
+    }
+
+    if (mode === 'equipment') {
+      if (intent === 'saveAs') {
+        const session = sessionRef.current;
+        if (!session) return;
+        const doc = session.renameEquipment(name);
+        setEquipmentDoc(cloneEquipmentDoc(doc));
+        persistLocalEquipment(doc, true);
+        return;
+      }
+      const doc = applyRenamedEquipment(name);
+      if (!doc) return;
+      if (intent === 'save') {
+        persistLocalEquipment(doc);
+        return;
+      }
+      if (intent === 'export') {
+        exportEquipmentFile(doc);
+        return;
+      }
+      setStatus(`Renamed equipment to ${doc.displayName}`);
       return;
     }
 
@@ -498,6 +617,31 @@ export const useConstructDocumentActions = ({
     setStatus(`Deleted ${entry.displayName} from local storage`);
   };
 
+  const onLoadEquipmentEntry = (entry: EquipmentLocalStoreEntry) => {
+    setLoadEquipmentModalOpen(false);
+    const session = sessionRef.current;
+    if (!session) return;
+
+    void (async () => {
+      try {
+        const loaded = await session.loadEquipmentDocument(entry.document);
+        setEquipmentDoc(cloneEquipmentDoc(loaded));
+        setEquipmentSelection({ kind: 'root' });
+        resetAnimationPreview();
+        setStatus(`Loaded ${entry.displayName}`);
+      } catch (err) {
+        setStatus(`Load error: ${String(err)}`);
+      }
+    })();
+  };
+
+  const onDeleteLocalEquipmentEntry = (entry: EquipmentLocalStoreEntry) => {
+    removeLocalEquipment(entry.id);
+    setLocalEquipmentEntries(listLocalEquipmentEntries());
+    onLocalLibraryChange?.();
+    setStatus(`Deleted ${entry.displayName} from local storage`);
+  };
+
   const onLoadLevelEntry = (entry: LevelLocalStoreEntry) => {
     setLoadLevelModalOpen(false);
     const session = sessionRef.current;
@@ -550,6 +694,16 @@ export const useConstructDocumentActions = ({
           return;
         }
 
+        if (mode === 'equipment') {
+          const doc = parseEquipmentDocumentStrict(text);
+          const loaded = await session.loadEquipmentDocument(doc);
+          setEquipmentDoc(cloneEquipmentDoc(loaded));
+          setEquipmentSelection({ kind: 'root' });
+          resetAnimationPreview();
+          setStatus(`Imported ${file.name}`);
+          return;
+        }
+
         const doc = parsePropDocument(text);
         const loaded = await session.loadPropDocument(doc);
         setPropDoc({ ...loaded, parts: [...loaded.parts] });
@@ -570,10 +724,13 @@ export const useConstructDocumentActions = ({
     setLoadPropModalOpen,
     loadActorModalOpen,
     setLoadActorModalOpen,
+    loadEquipmentModalOpen,
+    setLoadEquipmentModalOpen,
     loadLevelModalOpen,
     setLoadLevelModalOpen,
     localPropEntries,
     localActorEntries,
+    localEquipmentEntries,
     localLevelEntries,
     renameIntent,
     setRenameIntent,
@@ -590,6 +747,8 @@ export const useConstructDocumentActions = ({
     onDeleteLocalPropEntry,
     onLoadActorEntry,
     onDeleteLocalActorEntry,
+    onLoadEquipmentEntry,
+    onDeleteLocalEquipmentEntry,
     onLoadLevelEntry,
     onDeleteLocalLevelEntry,
     onFileInputChange,

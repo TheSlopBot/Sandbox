@@ -47,10 +47,15 @@ export type ActorDefinition = {
   character: ActorCharacterDef;
   attachments: ActorAttachmentDef[];
   colliders: ActorColliderDef[];
-  animPack: { generalGlb: string; movementGlb: string };
+  animPack: {
+    generalGlb: string;
+    movementGlb: string;
+    movementAdvancedGlb?: string;
+  };
   clips: {
     idle: string;
     run: string;
+    walkBack?: string;
     jumpStart: string;
     jumpIdle: string;
     jumpLand: string;
@@ -79,6 +84,8 @@ export const collectUrlsFromActor = (actor: ActorDefinition): string[] => {
     actor.animPack.generalGlb,
     actor.animPack.movementGlb,
   ]);
+
+  if (actor.animPack.movementAdvancedGlb) urls.add(actor.animPack.movementAdvancedGlb);
 
   for (const attachment of actor.attachments) {
     if (!attachment.placeholder) urls.add(attachment.url);

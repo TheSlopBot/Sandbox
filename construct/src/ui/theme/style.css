@@ -18,6 +18,7 @@
 
 .construct-bodyProp,
 .construct-bodyActor,
+.construct-bodyEquipment,
 .construct-bodyLevel {
   grid-template-columns: minmax(280px, 420px) 1fr minmax(280px, 420px);
 }
@@ -633,7 +634,94 @@
   font-size: 12px;
 }
 
+.construct-hitWindow {
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.construct-hitWindowLabel {
+  color: rgba(217, 226, 234, 0.65);
+  margin-bottom: 6px;
+}
+
+.construct-hitWindowRow {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  gap: 8px;
+  align-items: center;
+}
+
+.construct-hitWindowInput {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.construct-hitWindowTrack {
+  position: relative;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+.construct-hitWindowRange {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: rgba(74, 158, 192, 0.45);
+  pointer-events: none;
+}
+
+.construct-hitWindowThumb {
+  appearance: none;
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(232, 244, 250, 0.85);
+  border-radius: 50%;
+  background: #4a9ec0;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  z-index: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.construct-hitWindowThumb:hover {
+  background: #5aadd0;
+}
+
+.construct-hitWindowThumb:active {
+  cursor: grabbing;
+}
+
+.construct-hitWindowThumb:focus-visible {
+  outline: 2px solid rgba(74, 158, 192, 0.55);
+  outline-offset: 2px;
+}
+
 .construct-detailsField > span:first-child {
+  color: rgba(217, 226, 234, 0.65);
+}
+
+.construct-detailsAnimRow {
+  display: grid;
+  grid-template-columns: 72px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.construct-detailsAnimRow > span:first-child {
   color: rgba(217, 226, 234, 0.65);
 }
 

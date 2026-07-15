@@ -15,6 +15,13 @@ export const pickActorBodyCylinder = (
   colliders: readonly ActorColliderDef[],
 ): ActorColliderDef | null =>
   colliders.find(
+    (c) =>
+      c.collision !== false &&
+      c.shape === 'cylinder' &&
+      c.parent.kind === 'bone' &&
+      c.parent.boneName === 'spine',
+  ) ??
+  colliders.find(
     (c) => c.collision !== false && c.shape === 'cylinder' && c.parent.kind === 'character',
   ) ??
   colliders.find((c) => c.collision !== false && c.shape === 'cylinder') ??

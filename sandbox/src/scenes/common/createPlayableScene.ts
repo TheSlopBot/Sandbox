@@ -30,6 +30,8 @@ import { installTestAiSystem } from '../../entities/enemies/systems/testAiSystem
 import { installPlayerInputSystem } from '../../entities/player/systems/playerInputSystem.ts';
 import { spawnGround } from '../../entities/ground/spawnGround.ts';
 import { installColliderDebugSystem } from '../../entities/debug/installColliderDebugSystem.ts';
+import { installCombatSystems } from '../../entities/combat/systems/installCombatSystems.ts';
+import { attachDestructibleProp } from '../../entities/combat/attachDestructibleProp.ts';
 import { instantiateProp, type PropPlacement } from './prop.ts';
 
 export type SceneDeps = {
@@ -67,7 +69,13 @@ export const createPlayableScene = (
   const registry = useRegistry();
   let loaded = false;
 
-  installPlayerInputSystem(registry, deps.input, deps.device);
+  installPlayerInputSystem(registry, deps.input);
+  installCombatSystems(registry, {
+    input: deps.input,
+    device: deps.device,
+    textures: deps.textures,
+    gltfCache: deps.gltfCache,
+  });
   installNavGridSystem(registry);
   installTestAiSystem(registry);
   installMovementSystem(registry);
@@ -93,6 +101,15 @@ export const createPlayableScene = (
       meshes: deps.meshes,
       markNavDirty: false,
       batcher: deps.staticPropBatcher,
+      onRoot:
+        def.id === 'barrel_a'
+          ? (root) => {
+              attachDestructibleProp(registry, root, {
+                hookId: 'explosiveBarrel',
+                health: 40,
+              });
+            }
+          : undefined,
     });
   };
 
@@ -114,6 +131,7 @@ export const createPlayableScene = (
       deps.textures,
       deps.gltfCache,
       playerSpawn ?? DEFAULT_LEVEL_PLAYER_SPAWN,
+      deps.meshes,
     );
   };
 

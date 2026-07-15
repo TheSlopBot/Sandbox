@@ -3,6 +3,7 @@ const MAX_JOINTS: u32 = 128u;
 const MAX_NODES: u32 = 128u;
 const MAX_ATTACHMENTS: u32 = 64u;
 const MAX_MESH_MODELS: u32 = 128u;
+const FULL_BODY_DISABLED: u32 = 0xffffffffu;
 
 struct BatchFrame {
   nodeCount: u32,
@@ -21,18 +22,34 @@ struct BatchFrame {
   animatedMaskOffset: u32,
   maskWords: u32,
   scratchStride: u32,
+  lowerBodyMaskOffset: u32,
+  rightArmMaskOffset: u32,
+  leftArmMaskOffset: u32,
+  clipCount: u32,
 };
 
 struct PoseInstance {
   renderRoot: mat4x4f,
-  animTime: f32,
-  clipIndex: u32,
-  loopClip: u32,
+  moveAnimTime: f32,
+  rightAnimTime: f32,
+  leftAnimTime: f32,
+  torsoYawRad: f32,
+  moveClipIndex: u32,
+  moveLoop: u32,
+  rightClipIndex: u32,
+  rightLoop: u32,
+  leftClipIndex: u32,
+  leftLoop: u32,
+  fullBodyClipIndex: u32,
+  spineNodeIndex: u32,
   slotIndex: u32,
   meshJobStart: u32,
   meshJobCount: u32,
   attachJobStart: u32,
   attachJobCount: u32,
+  layerMode: u32,
+  headYawRad: f32,
+  headNodeIndex: u32,
   _pad0: u32,
   _pad1: u32,
   _pad2: u32,
@@ -41,6 +58,10 @@ struct PoseInstance {
   _pad5: u32,
   _pad6: u32,
   _pad7: u32,
+  _pad8: u32,
+  _pad9: u32,
+  _pad10: u32,
+  _pad11: u32,
 };
 
 struct AttachmentJob {
@@ -77,6 +98,8 @@ var<private> activeRoot: mat4x4f;
 var<private> activeAnimTime: f32;
 var<private> activeClipIndex: u32;
 var<private> activeLoop: u32;
+var<private> activeBoneMaskOffset: u32;
+var<private> activeUseBoneMask: u32;
 
 fn u32At(offset: u32) -> u32 { return skeleton[offset]; }
 fn i32At(offset: u32) -> i32 { return bitcast<i32>(skeleton[offset]); }
@@ -156,6 +179,15 @@ fn qSlerp(a: vec4f, bIn: vec4f, t: f32) -> vec4f {
   return a * ra + b * rb;
 }
 
+fn qMul(a: vec4f, b: vec4f) -> vec4f {
+  return vec4f(
+    a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  );
+}
+
 fn localBase(node: u32) -> u32 { return scratchBase + node * 10u; }
 fn worldBase(node: u32) -> u32 { return scratchBase + frame.nodeCount * 10u + node * 16u; }
 
@@ -202,6 +234,12 @@ fn readWorld(node: u32) -> mat4x4f {
   );
 }
 
+fn nodeInBoneMask(node: u32) -> bool {
+  if (activeUseBoneMask == 0u) { return true; }
+  let word = u32At(activeBoneMaskOffset + (node >> 5u));
+  return (word & (1u << (node & 31u))) != 0u;
+}
+
 fn findKeyframe(timesOffset: u32, keyCount: u32, t: f32) -> u32 {
   if (keyCount <= 1u) { return 0u; }
   var lo = 0u;
@@ -221,9 +259,10 @@ fn findKeyframe(timesOffset: u32, keyCount: u32, t: f32) -> u32 {
 }
 
 fn sampleClip() {
+  if (activeClipIndex >= frame.clipCount) { return; }
   let headerBase = frame.clipHeadersOffset + activeClipIndex * 4u;
   let durationBits = u32At(headerBase);
-  let channelCount = u32At(headerBase + 1u);
+  let channelCount = min(u32At(headerBase + 1u), 512u);
   let channelOffset = u32At(headerBase + 2u);
   let valid = u32At(headerBase + 3u);
   if (valid == 0u || channelCount == 0u) { return; }
@@ -247,6 +286,7 @@ fn sampleClip() {
     let timesOffset = u32At(chBase + 3u);
     let valuesOffset = u32At(chBase + 4u);
     if (nodeIndex >= frame.nodeCount || keyCount == 0u) { continue; }
+    if (!nodeInBoneMask(nodeIndex)) { continue; }
 
     let valuesBase = frame.clipValuesOffset + valuesOffset;
     if (keyCount == 1u) {
@@ -284,26 +324,15 @@ fn sampleClip() {
   }
 }
 
-fn resolveOne(inst: PoseInstance) {
-  scratchBase = inst.slotIndex * frame.scratchStride;
-  paletteBase = inst.slotIndex * MAX_JOINTS;
-  meshModelBase = inst.slotIndex * MAX_MESH_MODELS;
-  attachmentModelBase = inst.slotIndex * MAX_ATTACHMENTS;
-  activeRoot = inst.renderRoot;
-  activeAnimTime = inst.animTime;
-  activeClipIndex = inst.clipIndex;
-  activeLoop = inst.loopClip;
+fn applyBoneYaw(node: u32, yawRad: f32) {
+  if (node >= frame.nodeCount) { return; }
+  if (abs(yawRad) < 1e-5) { return; }
+  let half = yawRad * 0.5;
+  let qYaw = vec4f(0.0, sin(half), 0.0, cos(half));
+  writeLocalR(node, normalize(qMul(qYaw, readLocalR(node))));
+}
 
-  for (var i = 0u; i < frame.nodeCount; i++) {
-    let lb = localBase(i);
-    let bb = frame.bindLocalOffset + i * 10u;
-    for (var k = 0u; k < 10u; k++) {
-      scratch[lb + k] = f32At(bb + k);
-    }
-  }
-
-  sampleClip();
-
+fn resolveHierarchyAndOutputs(inst: PoseInstance) {
   for (var ti = 0u; ti < frame.nodeCount; ti++) {
     let i = u32At(frame.topoOffset + ti);
     let localM = m4FromTRSQuat(readLocalT(i), readLocalR(i), readLocalS(i));
@@ -338,6 +367,75 @@ fn resolveOne(inst: PoseInstance) {
     let attachRoot = m4Mul(boneWorld, job.localOffset);
     attachmentModels[attachmentModelBase + job.outIndex] = m4Mul(attachRoot, job.attachNodeWorld);
   }
+}
+
+fn resolveBasePose(inst: PoseInstance) {
+  activeAnimTime = inst.moveAnimTime;
+  activeClipIndex = inst.moveClipIndex;
+  activeLoop = inst.moveLoop;
+  activeUseBoneMask = 0u;
+  sampleClip();
+  applyBoneYaw(inst.spineNodeIndex, inst.torsoYawRad);
+  applyBoneYaw(inst.headNodeIndex, inst.headYawRad);
+  resolveHierarchyAndOutputs(inst);
+}
+
+fn resolveLayeredPose(inst: PoseInstance) {
+  activeAnimTime = inst.moveAnimTime;
+  activeClipIndex = inst.moveClipIndex;
+  activeLoop = inst.moveLoop;
+  activeUseBoneMask = 1u;
+  activeBoneMaskOffset = frame.lowerBodyMaskOffset;
+  sampleClip();
+
+  activeAnimTime = inst.rightAnimTime;
+  activeClipIndex = inst.rightClipIndex;
+  activeLoop = inst.rightLoop;
+  activeBoneMaskOffset = frame.rightArmMaskOffset;
+  sampleClip();
+
+  activeAnimTime = inst.leftAnimTime;
+  activeClipIndex = inst.leftClipIndex;
+  activeLoop = inst.leftLoop;
+  activeBoneMaskOffset = frame.leftArmMaskOffset;
+  sampleClip();
+
+  applyBoneYaw(inst.spineNodeIndex, inst.torsoYawRad);
+  applyBoneYaw(inst.headNodeIndex, inst.headYawRad);
+  resolveHierarchyAndOutputs(inst);
+}
+
+fn resolveOne(inst: PoseInstance) {
+  scratchBase = inst.slotIndex * frame.scratchStride;
+  paletteBase = inst.slotIndex * MAX_JOINTS;
+  meshModelBase = inst.slotIndex * MAX_MESH_MODELS;
+  attachmentModelBase = inst.slotIndex * MAX_ATTACHMENTS;
+  activeRoot = inst.renderRoot;
+
+  for (var i = 0u; i < frame.nodeCount; i++) {
+    let lb = localBase(i);
+    let bb = frame.bindLocalOffset + i * 10u;
+    for (var k = 0u; k < 10u; k++) {
+      scratch[lb + k] = f32At(bb + k);
+    }
+  }
+
+  if (inst.fullBodyClipIndex != FULL_BODY_DISABLED) {
+    activeAnimTime = inst.moveAnimTime;
+    activeClipIndex = inst.fullBodyClipIndex;
+    activeLoop = 0u;
+    activeUseBoneMask = 0u;
+    sampleClip();
+    resolveHierarchyAndOutputs(inst);
+    return;
+  }
+
+  if (inst.layerMode == 0u) {
+    resolveBasePose(inst);
+    return;
+  }
+
+  resolveLayeredPose(inst);
 }
 
 @compute @workgroup_size(1)

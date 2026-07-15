@@ -65,6 +65,28 @@ import {
   updateColliderName,
 } from '../session/actorEditor.ts';
 import {
+  addEquipmentCollider,
+  applyEquipmentGizmoCommit,
+  clearEquipmentMesh,
+  enterEquipmentMode,
+  getEquipmentDocument,
+  loadEquipmentDocument,
+  newEquipment,
+  removeEquipmentCollider,
+  renameEquipment,
+  selectEquipment,
+  setEquipmentDocumentListener,
+  setEquipmentMesh,
+  updateColliderRole,
+  updateEquipmentClips,
+  updateEquipmentColliderName,
+  updateEquipmentKind,
+  updateEquipmentPartLocal,
+  updateEquipmentProjectile,
+  updateEquipmentSlotTags,
+  updateEquipmentStats,
+} from '../session/equipmentEditor.ts';
+import {
   addLevelCollider,
   addSimpleActor,
   addSimpleProp,
@@ -102,6 +124,8 @@ import {
   updateInstanceLocal,
 } from '../session/levelEditor.ts';
 import { createConstructSessionState, type ConstructSession, type ConstructSessionDeps } from '../session/types.ts';
+import { ACTOR_SEED_DOCUMENTS } from '../catalog/actors/actorSeeds.ts';
+import { seedLocalActorsIfEmpty } from '../storage/actorLocalStore.ts';
 
 const installOrbitInput = (
   canvas: HTMLCanvasElement,
@@ -273,6 +297,8 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
 
   ensureEditorGround(deps);
 
+  seedLocalActorsIfEmpty(ACTOR_SEED_DOCUMENTS);
+
   let active = false;
   let gizmoDragging = () => false;
 
@@ -296,6 +322,10 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
       }
       if (state.editorMode === 'level') {
         applyLevelGizmoCommit(deps, state, partId, local);
+        return;
+      }
+      if (state.editorMode === 'equipment') {
+        applyEquipmentGizmoCommit(state, partId, local);
         return;
       }
       applyPropGizmoCommit(state, partId, local);
@@ -376,6 +406,26 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
     setActorDocumentListener: (fn) => setActorDocumentListener(state, fn),
     getActorBoneNames: () => getActorBoneNames(deps),
     getOrbitAngles: () => ({ yawRad: orbit.yawRad, pitchRad: orbit.pitchRad }),
+    newEquipment: () => newEquipment(deps, state),
+    enterEquipmentMode: () => enterEquipmentMode(deps, state),
+    getEquipmentDocument: () => getEquipmentDocument(state),
+    loadEquipmentDocument: (doc) => loadEquipmentDocument(deps, state, doc),
+    setEquipmentMesh: (url, materialPrefix) => setEquipmentMesh(deps, state, url, materialPrefix),
+    addEquipmentCollider: (shape) => addEquipmentCollider(deps, state, shape),
+    selectEquipment: (sel) => selectEquipment(deps, state, sel),
+    renameEquipment: (name) => renameEquipment(deps, state, name),
+    updateEquipmentKind: (kind) => updateEquipmentKind(state, kind),
+    updateEquipmentSlotTags: (tags) => updateEquipmentSlotTags(state, tags),
+    updateEquipmentStats: (partial) => updateEquipmentStats(state, partial),
+    updateEquipmentClips: (partial) => updateEquipmentClips(state, partial),
+    updateEquipmentProjectile: (projectile) => updateEquipmentProjectile(state, projectile),
+    updateEquipmentColliderRole: (colliderId, role) => updateColliderRole(state, colliderId, role),
+    updateEquipmentColliderName: (colliderId, name) =>
+      updateEquipmentColliderName(state, colliderId, name),
+    updateEquipmentPartLocal: (partId, patch) => updateEquipmentPartLocal(deps, state, partId, patch),
+    removeEquipmentCollider: (colliderId) => removeEquipmentCollider(deps, state, colliderId),
+    clearEquipmentMesh: () => clearEquipmentMesh(deps, state),
+    setEquipmentDocumentListener: (fn) => setEquipmentDocumentListener(state, fn),
     enterLevelMode: () => enterLevelMode(deps, state),
     newLevel: () => newLevel(deps, state),
     getLevelDocument: () => getLevelDocument(state),
@@ -432,6 +482,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
       state.defaultBaseColorTex = null;
       state.propDocListener = null;
       state.actorDocListener = null;
+      state.equipmentDocListener = null;
       state.levelDocListener = null;
 
       textures.destroy();

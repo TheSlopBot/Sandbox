@@ -205,7 +205,7 @@ export {
   type BuildSimpleActorOpts,
   type SimpleActorAttachment,
 } from './definitions/actors/buildSimpleActor.ts';
-export { DEFAULT_CHARACTER_BODY_CYLINDER } from './definitions/actors/defaultCharacterBodyCylinder.ts';
+export { DEFAULT_CHARACTER_BODY_CYLINDER, DEFAULT_CHARACTER_HURTBOX } from './definitions/actors/defaultCharacterBodyCylinder.ts';
 export {
   type PropPartLocal,
   type PropAssetPart,
@@ -257,3 +257,103 @@ export {
   type InstantiatePropOptions,
 } from './spawn/instantiateProp.ts';
 export { attachActorBodyCollider, pickActorBodyCylinder } from './spawn/attachActorBodyCollider.ts';
+
+export { COMBAT_LAYER, COMBAT_MASK, isPhysicsLayer, combatLayersOverlap, type CombatLayerBits } from './combat/combatLayers.ts';
+export { pushCombatEvent, drainCombatEvents, peekCombatEvents, type CombatEvent } from './combat/combatEvents.ts';
+export {
+  collidersOverlap,
+  shapesOverlapApprox,
+  colliderCenter,
+  distanceSqBetweenColliders,
+  sweptSphereHitsAabb,
+} from './combat/combatContact.ts';
+export {
+  rebuildCombatBroadphase,
+  queryCombatNearby,
+  findCombatOverlaps,
+} from './combat/combatBroadphase.ts';
+
+export { createHealth, type Health } from './components/health.ts';
+export {
+  createCombatIntent,
+  clearCombatIntentEdges,
+  type CombatIntent,
+} from './components/combatIntent.ts';
+export { createWeapon, type Weapon, type WeaponKind, type WeaponRuntimeState } from './components/weapon.ts';
+export { createProjectile, type Projectile } from './components/projectile.ts';
+export {
+  createEquipmentSlots,
+  type EquipmentSlots,
+  type EquipmentSlotState,
+  type EquipmentPlaceholderSlot,
+} from './components/equipmentSlots.ts';
+export {
+  createRightHandStateMachine,
+  stepRightHandFsm,
+  type RightHandStateMachine,
+  type RightHandStateId,
+} from './components/rightHandStateMachine.ts';
+export {
+  createLeftHandStateMachine,
+  stepLeftHandFsm,
+  type LeftHandStateMachine,
+  type LeftHandStateId,
+} from './components/leftHandStateMachine.ts';
+export {
+  createRightHandClipMap,
+  clearRightHandClipMap,
+  type RightHandClipMap,
+  type RightHandClipId,
+} from './components/rightHandClipMap.ts';
+export {
+  createLeftHandClipMap,
+  clearLeftHandClipMap,
+  type LeftHandClipMap,
+  type LeftHandClipId,
+} from './components/leftHandClipMap.ts';
+export {
+  createAnimationHandMasks,
+  buildAnimationHandMasks,
+  type AnimationHandMasks,
+} from './components/animationHandMasks.ts';
+export { createAnimationAimOffset, type AnimationAimOffset } from './components/animationAimOffset.ts';
+export {
+  createAnimationPoseOverlay,
+  type AnimationPoseOverlay,
+} from './components/animationPoseOverlay.ts';
+export { createAnimationFullBody, type AnimationFullBody } from './components/animationFullBody.ts';
+export { createDestructible, type Destructible } from './components/destructible.ts';
+
+export {
+  type WeaponDefinition,
+  type WeaponColliderDef,
+  type WeaponClipBinding,
+  type WeaponClipSlot,
+  normalizeWeaponClipBinding,
+  collectUrlsFromWeapon,
+} from './definitions/weapons/weaponDefinition.ts';
+
+export {
+  DEFAULT_MELEE_TORSO_YAW_CURVE,
+  sampleMeleeTorsoYaw,
+  type MeleeTorsoYawCurve,
+} from './combat/meleeTorsoYawCurve.ts';
+
+export { spawnActorColliders } from './spawn/spawnActorColliders.ts';
+export { spawnProjectile } from './spawn/combat/spawnProjectile.ts';
+export { attachWeaponHitbox, detachWeaponHitbox } from './spawn/combat/attachWeaponHitbox.ts';
+
+export { installProjectileSystem } from './systems/combat/installProjectileSystem.ts';
+export { installCombatResolveSystem, type CombatResolveDeps } from './systems/combat/installCombatResolveSystem.ts';
+export { installHealthSystem, type HealthSystemHooks } from './systems/combat/installHealthSystem.ts';
+export { installHitboxFollowSystem } from './systems/combat/installHitboxFollowSystem.ts';
+export {
+  installRightHandAnimationFsmSystem,
+  installLeftHandAnimationFsmSystem,
+} from './systems/combat/installHandAnimationFsmSystems.ts';
+export { installAnimationAimOffsetSystem } from './systems/combat/installAnimationAimOffsetSystem.ts';
+export {
+  installAnimationPoseOverlaySystem,
+  type AnimationPoseOverlayDeps,
+} from './systems/combat/installAnimationPoseOverlaySystem.ts';
+export { installCombatFacingSystem } from './systems/combat/installCombatFacingSystem.ts';

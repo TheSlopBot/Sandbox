@@ -57,6 +57,7 @@ export type TreeProps = {
   addEnabled?: boolean;
   fileAction?: 'add' | 'radio';
   radioSelectedPath?: string | null;
+  radioGroupName?: string;
 };
 
 export const Tree = memo(({
@@ -69,6 +70,7 @@ export const Tree = memo(({
   addEnabled = true,
   fileAction = 'add',
   radioSelectedPath = null,
+  radioGroupName = 'construct-explorer-select',
 }: TreeProps) => {
   const rows = useMemo(() => flattenTree(root, expanded), [root, expanded]);
 
@@ -120,7 +122,7 @@ export const Tree = memo(({
               <input
                 type="radio"
                 className="treeRowRadio"
-                name="construct-character-select"
+                name={radioGroupName}
                 checked={radioChecked}
                 aria-label={`Select ${n.name}`}
                 onChange={() => onSelectFile(n.path)}

@@ -52,11 +52,13 @@ export type ActorDocumentCollider = ActorDocumentPartLocal & {
 export type ActorDocumentAnimPack = {
   generalGlb: string;
   movementGlb: string;
+  movementAdvancedGlb?: string;
 };
 
 export type ActorDocumentClips = {
   idle: string;
   run: string;
+  walkBack?: string;
   jumpStart: string;
   jumpIdle: string;
   jumpLand: string;
@@ -237,7 +239,13 @@ const normalizeAnimPack = (raw: unknown): ActorDocumentAnimPack | null => {
     throw new Error('Invalid .actor animPack');
   }
 
-  return { generalGlb: pack.generalGlb, movementGlb: pack.movementGlb };
+  return {
+    generalGlb: pack.generalGlb,
+    movementGlb: pack.movementGlb,
+    ...(typeof pack.movementAdvancedGlb === 'string'
+      ? { movementAdvancedGlb: pack.movementAdvancedGlb }
+      : {}),
+  };
 };
 
 const normalizeClips = (raw: unknown): ActorDocumentClips | null => {
@@ -258,6 +266,7 @@ const normalizeClips = (raw: unknown): ActorDocumentClips | null => {
   return {
     idle: clips.idle,
     run: clips.run,
+    ...(typeof clips.walkBack === 'string' ? { walkBack: clips.walkBack } : {}),
     jumpStart: clips.jumpStart,
     jumpIdle: clips.jumpIdle,
     jumpLand: clips.jumpLand,
@@ -332,7 +341,10 @@ export const defaultActorCollider = (
   }
 
   if (shape === 'cylinder') {
-    if (parent.kind === 'character') {
+    if (
+      parent.kind === 'character' ||
+      (parent.kind === 'bone' && parent.boneName === 'spine')
+    ) {
       return {
         ...base,
         shape: 'cylinder',

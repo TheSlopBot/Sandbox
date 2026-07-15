@@ -5,15 +5,20 @@ import {
   createCharacterController,
   createMovementIntent,
   attachActorBodyCollider,
+  spawnActorColliders,
   type TextureCache,
   type GltfCache,
+  type SharedMeshCache,
   type CharacterController,
   type ActorColliderDef,
+  type ActorDefinition,
+  type ActorAttachmentDef,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef.ts';
 import { loadSkeletalCharacter } from './loadSkeletalCharacter.ts';
 import { spawnSkeletalCharacter } from './spawnSkeletalCharacter.ts';
+import { attachCombatActor } from '../combat/attachCombatActor.ts';
 
 export type SpawnActorOpts = {
   x: number;
@@ -21,7 +26,10 @@ export type SpawnActorOpts = {
   z: number;
   moveSpeed?: number;
   colliders?: readonly ActorColliderDef[];
+  attachments?: readonly ActorAttachmentDef[];
   extraComponents?: Record<string, unknown>;
+  combatActor?: ActorDefinition;
+  meshes?: SharedMeshCache;
 };
 
 export const spawnActor = async (
@@ -49,11 +57,25 @@ export const spawnActor = async (
     }
   }
 
-  const loaded = await loadSkeletalCharacter({ device, textures, gltfCache }, def);
-  spawnSkeletalCharacter(registry, entity, loaded, { device });
+  const loaded = await loadSkeletalCharacter(
+    { device, textures, gltfCache, meshes: opts.meshes },
+    def,
+  );
+  const attachmentEntityIds = spawnSkeletalCharacter(registry, entity, loaded, {
+    device,
+    meshes: opts.meshes,
+  });
 
   if (opts.colliders && opts.colliders.length > 0) {
     attachActorBodyCollider(entity, opts.colliders);
+    spawnActorColliders(registry, entity, opts.colliders, {
+      attachmentEntityIds,
+      attachments: opts.attachments ?? opts.combatActor?.attachments,
+    });
+  }
+
+  if (opts.combatActor) {
+    attachCombatActor(entity, opts.combatActor);
   }
 
   const cc = entity.components[COMPONENT_KEYS.character] as CharacterController;

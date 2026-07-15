@@ -1,18 +1,43 @@
 import { type AnimClip, getClipAnimatedNodes } from '../../components/animation.ts';
 import { type AnimStateId } from '../../components/animationStateMachine.ts';
 import { type AnimationClipMap } from '../../components/animationClipMap.ts';
+import { type RightHandStateId } from '../../components/rightHandStateMachine.ts';
+import { type LeftHandStateId } from '../../components/leftHandStateMachine.ts';
 
-export const GPU_CLIP_STATE_ORDER: readonly AnimStateId[] = [
+export const GPU_MOVEMENT_CLIP_ORDER: readonly AnimStateId[] = [
   'idle',
   'run',
+  'walkBack',
   'jumpStart',
   'jumpAir',
   'jumpLand',
 ];
 
+export const GPU_RIGHT_HAND_CLIP_ORDER: readonly RightHandStateId[] = [
+  'none',
+  'idleHold',
+  'aim',
+  'attack',
+  'reload',
+];
+
+export const GPU_LEFT_HAND_CLIP_ORDER: readonly LeftHandStateId[] = [
+  'none',
+  'idleHold',
+  'block',
+  'attack',
+];
+
+export const GPU_CLIP_STATE_ORDER = GPU_MOVEMENT_CLIP_ORDER;
+export const GPU_MOVEMENT_CLIP_COUNT = GPU_MOVEMENT_CLIP_ORDER.length;
+
 export const clipStateIndex = (state: AnimStateId): number => {
-  const idx = GPU_CLIP_STATE_ORDER.indexOf(state);
+  const idx = GPU_MOVEMENT_CLIP_ORDER.indexOf(state);
   return idx < 0 ? 0 : idx;
+};
+
+export type GpuClipBankEntry = {
+  clip: AnimClip | null;
 };
 
 export type GpuPackedClips = {
@@ -24,6 +49,10 @@ export type GpuPackedClips = {
   times: Float32Array;
   values: Float32Array;
   animatedMask: Uint32Array;
+};
+
+export type PackClipsForGpuOpts = {
+  bankEntries?: readonly GpuClipBankEntry[];
 };
 
 const PATH_TRANSLATION = 0;
@@ -39,10 +68,13 @@ const pathToCode = (path: 'translation' | 'rotation' | 'scale'): number => {
 export const packClipsForGpu = (
   clipMap: AnimationClipMap,
   nodeCount: number,
+  opts: PackClipsForGpuOpts = {},
 ): GpuPackedClips => {
-  const clips: (AnimClip | null)[] = GPU_CLIP_STATE_ORDER.map(
-    (id) => clipMap.clips[id]?.clip ?? null,
-  );
+  const bankEntries = opts.bankEntries ?? [];
+  const clips: (AnimClip | null)[] = [
+    ...GPU_MOVEMENT_CLIP_ORDER.map((id) => clipMap.clips[id]?.clip ?? null),
+    ...bankEntries.map((entry) => entry.clip),
+  ];
 
   const clipHeaders = new Uint32Array(clips.length * 4);
   const channelHeaders: number[] = [];

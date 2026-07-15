@@ -7,6 +7,8 @@ import { PropInspector } from '../inspector/PropInspector.tsx';
 import { PropDetails } from '../inspector/PropDetails.tsx';
 import { ActorInspector } from '../inspector/ActorInspector.tsx';
 import { ActorDetails } from '../inspector/ActorDetails.tsx';
+import { EquipmentInspector } from '../inspector/EquipmentInspector.tsx';
+import { EquipmentDetails } from '../inspector/EquipmentDetails.tsx';
 import { LevelInspector } from '../inspector/LevelInspector.tsx';
 import { LevelDetails } from '../inspector/LevelDetails.tsx';
 import { LEVEL_GROUND_PLANE_ID } from '../../catalog/levels/levelDocument.ts';
@@ -15,6 +17,7 @@ import { ViewerAnimHud } from '../viewer/ViewerAnimHud.tsx';
 import { ConfirmModal } from '../modals/ConfirmModal.tsx';
 import { LoadPropModal } from '../modals/LoadPropModal.tsx';
 import { LoadActorModal } from '../modals/LoadActorModal.tsx';
+import { LoadEquipmentModal } from '../modals/LoadEquipmentModal.tsx';
 import { LoadLevelModal } from '../modals/LoadLevelModal.tsx';
 import { GroupModal } from '../modals/GroupModal.tsx';
 import { RenamePropModal } from '../modals/RenamePropModal.tsx';
@@ -65,6 +68,8 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     setActorDoc,
     actorBoneNames,
     setActorBoneNames,
+    equipmentDoc,
+    setEquipmentDoc,
     levelDoc,
     setLevelDoc,
   } = useConstructSession(active);
@@ -93,8 +98,16 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     setColliderExpanded,
   } = useManifestExplorer({ active, setStatus });
 
-  const { selectedPartId, setSelectedPartId, actorSelection, setActorSelection, levelSelection, setLevelSelection } =
-    useConstructSelection();
+  const {
+    selectedPartId,
+    setSelectedPartId,
+    actorSelection,
+    setActorSelection,
+    equipmentSelection,
+    setEquipmentSelection,
+    levelSelection,
+    setLevelSelection,
+  } = useConstructSelection();
 
   const levelScaleAllowed =
     !levelSelection.groupId &&
@@ -106,17 +119,21 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
         levelSelection.instanceIds[0] === LEVEL_GROUND_PLANE_ID));
 
   const levelRotateAllowed = !levelSelection.instanceIds.includes(LEVEL_GROUND_PLANE_ID);
+  const equipmentRotateAllowed = equipmentSelection?.kind === 'collider';
 
   const { mode, setMode, transformMode, setTransformMode } = useConstructMode({
     active,
     sessionRef,
     levelScaleAllowed,
     levelRotateAllowed,
+    equipmentRotateAllowed,
     setPropDoc,
     setActorDoc,
     setActorBoneNames,
     setSelectedPartId,
     setActorSelection,
+    setEquipmentDoc,
+    setEquipmentSelection,
     setAnimPackUrl: (url) => setAnimPackUrl(url),
     setAvailableClipNames: (names) => setAvailableClipNames(names),
     setClipName: (name) => setClipName(name),
@@ -160,6 +177,21 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     setStatus,
   });
 
+  const equipmentAnimPacks = useMemo(() => {
+    if (!manifest) return [];
+
+    const seen = new Set<string>();
+
+    return manifest.entries
+      .filter((e) => e.kind === 'AnimationSet')
+      .filter((e) => {
+        const name = e.path.split('/').slice(-1)[0] ?? e.path;
+        if (seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      });
+  }, [manifest]);
+
   const {
     fileInputRef,
     confirmNewOpen,
@@ -168,10 +200,13 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     setLoadPropModalOpen,
     loadActorModalOpen,
     setLoadActorModalOpen,
+    loadEquipmentModalOpen,
+    setLoadEquipmentModalOpen,
     loadLevelModalOpen,
     setLoadLevelModalOpen,
     localPropEntries,
     localActorEntries,
+    localEquipmentEntries,
     localLevelEntries,
     renameIntent,
     setRenameIntent,
@@ -188,6 +223,8 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     onDeleteLocalPropEntry,
     onLoadActorEntry,
     onDeleteLocalActorEntry,
+    onLoadEquipmentEntry,
+    onDeleteLocalEquipmentEntry,
     onLoadLevelEntry,
     onDeleteLocalLevelEntry,
     onFileInputChange,
@@ -199,6 +236,9 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     actorDoc,
     setActorDoc,
     setActorBoneNames,
+    equipmentDoc,
+    setEquipmentDoc,
+    setEquipmentSelection,
     levelDoc,
     setLevelDoc,
     setLevelSelection,
@@ -209,17 +249,20 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     onLocalLibraryChange: refreshLevelStandardEntries,
   });
 
-  const { propInspectorActions, actorInspectorActions, levelInspectorActions } = useConstructInspectorActions({
-    sessionRef,
-    actorDoc,
-    setPropDoc,
-    setActorDoc,
-    setSelectedPartId,
-    setActorSelection,
-    setLevelDoc,
-    setLevelSelection,
-    setStatus,
-  });
+  const { propInspectorActions, actorInspectorActions, equipmentInspectorActions, levelInspectorActions } =
+    useConstructInspectorActions({
+      sessionRef,
+      actorDoc,
+      setPropDoc,
+      setActorDoc,
+      setSelectedPartId,
+      setActorSelection,
+      setEquipmentDoc,
+      setEquipmentSelection,
+      setLevelDoc,
+      setLevelSelection,
+      setStatus,
+    });
 
   const { onAddAsset, onAddCharacter, onAddCollider, onAddStandardProp, onAddStandardActor } = useConstructAssetActions({
     mode,
@@ -231,6 +274,8 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     setSelectedPartId,
     setActorDoc,
     setActorBoneNames,
+    setEquipmentDoc,
+    setEquipmentSelection,
     setAnimPackUrl,
     setAvailableClipNames,
     setClipName,
@@ -275,6 +320,12 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     const entry = resolveManifestEntryForAssetUrl(actorDoc.character.url, entriesByPath);
     return entry?.path ?? null;
   }, [actorDoc.character, entriesByPath]);
+
+  const equipmentMeshPath = useMemo(() => {
+    if (!equipmentDoc.mesh.url) return null;
+    const entry = resolveManifestEntryForAssetUrl(equipmentDoc.mesh.url, entriesByPath);
+    return entry?.path ?? null;
+  }, [equipmentDoc.mesh.url, entriesByPath]);
 
   const viewerTitle = useMemo(() => {
     if (mode === 'actor') {
@@ -437,9 +488,11 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
       ? 'construct-body construct-bodyProp'
       : mode === 'actor'
         ? 'construct-body construct-bodyActor'
-        : mode === 'level'
-          ? 'construct-body construct-bodyLevel'
-          : 'construct-body';
+        : mode === 'equipment'
+          ? 'construct-body construct-bodyEquipment'
+          : mode === 'level'
+            ? 'construct-body construct-bodyLevel'
+            : 'construct-body';
 
   const levelExplorer = (
     <LevelExplorer
@@ -487,13 +540,18 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
         if (mode === 'actor' && entry?.kind === 'CharacterModel') {
           onAddCharacter(filePath);
         }
+        if (mode === 'equipment' && entry) {
+          onAddAsset(filePath);
+        }
       }}
       onAddAssetFile={mode === 'prop' || mode === 'actor' ? onAddAsset : undefined}
+      assetFileAction={mode === 'equipment' ? 'radio' : 'add'}
+      assetRadioPath={mode === 'equipment' ? equipmentMeshPath : null}
       characterFileAction={mode === 'actor' ? 'radio' : 'add'}
       characterRadioPath={mode === 'actor' ? actorCharacterPath : null}
-      showAssets={mode === 'preview' || mode === 'prop' || mode === 'actor'}
+      showAssets={mode === 'preview' || mode === 'prop' || mode === 'actor' || mode === 'equipment'}
       showCharacters={mode === 'preview' || mode === 'actor'}
-      showColliders={mode === 'prop' || mode === 'actor'}
+      showColliders={mode === 'prop' || mode === 'actor' || mode === 'equipment'}
       assetsExpanded={assetsExpanded}
       onAssetsExpandedChange={setAssetsExpanded}
       charactersExpanded={charactersExpanded}
@@ -507,6 +565,7 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
       characterAddEnabled={false}
       colliderAddEnabled={
         mode === 'prop' ||
+        mode === 'equipment' ||
         (mode === 'actor' &&
           (actorSelection?.kind === 'bone' || actorSelection?.kind === 'attachment'))
       }
@@ -535,9 +594,11 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
         accept={
           mode === 'actor'
             ? '.actor,application/json'
-            : mode === 'level'
-              ? '.level,application/json'
-              : '.prop,application/json'
+            : mode === 'equipment'
+              ? '.equipment,application/json'
+              : mode === 'level'
+                ? '.level,application/json'
+                : '.prop,application/json'
         }
         hidden
         onChange={(e) => {
@@ -549,13 +610,23 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
 
       {confirmNewOpen ? (
         <ConfirmModal
-          title={mode === 'actor' ? 'New actor' : mode === 'level' ? 'New level' : 'New prop'}
+          title={
+            mode === 'actor'
+              ? 'New actor'
+              : mode === 'equipment'
+                ? 'New equipment'
+                : mode === 'level'
+                  ? 'New level'
+                  : 'New prop'
+          }
           message={
             mode === 'actor'
               ? 'Create a new actor? Unsaved changes will be lost.'
-              : mode === 'level'
-                ? 'Create a new level? Unsaved changes will be lost.'
-                : 'Create a new prop? Unsaved changes will be lost.'
+              : mode === 'equipment'
+                ? 'Create a new equipment? Unsaved changes will be lost.'
+                : mode === 'level'
+                  ? 'Create a new level? Unsaved changes will be lost.'
+                  : 'Create a new prop? Unsaved changes will be lost.'
           }
           confirmLabel="Create"
           onCancel={() => setConfirmNewOpen(false)}
@@ -581,6 +652,15 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
           onCancel={() => setLoadActorModalOpen(false)}
           onSelect={onLoadActorEntry}
           onDelete={onDeleteLocalActorEntry}
+        />
+      ) : null}
+
+      {loadEquipmentModalOpen ? (
+        <LoadEquipmentModal
+          entries={localEquipmentEntries}
+          onCancel={() => setLoadEquipmentModalOpen(false)}
+          onSelect={onLoadEquipmentEntry}
+          onDelete={onDeleteLocalEquipmentEntry}
         />
       ) : null}
 
@@ -623,26 +703,38 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
       {renameIntent ? (
         <RenamePropModal
           initialName={
-            mode === 'actor' ? actorDoc.displayName : mode === 'level' ? levelDoc.displayName : propDoc.displayName
+            mode === 'actor'
+              ? actorDoc.displayName
+              : mode === 'equipment'
+                ? equipmentDoc.displayName
+                : mode === 'level'
+                  ? levelDoc.displayName
+                  : propDoc.displayName
           }
           title={
             renameIntent === 'edit'
               ? mode === 'actor'
                 ? 'Rename actor'
-                : mode === 'level'
-                  ? 'Rename level'
-                  : 'Rename prop'
+                : mode === 'equipment'
+                  ? 'Rename equipment'
+                  : mode === 'level'
+                    ? 'Rename level'
+                    : 'Rename prop'
               : renameIntent === 'saveAs'
                 ? mode === 'actor'
                   ? 'Save actor as'
-                  : mode === 'level'
-                    ? 'Save level as'
-                    : 'Save prop as'
+                  : mode === 'equipment'
+                    ? 'Save equipment as'
+                    : mode === 'level'
+                      ? 'Save level as'
+                      : 'Save prop as'
                 : mode === 'actor'
                   ? 'Name actor'
-                  : mode === 'level'
-                    ? 'Name level'
-                    : 'Name prop'
+                  : mode === 'equipment'
+                    ? 'Name equipment'
+                    : mode === 'level'
+                      ? 'Name level'
+                      : 'Name prop'
           }
           confirmLabel={
             renameIntent === 'save' || renameIntent === 'saveAs'
@@ -709,6 +801,15 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
               onShowCollidersChange={handleShowCollidersChange}
             />
           ) : null}
+          {mode === 'equipment' ? (
+            <ViewerAnimHud
+              title={equipmentDoc.displayName || 'Equipment'}
+              canAnimate={false}
+              showAnimControls={false}
+              showColliders={showColliders}
+              onShowCollidersChange={handleShowCollidersChange}
+            />
+          ) : null}
           {mode === 'level' ? (
             <ViewerAnimHud
               title={levelDoc.displayName || 'Level'}
@@ -718,11 +819,13 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
               onShowCollidersChange={handleShowCollidersChange}
             />
           ) : null}
-          {mode === 'prop' || mode === 'actor' || mode === 'level' ? (
+          {mode === 'prop' || mode === 'actor' || mode === 'equipment' || mode === 'level' ? (
             <div className="construct-toolRail">
               {TRANSFORM_MODES.map((tool) => {
                 const scaleDisabled = mode === 'level' && tool === 'scale' && !levelScaleAllowed;
-                const rotateDisabled = mode === 'level' && tool === 'rotate' && !levelRotateAllowed;
+                const rotateDisabled =
+                  (mode === 'level' && tool === 'rotate' && !levelRotateAllowed) ||
+                  (mode === 'equipment' && tool === 'rotate' && !equipmentRotateAllowed);
                 const toolDisabled = scaleDisabled || rotateDisabled;
                 return (
                   <button
@@ -798,6 +901,27 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
               textureVariants={actorDetailVariants}
               onRenameActor={onRenameDocument}
               {...actorInspectorActions}
+            />
+          </div>
+        ) : null}
+
+        {mode === 'equipment' ? (
+          <div className="construct-panelRightProp">
+            <EquipmentInspector
+              doc={equipmentDoc}
+              selection={equipmentSelection}
+              documentLabel={`${equipmentDoc.id}.equipment`}
+              onSelect={(sel) => {
+                setEquipmentSelection(sel);
+                sessionRef.current?.selectEquipment(sel);
+              }}
+            />
+            <EquipmentDetails
+              doc={equipmentDoc}
+              selection={equipmentSelection}
+              animPacks={equipmentAnimPacks}
+              onRenameEquipment={onRenameDocument}
+              {...equipmentInspectorActions}
             />
           </div>
         ) : null}

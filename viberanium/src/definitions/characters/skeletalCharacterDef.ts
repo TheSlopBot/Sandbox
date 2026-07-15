@@ -16,10 +16,15 @@ export type SkeletalCharacterDef = {
   materialPrefix: string;
   baseColorTextureUrl?: string;
   visualYOffset?: number;
-  animPack: { generalGlb: string; movementGlb: string };
+  animPack: {
+    generalGlb: string;
+    movementGlb: string;
+    movementAdvancedGlb?: string;
+  };
   clips: {
     idle: AnimClipRef;
     run: AnimClipRef;
+    walkBack?: AnimClipRef;
     jumpStart: AnimClipRef;
     jumpIdle: AnimClipRef;
     jumpLand: AnimClipRef;
@@ -35,6 +40,8 @@ export const collectUrlsFromDef = (def: SkeletalCharacterDef): string[] => {
     def.animPack.generalGlb,
     def.animPack.movementGlb,
   ]);
+
+  if (def.animPack.movementAdvancedGlb) urls.add(def.animPack.movementAdvancedGlb);
 
   for (const attachment of def.attachments ?? []) urls.add(attachment.gltfUrl);
 

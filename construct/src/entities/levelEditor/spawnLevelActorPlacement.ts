@@ -77,6 +77,7 @@ export const spawnLevelActorPlacementEntity = async (
   entity.components[COMPONENT_KEYS.animationClipMap] = createAnimationClipMap({
     idle: wrapped,
     run: wrapped,
+    walkBack: wrapped,
     jumpStart: wrapped,
     jumpAir: wrapped,
     jumpLand: wrapped,

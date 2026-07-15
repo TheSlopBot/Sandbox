@@ -6,6 +6,7 @@ import {
   type AnimationClip,
   type SkeletalModel,
   type MeshDraws,
+  type SharedMeshCache,
   createSkeletalModel,
   createAnimationClip,
   createAttachmentOffset,
@@ -25,6 +26,7 @@ export type CharacterLoadDeps = {
   device: GpuDevice;
   textures: TextureCache;
   gltfCache: GltfCache;
+  meshes?: SharedMeshCache;
 };
 
 export type LoadedAttachmentPart = {
@@ -32,6 +34,7 @@ export type LoadedAttachmentPart = {
   gltfNodeIndex: number;
   vertices: Float32Array;
   indices: Uint32Array;
+  meshKey: string;
 };
 
 export type LoadedAttachment = {
@@ -41,14 +44,17 @@ export type LoadedAttachment = {
   attachScene: RuntimeScene;
   parts: LoadedAttachmentPart[];
   spawnEquipped: boolean;
+  gltfUrl: string;
 };
 
 export type SkeletalCharacterLoad = {
   model: SkeletalModel;
   meshDraws: MeshDraws;
+  sharedMeshes: boolean;
   clips: {
     idle: AnimationClip;
     run: AnimationClip;
+    walkBack: AnimationClip;
     jumpStart: AnimationClip;
     jumpIdle: AnimationClip;
     jumpLand: AnimationClip;
@@ -74,7 +80,8 @@ const loadAttachment = async (
     const model = attachScene.models[pair.meshIndex];
     if (!model) continue;
 
-    for (const prim of model.primitives) {
+    for (let primIndex = 0; primIndex < model.primitives.length; primIndex++) {
+      const prim = model.primitives[primIndex]!;
       if (prim.kind === 'skinned') continue;
 
       const material = prim.materialIndex >= 0 && prim.materialIndex < mats.length
@@ -85,6 +92,7 @@ const loadAttachment = async (
         gltfNodeIndex: pair.nodeIndex,
         vertices: prim.vertices,
         indices: prim.indices,
+        meshKey: `${def.gltfUrl}#${pair.meshIndex}:${primIndex}:static`,
       });
     }
   }
@@ -96,6 +104,7 @@ const loadAttachment = async (
     attachScene,
     parts,
     spawnEquipped: def.spawnEquipped !== false,
+    gltfUrl: def.gltfUrl,
   };
 };
 
@@ -103,10 +112,12 @@ export const loadSkeletalCharacter = async (
   deps: CharacterLoadDeps,
   def: SkeletalCharacterDef,
 ): Promise<SkeletalCharacterLoad> => {
-  const [bodyLoaded, idleLoaded, moveLoaded] = await Promise.all([
+  const advancedUrl = def.animPack.movementAdvancedGlb;
+  const [bodyLoaded, idleLoaded, moveLoaded, advancedLoaded] = await Promise.all([
     deps.gltfCache.getOrLoad(def.bodyGlb),
     deps.gltfCache.getOrLoad(def.animPack.generalGlb),
     deps.gltfCache.getOrLoad(def.animPack.movementGlb),
+    advancedUrl ? deps.gltfCache.getOrLoad(advancedUrl) : Promise.resolve(null),
   ]);
 
   const bodyScene = getOrBuildRuntimeScene(bodyLoaded);
@@ -116,21 +127,34 @@ export const loadSkeletalCharacter = async (
   const bodyMats = buildGltfMaterials(bodyLoaded, def.materialPrefix, deps.textures, baseColorOverride);
   const idleClips = buildRetargetedClips(idleLoaded, bodyScene.nodes);
   const moveClips = buildRetargetedClips(moveLoaded, bodyScene.nodes);
+  const advancedClips = advancedLoaded
+    ? buildRetargetedClips(advancedLoaded, bodyScene.nodes)
+    : moveClips;
+
+  const walkBackName = def.clips.walkBack;
+  const walkBackSource = walkBackName && advancedLoaded ? advancedClips : moveClips;
+  const walkBackClip = walkBackName
+    ? pickClip(walkBackSource, walkBackName)
+    : pickClip(moveClips, def.clips.run);
 
   const clips = {
     idle: createAnimationClip(pickClip(idleClips, def.clips.idle)),
     run: createAnimationClip(pickClip(moveClips, def.clips.run)),
+    walkBack: createAnimationClip(walkBackClip),
     jumpStart: createAnimationClip(pickClip(moveClips, def.clips.jumpStart)),
     jumpIdle: createAnimationClip(pickClip(moveClips, def.clips.jumpIdle)),
     jumpLand: createAnimationClip(pickClip(moveClips, def.clips.jumpLand)),
   };
 
-  const meshDraws = buildMeshDrawsFromRuntimeScene(deps.device, bodyScene, bodyMats);
+  const meshDraws = buildMeshDrawsFromRuntimeScene(deps.device, bodyScene, bodyMats, {
+    meshes: deps.meshes,
+    meshKeyPrefix: def.bodyGlb,
+  });
   const model = createSkeletalModel(bodyScene, def.visualYOffset ?? -0.55);
 
   const attachments = def.attachments?.length
     ? await Promise.all(def.attachments.map((attachment) => loadAttachment(deps, bodyScene, attachment)))
     : [];
 
-  return { model, meshDraws, clips, attachments };
+  return { model, meshDraws, sharedMeshes: !!deps.meshes, clips, attachments };
 };

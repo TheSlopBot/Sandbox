@@ -154,6 +154,8 @@ export const spawnLevelPlayerSpawnEntity = async (
 
     run: wrapped,
 
+    walkBack: wrapped,
+
     jumpStart: wrapped,
 
     jumpAir: wrapped,

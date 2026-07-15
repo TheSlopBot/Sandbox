@@ -1,5 +1,4 @@
 import {
-  type GpuDevice,
   type Registry,
   type Input,
   type Transform,
@@ -7,17 +6,15 @@ import {
   type MovementIntent,
   type CharacterController,
   type AnimationStateMachine,
-  removeChildId,
   COMPONENT_KEYS,
   v3Set,
 } from 'viberanium';
 import { GAME_COMPONENT_KEYS } from '../../../catalog/keys/components.ts';
-import { spawnAttachmentFromLoad } from '../../actor/spawnSkeletalCharacter.ts';
 import { type PlayerController } from '../components/playerController.ts';
 
 const anyDown = (input: Input, keys: readonly string[]) => keys.some((key) => input.down(key));
 
-export const installPlayerInputSystem = (registry: Registry, input: Input, device: GpuDevice) => {
+export const installPlayerInputSystem = (registry: Registry, input: Input) => {
   registry.addAction('update', () => {
     let camYaw = 0;
     for (const e of registry.view(COMPONENT_KEYS.cameraFollow)) {
@@ -49,26 +46,6 @@ export const installPlayerInputSystem = (registry: Registry, input: Input, devic
         t.dirty = true;
       }
 
-      if (input.pressed(pc.toggleHelmetKey)) {
-        const children = e.components[COMPONENT_KEYS.children] as { ids: number[] } | undefined;
-
-        if (pc.helmetEntityId !== null) {
-          if (children) removeChildId(children, pc.helmetEntityId);
-          registry.deregister(pc.helmetEntityId);
-          pc.helmetEntityId = null;
-        } else if (pc.stowedHelmet) {
-          const helmetEntity = spawnAttachmentFromLoad(
-            registry,
-            device,
-            e.id,
-            e,
-            pc.stowedHelmet,
-            GAME_COMPONENT_KEYS.playerHelmet,
-          );
-          pc.helmetEntityId = helmetEntity.id;
-        }
-      }
-
       let mx = 0;
       let mz = 0;
       if (anyDown(input, pc.moveLeftKeys)) mx -= 1;
@@ -77,7 +54,10 @@ export const installPlayerInputSystem = (registry: Registry, input: Input, devic
       if (anyDown(input, pc.moveBackwardKeys)) mz += 1;
 
       const len = Math.hypot(mx, mz);
-      if (len > 1e-6) { mx /= len; mz /= len; }
+      if (len > 1e-6) {
+        mx /= len;
+        mz /= len;
+      }
 
       const forwardAmt = -mz;
       v3Set(

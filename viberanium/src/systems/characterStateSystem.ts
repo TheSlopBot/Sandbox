@@ -13,6 +13,8 @@ const wrapPi = (a: number): number => {
 export const installCharacterStateSystem = (registry: Registry) => {
   registry.addAction('update', (ctx) => {
     for (const e of registry.view(COMPONENT_KEYS.character)) {
+      if (e.components[COMPONENT_KEYS.combatIntent]) continue;
+
       const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
       const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
       if (!t || !cc) continue;
