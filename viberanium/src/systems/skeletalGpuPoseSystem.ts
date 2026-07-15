@@ -88,15 +88,32 @@ type PendingPose = {
   model: SkeletalModel;
   meshDraws: MeshDraws;
   fsm: AnimationStateMachine;
-  clipMap: AnimationClipMap;
   skin: SkinInstance;
   state: GpuPoseState;
   renderRoot: Mat4;
   skip: boolean;
   castShadow: boolean;
-  layered: boolean;
+  hasHandEquipment: boolean;
   rightHandClipMap: RightHandClipMap | undefined;
   leftHandClipMap: LeftHandClipMap | undefined;
+};
+
+type PoseEntryCommon = {
+  asset: SkeletonGpuAsset;
+  slotIndex: number;
+  skin: SkinInstance;
+  renderRoot: Mat4;
+  moveAnimTime: number;
+  moveClipIndex: number;
+  moveLoop: boolean;
+  fullBodyClipIndex: number;
+  torsoYawRad: number;
+  headYawRad: number;
+  spineNodeIndex: number;
+  headNodeIndex: number;
+  skip: boolean;
+  meshJobs: readonly PoseMeshJob[];
+  attachmentJobs: readonly PoseAttachmentJob[];
 };
 
 const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
@@ -120,6 +137,62 @@ const RIGHT_HAND_CLIP_IDS: readonly RightHandClipId[] = [
 ];
 
 const LEFT_HAND_CLIP_IDS: readonly LeftHandClipId[] = ['idleHold', 'block', 'attack'];
+
+const hasAnyHandEquipment = (equipment: EquipmentSlots | undefined): boolean =>
+  !!equipment?.right.equippedId || !!equipment?.left.equippedId;
+
+const buildBasePoseEntry = (common: PoseEntryCommon): PoseDispatchEntry => ({
+  ...common,
+  rightAnimTime: common.moveAnimTime,
+  rightClipIndex: common.moveClipIndex,
+  rightLoop: common.moveLoop,
+  leftAnimTime: common.moveAnimTime,
+  leftClipIndex: common.moveClipIndex,
+  leftLoop: common.moveLoop,
+  layerMode: 0,
+});
+
+const buildLayeredPoseEntry = (
+  common: PoseEntryCommon,
+  rightFsm: RightHandStateMachine | undefined,
+  leftFsm: LeftHandStateMachine | undefined,
+  rightHandClipMap: RightHandClipMap | undefined,
+  leftHandClipMap: LeftHandClipMap | undefined,
+): PoseDispatchEntry => {
+  const rightState = rightFsm?.current ?? 'none';
+  const leftState = leftFsm?.current ?? 'none';
+  const rightUsesMove = rightState === 'none';
+  const leftUsesMove = leftState === 'none';
+  const rightGpu = !rightUsesMove
+    ? rightHandClipMap?.gpuIndices[rightState as RightHandClipId]
+    : undefined;
+  const leftGpu = !leftUsesMove
+    ? leftHandClipMap?.gpuIndices[leftState as LeftHandClipId]
+    : undefined;
+
+  return {
+    ...common,
+    rightAnimTime: rightUsesMove
+      ? common.moveAnimTime
+      : rightFsm
+        ? rightState === 'attack' || rightState === 'reload'
+          ? rightFsm.stateTime
+          : rightFsm.animTime
+        : 0,
+    rightClipIndex: rightUsesMove ? common.moveClipIndex : (rightGpu ?? common.moveClipIndex),
+    rightLoop: rightUsesMove ? common.moveLoop : isRightHandLooping(rightState),
+    leftAnimTime: leftUsesMove
+      ? common.moveAnimTime
+      : leftFsm
+        ? leftState === 'attack'
+          ? leftFsm.stateTime
+          : leftFsm.animTime
+        : 0,
+    leftClipIndex: leftUsesMove ? common.moveClipIndex : (leftGpu ?? common.moveClipIndex),
+    leftLoop: leftUsesMove ? common.moveLoop : isLeftHandLooping(leftState),
+    layerMode: 1,
+  };
+};
 
 export const installSkeletalGpuPoseSystem = (
   registry: Registry,
@@ -308,12 +381,6 @@ export const installSkeletalGpuPoseSystem = (
 
       updateWorldMatrix(t);
 
-      const rightFsm = e.components[COMPONENT_KEYS.rightHandStateMachine] as
-        | RightHandStateMachine
-        | undefined;
-      const leftFsm = e.components[COMPONENT_KEYS.leftHandStateMachine] as
-        | LeftHandStateMachine
-        | undefined;
       const rightHandClipMap = e.components[COMPONENT_KEYS.rightHandClipMap] as
         | RightHandClipMap
         | undefined;
@@ -324,9 +391,7 @@ export const installSkeletalGpuPoseSystem = (
         | AnimationHandMasks
         | undefined;
       const equipment = e.components[COMPONENT_KEYS.equipmentSlots] as EquipmentSlots | undefined;
-      const rightActive = !!rightFsm && rightFsm.current !== 'none';
-      const leftActive = !!leftFsm && leftFsm.current !== 'none';
-      const layered = rightActive || leftActive;
+      const hasHandEquipment = hasAnyHandEquipment(equipment);
       const rightSourceId = equipment?.right.equippedId ?? 'none';
       const leftSourceId = equipment?.left.equippedId ?? 'none';
 
@@ -336,8 +401,8 @@ export const installSkeletalGpuPoseSystem = (
         model,
         skin,
         clipMap,
-        rightHandClipMap,
-        leftHandClipMap,
+        hasHandEquipment ? rightHandClipMap : undefined,
+        hasHandEquipment ? leftHandClipMap : undefined,
         handMasks,
         rightSourceId,
         leftSourceId,
@@ -368,15 +433,14 @@ export const installSkeletalGpuPoseSystem = (
         model,
         meshDraws,
         fsm,
-        clipMap,
         skin,
         state,
         renderRoot,
         skip,
         castShadow,
-        layered,
-        rightHandClipMap,
-        leftHandClipMap,
+        hasHandEquipment,
+        rightHandClipMap: hasHandEquipment ? rightHandClipMap : undefined,
+        leftHandClipMap: hasHandEquipment ? leftHandClipMap : undefined,
       });
     }
 
@@ -393,7 +457,7 @@ export const installSkeletalGpuPoseSystem = (
         skip,
         castShadow,
         model,
-        layered,
+        hasHandEquipment,
         rightHandClipMap,
         leftHandClipMap,
       } = item;
@@ -477,13 +541,9 @@ export const installSkeletalGpuPoseSystem = (
             ? fsm.runPlaybackSpeed * 1.5
             : 1;
       const moveTime = (oneShot ? fsm.stateTime : fsm.animTime) * movePlaybackSpeed;
+      const moveClip = clipStateIndex(fsm.current);
+      const moveLoop = isLoopingState(fsm.current);
 
-      const rightFsm = item.entity.components[COMPONENT_KEYS.rightHandStateMachine] as
-        | RightHandStateMachine
-        | undefined;
-      const leftFsm = item.entity.components[COMPONENT_KEYS.leftHandStateMachine] as
-        | LeftHandStateMachine
-        | undefined;
       const aim = item.entity.components[COMPONENT_KEYS.animationAimOffset] as
         | AnimationAimOffset
         | undefined;
@@ -497,23 +557,7 @@ export const installSkeletalGpuPoseSystem = (
         | AnimationHandMasks
         | undefined;
 
-      const rightState = rightFsm?.current ?? 'none';
-      const leftState = leftFsm?.current ?? 'none';
-      const moveClip = clipStateIndex(fsm.current);
-      const moveLoop = isLoopingState(fsm.current);
-
-      const rightUsesMove = rightState === 'none';
-      const leftUsesMove = leftState === 'none';
-
-      const rightGpu = !rightUsesMove
-        ? rightHandClipMap?.gpuIndices[rightState as RightHandClipId]
-        : undefined;
-      const leftGpu = !leftUsesMove
-        ? leftHandClipMap?.gpuIndices[leftState as LeftHandClipId]
-        : undefined;
-      const canLayer = rightGpu !== undefined || leftGpu !== undefined;
-
-      entries.push({
+      const common: PoseEntryCommon = {
         asset: state.asset,
         slotIndex: state.slotIndex,
         skin,
@@ -521,24 +565,6 @@ export const installSkeletalGpuPoseSystem = (
         moveAnimTime: moveTime,
         moveClipIndex: moveClip,
         moveLoop,
-        rightAnimTime: rightUsesMove
-          ? moveTime
-          : rightFsm
-            ? rightState === 'attack' || rightState === 'reload'
-              ? rightFsm.stateTime
-              : rightFsm.animTime
-            : 0,
-        rightClipIndex: rightUsesMove ? moveClip : (rightGpu ?? moveClip),
-        rightLoop: rightUsesMove ? moveLoop : isRightHandLooping(rightState),
-        leftAnimTime: leftUsesMove
-          ? moveTime
-          : leftFsm
-            ? leftState === 'attack'
-              ? leftFsm.stateTime
-              : leftFsm.animTime
-            : 0,
-        leftClipIndex: leftUsesMove ? moveClip : (leftGpu ?? moveClip),
-        leftLoop: leftUsesMove ? moveLoop : isLeftHandLooping(leftState),
         fullBodyClipIndex:
           fullBody?.active != null ? clipStateIndex('idle') : FULL_BODY_CLIP_DISABLED,
         torsoYawRad:
@@ -547,11 +573,24 @@ export const installSkeletalGpuPoseSystem = (
           (aim?.enabled ? (aim.headYawRad ?? 0) : 0) + (overlay?.headYawRad ?? 0),
         spineNodeIndex: handMasks?.spineNodeIndex ?? 0,
         headNodeIndex: handMasks?.headNodeIndex ?? 0,
-        layerMode: layered && canLayer ? 1 : 0,
         skip,
         meshJobs,
         attachmentJobs,
-      });
+      };
+
+      if (hasHandEquipment) {
+        const rightFsm = item.entity.components[COMPONENT_KEYS.rightHandStateMachine] as
+          | RightHandStateMachine
+          | undefined;
+        const leftFsm = item.entity.components[COMPONENT_KEYS.leftHandStateMachine] as
+          | LeftHandStateMachine
+          | undefined;
+        entries.push(
+          buildLayeredPoseEntry(common, rightFsm, leftFsm, rightHandClipMap, leftHandClipMap),
+        );
+      } else {
+        entries.push(buildBasePoseEntry(common));
+      }
 
       model.poseDirty = false;
     }

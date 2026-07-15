@@ -369,6 +369,42 @@ fn resolveHierarchyAndOutputs(inst: PoseInstance) {
   }
 }
 
+fn resolveBasePose(inst: PoseInstance) {
+  activeAnimTime = inst.moveAnimTime;
+  activeClipIndex = inst.moveClipIndex;
+  activeLoop = inst.moveLoop;
+  activeUseBoneMask = 0u;
+  sampleClip();
+  applyBoneYaw(inst.spineNodeIndex, inst.torsoYawRad);
+  applyBoneYaw(inst.headNodeIndex, inst.headYawRad);
+  resolveHierarchyAndOutputs(inst);
+}
+
+fn resolveLayeredPose(inst: PoseInstance) {
+  activeAnimTime = inst.moveAnimTime;
+  activeClipIndex = inst.moveClipIndex;
+  activeLoop = inst.moveLoop;
+  activeUseBoneMask = 1u;
+  activeBoneMaskOffset = frame.lowerBodyMaskOffset;
+  sampleClip();
+
+  activeAnimTime = inst.rightAnimTime;
+  activeClipIndex = inst.rightClipIndex;
+  activeLoop = inst.rightLoop;
+  activeBoneMaskOffset = frame.rightArmMaskOffset;
+  sampleClip();
+
+  activeAnimTime = inst.leftAnimTime;
+  activeClipIndex = inst.leftClipIndex;
+  activeLoop = inst.leftLoop;
+  activeBoneMaskOffset = frame.leftArmMaskOffset;
+  sampleClip();
+
+  applyBoneYaw(inst.spineNodeIndex, inst.torsoYawRad);
+  applyBoneYaw(inst.headNodeIndex, inst.headYawRad);
+  resolveHierarchyAndOutputs(inst);
+}
+
 fn resolveOne(inst: PoseInstance) {
   scratchBase = inst.slotIndex * frame.scratchStride;
   paletteBase = inst.slotIndex * MAX_JOINTS;
@@ -395,39 +431,11 @@ fn resolveOne(inst: PoseInstance) {
   }
 
   if (inst.layerMode == 0u) {
-    activeAnimTime = inst.moveAnimTime;
-    activeClipIndex = inst.moveClipIndex;
-    activeLoop = inst.moveLoop;
-    activeUseBoneMask = 0u;
-    sampleClip();
-    applyBoneYaw(inst.spineNodeIndex, inst.torsoYawRad);
-    applyBoneYaw(inst.headNodeIndex, inst.headYawRad);
-    resolveHierarchyAndOutputs(inst);
+    resolveBasePose(inst);
     return;
   }
 
-  activeAnimTime = inst.moveAnimTime;
-  activeClipIndex = inst.moveClipIndex;
-  activeLoop = inst.moveLoop;
-  activeUseBoneMask = 1u;
-  activeBoneMaskOffset = frame.lowerBodyMaskOffset;
-  sampleClip();
-
-  activeAnimTime = inst.rightAnimTime;
-  activeClipIndex = inst.rightClipIndex;
-  activeLoop = inst.rightLoop;
-  activeBoneMaskOffset = frame.rightArmMaskOffset;
-  sampleClip();
-
-  activeAnimTime = inst.leftAnimTime;
-  activeClipIndex = inst.leftClipIndex;
-  activeLoop = inst.leftLoop;
-  activeBoneMaskOffset = frame.leftArmMaskOffset;
-  sampleClip();
-
-  applyBoneYaw(inst.spineNodeIndex, inst.torsoYawRad);
-  applyBoneYaw(inst.headNodeIndex, inst.headYawRad);
-  resolveHierarchyAndOutputs(inst);
+  resolveLayeredPose(inst);
 }
 
 @compute @workgroup_size(1)
