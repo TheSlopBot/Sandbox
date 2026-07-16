@@ -350,6 +350,9 @@ export const defaultActorCollider = (
         shape: 'cylinder',
         radius: DEFAULT_CHARACTER_BODY_CYLINDER.radius ?? 0.39323,
         halfHeight: DEFAULT_CHARACTER_BODY_CYLINDER.halfHeight ?? 1.09563,
+        position: [...DEFAULT_CHARACTER_BODY_CYLINDER.position] as [number, number, number],
+        rotation: [...DEFAULT_CHARACTER_BODY_CYLINDER.rotation] as [number, number, number, number],
+        scale: [...DEFAULT_CHARACTER_BODY_CYLINDER.scale] as [number, number, number],
       };
     }
     return { ...base, shape: 'cylinder', radius: 0.35, halfHeight: 0.5 };

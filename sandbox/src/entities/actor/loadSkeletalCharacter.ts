@@ -121,6 +121,7 @@ export const loadSkeletalCharacter = async (
   ]);
 
   const bodyScene = getOrBuildRuntimeScene(bodyLoaded);
+  updateWorldFromLocals(bodyScene.nodes);
   const baseColorOverride = def.baseColorTextureUrl
     ? await deps.textures.getOrLoad(def.baseColorTextureUrl)
     : null;

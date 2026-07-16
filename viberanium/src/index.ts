@@ -49,6 +49,10 @@ export {
   SLIDE_ACCEL_TIME_SEC,
 } from './collision/characterCollision.ts';
 export {
+  collectCharacterCollisionColliders,
+  readCharacterBodyFromCollisionColliders,
+} from './collision/characterCollisionBody.ts';
+export {
   type BodyContact,
   contactBodyVsCollider,
 } from './collision/characterContact.ts';
@@ -82,10 +86,7 @@ export {
 
 export {
   createCharacterController,
-  characterFootOffset,
-  characterHeadOffset,
   characterBodyToSolver,
-  readCharacterBodyCylinder,
   type CharacterController,
   type CharacterBodyCylinder,
 } from './components/characterController.ts';
@@ -256,8 +257,6 @@ export {
   type PropPlacement,
   type InstantiatePropOptions,
 } from './spawn/instantiateProp.ts';
-export { attachActorBodyCollider, pickActorBodyCylinder } from './spawn/attachActorBodyCollider.ts';
-
 export { COMBAT_LAYER, COMBAT_MASK, isPhysicsLayer, combatLayersOverlap, type CombatLayerBits } from './combat/combatLayers.ts';
 export { pushCombatEvent, drainCombatEvents, peekCombatEvents, type CombatEvent } from './combat/combatEvents.ts';
 export {

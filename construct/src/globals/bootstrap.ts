@@ -125,7 +125,9 @@ import {
 } from '../session/levelEditor.ts';
 import { createConstructSessionState, type ConstructSession, type ConstructSessionDeps } from '../session/types.ts';
 import { ACTOR_SEED_DOCUMENTS } from '../catalog/actors/actorSeeds.ts';
+import { EQUIPMENT_SEED_DOCUMENTS } from '../catalog/equipment/equipmentSeeds.ts';
 import { seedLocalActorsIfEmpty } from '../storage/actorLocalStore.ts';
+import { seedLocalEquipmentIfEmpty } from '../storage/equipmentLocalStore.ts';
 
 const installOrbitInput = (
   canvas: HTMLCanvasElement,
@@ -298,6 +300,7 @@ export const bootstrap = async (canvas: HTMLCanvasElement): Promise<ConstructSes
   ensureEditorGround(deps);
 
   seedLocalActorsIfEmpty(ACTOR_SEED_DOCUMENTS);
+  seedLocalEquipmentIfEmpty(EQUIPMENT_SEED_DOCUMENTS);
 
   let active = false;
   let gizmoDragging = () => false;

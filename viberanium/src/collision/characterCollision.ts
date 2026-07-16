@@ -309,8 +309,9 @@ export const resolveCylinderMoveAndSlide = (
   let sliding = false;
   v3Set(_groundNormal, 0, 1, 0);
 
+  const ascending = velocity[1] > 0;
   const foot = next.y - next.halfHeight - next.radius;
-  if (foot <= groundY + 1e-4) {
+  if (!ascending && foot <= groundY + 1e-4) {
     next = { ...next, y: groundY + next.halfHeight + next.radius };
     if (velocity[1] < 0) velocity[1] = 0;
     onGround = true;
@@ -347,7 +348,7 @@ export const resolveCylinderMoveAndSlide = (
       }
     }
 
-    if (floor && !sliding) {
+    if (floor && !sliding && velocity[1] <= 0) {
       next = applyFloorPush(next, floor);
       onGround = true;
       sliding = false;

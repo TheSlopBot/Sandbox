@@ -52,9 +52,9 @@ export const attachWeaponHitbox = (
     collider = createBoxCollider({
       center: position,
       halfExtents: v3(
-        (def.halfExtents?.[0] ?? 0.15) * def.scale[0],
-        (def.halfExtents?.[1] ?? 0.4) * def.scale[1],
-        (def.halfExtents?.[2] ?? 0.08) * def.scale[2],
+        def.halfExtents?.[0] ?? 0.15,
+        def.halfExtents?.[1] ?? 0.4,
+        def.halfExtents?.[2] ?? 0.08,
       ),
       rotation,
       isStatic: false,
@@ -62,15 +62,15 @@ export const attachWeaponHitbox = (
   } else if (def.shape === 'cylinder') {
     collider = createCylinderCollider({
       center: position,
-      radius: (def.radius ?? 0.12) * def.scale[0],
-      halfHeight: (def.halfHeight ?? 0.35) * def.scale[1],
+      radius: def.radius ?? 0.12,
+      halfHeight: def.halfHeight ?? 0.35,
       rotation,
       isStatic: false,
     });
   } else {
     collider = createSphereCollider({
       center: position,
-      radius: (def.radius ?? 0.2) * Math.max(def.scale[0], def.scale[1], def.scale[2]),
+      radius: def.radius ?? 0.2,
       isStatic: false,
     });
   }

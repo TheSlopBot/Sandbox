@@ -7,6 +7,8 @@ import { updateWorldMatrix } from '../components/transform.ts';
 export const installColliderTransformSystem = (registry: Registry) =>
   registry.addAction('update', () => {
     for (const e of registry.view(COMPONENT_KEYS.collider)) {
+      if (e.components[COMPONENT_KEYS.boneAttachment]) continue;
+
       const collider = e.components[COMPONENT_KEYS.collider] as Collider | undefined;
       if (!collider?.localShape) continue;
 

@@ -104,12 +104,13 @@ CPU cylinder move-and-slide is the canonical gameplay path (`installCharacterPhy
 | Module | Role |
 |--------|------|
 | `characterContact.ts` | Capsule-vs-box/cylinder/sphere/ellipsoid narrowphase |
-| `characterCollision.ts` | `resolveCylinderMoveAndSlide`, slope classification, wall/slope slide |
+| `characterCollision.ts` | `resolveCylinderMoveAndSlide`, slope classification, wall/slope slide; no floor snap/ground while ascending |
 | `collisionBroadphase.ts` | Spatial grid for static obstacle queries |
+| `characterCollisionBody.ts` | Resolves a character's `characterCollision`-flagged collider children into a solver `CharacterBodyCylinder` |
 
 **Ramps** have no dedicated type — they are rotated box colliders on props or level placements. Walkable slopes (≤ `floorMaxAngle`, default 50°) set `onGround`; steeper slopes (50°–80°) trigger `character.sliding` with automatic downhill movement; near-vertical faces act as walls.
 
-Body dimensions come from a cylinder `collider` on the character entity (`attachActorBodyCollider` at spawn). `character` holds physics state only (`velocity`, `onGround`, `sliding`, `groundNormal`, …). Optional GPU collision (`installCollisionSystem` + `collisionPass`) is exported but not used in sandbox scenes.
+Body dimensions come from the character's `collider` children spawned by `spawn/spawnActorColliders.ts` (bone-attached, character-local, or attachment-local — never a collider on the character root itself), flagged `characterCollision: true` when their `ActorColliderDef.collision === true`. Bone-attached **physics bodies** follow **bind-pose** bones (cached model-space offset × character root via `installHitboxFollowSystem`) — they do **not** crouch with landing/run clips. Combat hitboxes/hurtboxes (`characterCollision` unset) still sample animated poses. Nested (non-bone) collider children follow their parent transform. An actor with zero `collision: true` colliders has no resolvable body — `characterPhysicsSystem` skips it entirely (no movement, no physics). While ascending (`vy > 0`), `resolveCylinderMoveAndSlide` skips ground-plane snap and floor grounding so jumps work when embedded or flush with a surface. `character` holds physics state only (`velocity`, `onGround`, `sliding`, `groundNormal`, …). Optional GPU collision (`installCollisionSystem` + `collisionPass`) is exported but not used in sandbox scenes.
 
 ## Skeletal characters
 

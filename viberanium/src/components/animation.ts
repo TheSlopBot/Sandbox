@@ -125,6 +125,7 @@ export const sampleClipToNodes = (
   time: number,
   weight: number,
   loop = true,
+  nodeMask?: Uint8Array,
 ): void => {
   const w = Math.max(0, Math.min(1, weight));
   if (w <= 0) return;
@@ -135,6 +136,8 @@ export const sampleClipToNodes = (
   }
 
   for (const ch of clip.channels) {
+    if (nodeMask && !nodeMask[ch.targetNodeIndex]) continue;
+
     const n = nodes[ch.targetNodeIndex];
     const times = ch.times;
     if (times.length === 0) continue;

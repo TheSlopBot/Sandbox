@@ -1,6 +1,5 @@
 import { type Vec3, v3 } from '../math/vec3.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
-import { type Collider } from './collider.ts';
 
 export type CharacterController = {
   velocity: Vec3;
@@ -20,6 +19,9 @@ export type CharacterController = {
 export type CharacterBodyCylinder = {
   radius: number;
   halfHeight: number;
+  centerX: number;
+  centerY: number;
+  centerZ: number;
 };
 
 export const createCharacterController = (): CharacterController => ({
@@ -36,23 +38,6 @@ export const createCharacterController = (): CharacterController => ({
   coyoteRemaining: 0,
   jumpBufferRemaining: 0,
 });
-
-export const characterFootOffset = (body: CharacterBodyCylinder): number => body.halfHeight;
-
-export const characterHeadOffset = (body: CharacterBodyCylinder): number => body.halfHeight;
-
-export const readCharacterBodyCylinder = (
-  collider: Collider | undefined,
-): CharacterBodyCylinder | null => {
-  const shape = collider?.localShape ?? collider?.shape;
-  if (!shape || shape.kind !== 'cylinder') return null;
-  if (!(shape.radius > 0) || !(shape.halfHeight > 0)) return null;
-
-  return {
-    radius: shape.radius,
-    halfHeight: shape.halfHeight,
-  };
-};
 
 export const characterBodyToSolver = (
   body: CharacterBodyCylinder,

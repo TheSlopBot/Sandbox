@@ -7,7 +7,6 @@ import { type AnimationStateMachine, type AnimStateId } from '../components/anim
 import { type AnimationClipMap } from '../components/animationClipMap.ts';
 import { type Children } from '../components/children.ts';
 import { type BoneAttachment } from '../components/boneAttachment.ts';
-import { type Collider, bakeColliderWorldFromLocal } from '../components/collider.ts';
 import { type SkinInstance } from '../components/skin.ts';
 import { type Gltf } from '../assets/gltf/types.ts';
 import { type AnimClip } from '../components/animation.ts';
@@ -500,19 +499,16 @@ export const installSkeletalGpuPoseSystem = (
           const attachment = child.components[COMPONENT_KEYS.boneAttachment] as BoneAttachment | undefined;
           if (!attachment) continue;
 
+          const childDraws = child.components[COMPONENT_KEYS.meshDraws] as MeshDraws | undefined;
+          if (!childDraws) continue;
+
           const childT = child.components[COMPONENT_KEYS.transform] as Transform | undefined;
           const boneNode = item.model.bodyScene.nodes[attachment.boneNodeIndex];
-          if (childT && boneNode) {
+          if (childT && boneNode && !child.components[COMPONENT_KEYS.collider]) {
             m4Mul(_boneAttachedWorld, renderRoot, boneNode.worldM);
             m4Mul(childT.world, _boneAttachedWorld, attachment.localOffset);
             childT.dirty = false;
-
-            const collider = child.components[COMPONENT_KEYS.collider] as Collider | undefined;
-            if (collider) bakeColliderWorldFromLocal(collider, childT.world);
           }
-
-          const childDraws = child.components[COMPONENT_KEYS.meshDraws] as MeshDraws | undefined;
-          if (!childDraws) continue;
 
           for (const part of childDraws.parts) {
             if (part.visible === false) continue;

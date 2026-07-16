@@ -4,7 +4,6 @@ import {
   createTransform,
   createCharacterController,
   createMovementIntent,
-  attachActorBodyCollider,
   spawnActorColliders,
   type TextureCache,
   type GltfCache,
@@ -12,7 +11,6 @@ import {
   type CharacterController,
   type ActorColliderDef,
   type ActorDefinition,
-  type ActorAttachmentDef,
   COMPONENT_KEYS,
 } from 'viberanium';
 import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef.ts';
@@ -26,7 +24,6 @@ export type SpawnActorOpts = {
   z: number;
   moveSpeed?: number;
   colliders?: readonly ActorColliderDef[];
-  attachments?: readonly ActorAttachmentDef[];
   extraComponents?: Record<string, unknown>;
   combatActor?: ActorDefinition;
   meshes?: SharedMeshCache;
@@ -67,10 +64,8 @@ export const spawnActor = async (
   });
 
   if (opts.colliders && opts.colliders.length > 0) {
-    attachActorBodyCollider(entity, opts.colliders);
     spawnActorColliders(registry, entity, opts.colliders, {
       attachmentEntityIds,
-      attachments: opts.attachments ?? opts.combatActor?.attachments,
     });
   }
 

@@ -1,4 +1,4 @@
-import { identityAttachmentLocal, type ActorColliderDef } from './actorDefinition.ts';
+import { type ActorColliderDef } from './actorDefinition.ts';
 
 export const DEFAULT_CHARACTER_BODY_CYLINDER: ActorColliderDef = {
   id: 'body',
@@ -9,7 +9,9 @@ export const DEFAULT_CHARACTER_BODY_CYLINDER: ActorColliderDef = {
   collision: true,
   hitbox: false,
   parent: { kind: 'bone', boneName: 'spine' },
-  ...identityAttachmentLocal(),
+  position: [0, 0.5, 0],
+  rotation: [0, 0, 0, 1],
+  scale: [1, 1, 1],
 };
 
 export const DEFAULT_CHARACTER_HURTBOX: ActorColliderDef = {
@@ -20,7 +22,7 @@ export const DEFAULT_CHARACTER_HURTBOX: ActorColliderDef = {
   collision: false,
   hitbox: true,
   parent: { kind: 'bone', boneName: 'spine' },
-  position: [0, 1, 0],
+  position: [0, 0.5, 0],
   rotation: [0, 0, 0, 1],
-  scale: [1, 1, 1],
+  scale: [1.4, 1.2, 1.4],
 };

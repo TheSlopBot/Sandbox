@@ -22,3 +22,9 @@ export const removeLocalEquipment = (id: string) => store.remove(id);
 
 export const importEquipmentDocument = (raw: string): EquipmentDocument | null =>
   parseEquipmentDocument(raw);
+
+export const seedLocalEquipmentIfEmpty = (documents: readonly EquipmentDocument[]) => {
+  for (const document of documents) {
+    if (!store.get(document.id)) saveLocalEquipment(document);
+  }
+};

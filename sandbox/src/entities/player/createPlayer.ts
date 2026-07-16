@@ -5,7 +5,6 @@ import {
   createCharacterController,
   createCameraFollow,
   createMovementIntent,
-  attachActorBodyCollider,
   spawnActorColliders,
   type TextureCache,
   type GltfCache,
@@ -59,10 +58,8 @@ export const createPlayer = async (
   );
 
   const attachmentEntityIds = spawnSkeletalCharacter(registry, entity, loaded, { device, meshes });
-  attachActorBodyCollider(entity, playerActor.colliders);
   spawnActorColliders(registry, entity, playerActor.colliders, {
     attachmentEntityIds,
-    attachments: playerActor.attachments,
   });
   attachCombatActor(entity, playerActor);
 

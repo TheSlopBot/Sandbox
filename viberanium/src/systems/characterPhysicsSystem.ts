@@ -2,12 +2,8 @@ import { type Registry } from '../engine/registry.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type Entity } from '../engine/entity.ts';
 import { type Transform } from '../components/transform.ts';
-import { type Aabb, type Collider } from '../components/collider.ts';
-import {
-  type CharacterController,
-  characterBodyToSolver,
-  readCharacterBodyCylinder,
-} from '../components/characterController.ts';
+import { type Aabb } from '../components/collider.ts';
+import { type CharacterController, characterBodyToSolver } from '../components/characterController.ts';
 import {
   type BodyY,
   applySlideVelocity,
@@ -16,6 +12,10 @@ import {
   SLIDE_MAX_SPEED_FACTOR,
   SLIDE_START_SPEED_FACTOR,
 } from '../collision/characterCollision.ts';
+import {
+  collectCharacterCollisionColliders,
+  readCharacterBodyFromCollisionColliders,
+} from '../collision/characterCollisionBody.ts';
 import { isCollisionBroadphaseDirty } from '../collision/collisionBroadphase.ts';
 import { getNearbyObstacles, getObstacles } from './collisionObstacles.ts';
 import { readGroundPlaneY } from './readGroundPlaneY.ts';
@@ -58,10 +58,11 @@ export const installCharacterPhysicsSystem = (
 
         const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
         const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-        const body = readCharacterBodyCylinder(
-          e.components[COMPONENT_KEYS.collider] as Collider | undefined,
-        );
-        if (!t || !cc || !body) continue;
+        if (!t || !cc) continue;
+
+        const authored = collectCharacterCollisionColliders(registry, e);
+        const body = readCharacterBodyFromCollisionColliders(authored, t.position);
+        if (!body) continue;
 
         const speed2 =
           cc.velocity[0] * cc.velocity[0] +
@@ -77,8 +78,8 @@ export const installCharacterPhysicsSystem = (
         const obstacles = getNearbyObstacles(
           registry,
           cc.obstructiveColliderKeys,
-          t.position[0],
-          t.position[2],
+          t.position[0] + body.centerX,
+          t.position[2] + body.centerZ,
           queryRadius,
         );
 
@@ -102,9 +103,9 @@ export const installCharacterPhysicsSystem = (
           t.position[2] += cc.velocity[2] * step;
 
           const bodyY: BodyY = {
-            x: t.position[0],
-            y: t.position[1],
-            z: t.position[2],
+            x: t.position[0] + body.centerX,
+            y: t.position[1] + body.centerY,
+            z: t.position[2] + body.centerZ,
             radius: solver.radius,
             halfHeight: solver.halfHeight,
           };
@@ -120,9 +121,9 @@ export const installCharacterPhysicsSystem = (
             _box,
           );
 
-          t.position[0] = result.body.x;
-          t.position[1] = result.body.y;
-          t.position[2] = result.body.z;
+          t.position[0] = result.body.x - body.centerX;
+          t.position[1] = result.body.y - body.centerY;
+          t.position[2] = result.body.z - body.centerZ;
 
           if (result.sliding) {
             const start = cc.moveSpeed * SLIDE_START_SPEED_FACTOR;

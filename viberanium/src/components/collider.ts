@@ -23,6 +23,7 @@ export type Collider = {
   combatLayer?: number;
   combatMask?: number;
   ownerId?: EntityId;
+  characterCollision?: boolean;
 };
 
 export const aabb = (
@@ -32,6 +33,9 @@ export const aabb = (
 
 const _corner = v3();
 const _rotated = v3();
+const _cylAxis = v3(0, 1, 0);
+const _worldRot = q4();
+const _identityRot = q4();
 
 const expandAabbPoint = (out: Aabb, x: number, y: number, z: number) => {
   if (x < out.min[0]) out.min[0] = x;
@@ -121,7 +125,7 @@ export const updateColliderAabbFromShape = (collider: Collider): void => {
     return;
   }
 
-  const axis = v3(0, 1, 0);
+  const axis = _cylAxis;
   q4TransformVec3(_rotated, shape.rotation, axis);
   const ax = Math.abs(_rotated[0]);
   const ay = Math.abs(_rotated[1]);
@@ -227,26 +231,60 @@ const rotationFromMat4 = (out: Quat, m: Mat4) => {
 };
 
 export const bakeColliderWorldFromLocal = (collider: Collider, world: Mat4): void => {
-  const local = collider.localShape ?? collider.shape;
-  const worldShape = cloneShape(local);
+  const local = collider.localShape;
+  if (!local) return;
 
-  transformPointByMat4(
-    worldShape.center,
-    world,
-    local.center[0],
-    local.center[1],
-    local.center[2],
-  );
+  let worldShape = collider.shape;
 
-  if (
-    worldShape.kind === 'box' ||
-    worldShape.kind === 'cylinder' ||
-    worldShape.kind === 'ellipsoid'
-  ) {
-    const localRot = local.kind === 'sphere' ? q4() : local.rotation;
-    const worldRot = q4();
-    rotationFromMat4(worldRot, world);
-    const qx = worldRot[0], qy = worldRot[1], qz = worldRot[2], qw = worldRot[3];
+  if (local.kind === 'sphere') {
+    const sx = Math.hypot(world[0]!, world[1]!, world[2]!);
+    const sy = Math.hypot(world[4]!, world[5]!, world[6]!);
+    const sz = Math.hypot(world[8]!, world[9]!, world[10]!);
+    const uniform = Math.abs(sx - sy) < 1e-4 && Math.abs(sy - sz) < 1e-4;
+
+    if (!uniform) {
+      if (worldShape.kind !== 'ellipsoid') {
+        worldShape = {
+          kind: 'ellipsoid',
+          center: v3(),
+          radii: v3(),
+          rotation: q4(),
+        };
+        collider.shape = worldShape;
+      }
+      transformPointByMat4(worldShape.center, world, local.center[0], local.center[1], local.center[2]);
+      worldShape.radii[0] = local.radius * sx;
+      worldShape.radii[1] = local.radius * sy;
+      worldShape.radii[2] = local.radius * sz;
+      rotationFromMat4(worldShape.rotation, world);
+      updateColliderAabbFromShape(collider);
+      return;
+    }
+
+    if (worldShape.kind !== 'sphere') {
+      worldShape = { kind: 'sphere', center: v3(), radius: 0 };
+      collider.shape = worldShape;
+    }
+    transformPointByMat4(worldShape.center, world, local.center[0], local.center[1], local.center[2]);
+    worldShape.radius = local.radius * sx;
+    updateColliderAabbFromShape(collider);
+    return;
+  }
+
+  if (worldShape.kind !== local.kind) {
+    worldShape = cloneShape(local);
+    collider.shape = worldShape;
+  }
+
+  transformPointByMat4(worldShape.center, world, local.center[0], local.center[1], local.center[2]);
+
+  if (worldShape.kind === 'box' || worldShape.kind === 'cylinder' || worldShape.kind === 'ellipsoid') {
+    const localRot =
+      local.kind === 'box' || local.kind === 'cylinder' || local.kind === 'ellipsoid'
+        ? local.rotation
+        : _identityRot;
+    rotationFromMat4(_worldRot, world);
+    const qx = _worldRot[0], qy = _worldRot[1], qz = _worldRot[2], qw = _worldRot[3];
     const lx = localRot[0], ly = localRot[1], lz = localRot[2], lw = localRot[3];
     worldShape.rotation[0] = qw * lx + qx * lw + qy * lz - qz * ly;
     worldShape.rotation[1] = qw * ly - qx * lz + qy * lw + qz * lx;
@@ -255,13 +293,13 @@ export const bakeColliderWorldFromLocal = (collider: Collider, world: Mat4): voi
     q4Normalize(worldShape.rotation, worldShape.rotation);
   }
 
-  if (worldShape.kind === 'box') {
+  if (worldShape.kind === 'box' && local.kind === 'box') {
     const sx = Math.hypot(world[0]!, world[1]!, world[2]!);
     const sy = Math.hypot(world[4]!, world[5]!, world[6]!);
     const sz = Math.hypot(world[8]!, world[9]!, world[10]!);
-    worldShape.halfExtents[0] = local.kind === 'box' ? local.halfExtents[0] * sx : worldShape.halfExtents[0];
-    worldShape.halfExtents[1] = local.kind === 'box' ? local.halfExtents[1] * sy : worldShape.halfExtents[1];
-    worldShape.halfExtents[2] = local.kind === 'box' ? local.halfExtents[2] * sz : worldShape.halfExtents[2];
+    worldShape.halfExtents[0] = local.halfExtents[0] * sx;
+    worldShape.halfExtents[1] = local.halfExtents[1] * sy;
+    worldShape.halfExtents[2] = local.halfExtents[2] * sz;
   }
 
   if (worldShape.kind === 'cylinder' && local.kind === 'cylinder') {
@@ -269,25 +307,6 @@ export const bakeColliderWorldFromLocal = (collider: Collider, world: Mat4): voi
     const sy = Math.hypot(world[4]!, world[5]!, world[6]!);
     worldShape.radius = local.radius * sx;
     worldShape.halfHeight = local.halfHeight * sy;
-  }
-
-  if (worldShape.kind === 'sphere' && local.kind === 'sphere') {
-    const sx = Math.hypot(world[0]!, world[1]!, world[2]!);
-    const sy = Math.hypot(world[4]!, world[5]!, world[6]!);
-    const sz = Math.hypot(world[8]!, world[9]!, world[10]!);
-    const uniform = Math.abs(sx - sy) < 1e-4 && Math.abs(sy - sz) < 1e-4;
-    if (!uniform) {
-      collider.shape = {
-        kind: 'ellipsoid',
-        center: worldShape.center,
-        radii: v3(local.radius * sx, local.radius * sy, local.radius * sz),
-        rotation: q4(),
-      };
-      rotationFromMat4(collider.shape.rotation, world);
-      updateColliderAabbFromShape(collider);
-      return;
-    }
-    worldShape.radius = local.radius * sx;
   }
 
   if (worldShape.kind === 'ellipsoid' && local.kind === 'ellipsoid') {
@@ -299,7 +318,6 @@ export const bakeColliderWorldFromLocal = (collider: Collider, world: Mat4): voi
     worldShape.radii[2] = local.radii[2] * sz;
   }
 
-  collider.shape = worldShape;
   updateColliderAabbFromShape(collider);
 };
 

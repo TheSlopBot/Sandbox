@@ -51,7 +51,9 @@ Code must be self-documenting through names and types. Do not add `//` inline co
 ### Character collision
 
 - CPU path: `installCharacterPhysicsSystem` + `resolveCylinderMoveAndSlide` in `viberanium/collision/`
-- Body cylinder from authored `collider` on character entity — not from `character` fields
+- Body cylinder resolved from the character's `characterCollision`-flagged `collider` children (bone/character/attachment-attached, spawned by `spawnActorColliders`) — never a collider on the character root; zero such colliders means no physics
+- Bone-attached **physics bodies** follow **bind pose** (cached model offset × character root via `installHitboxFollowSystem`) — not landing/run clips; combat hitboxes/hurtboxes still follow animated pose
+- While ascending (`vy > 0`), resolver skips ground-plane snap and floor grounding so jumps work when embedded or flush with a surface
 - No `ramp` type — rotated box colliders; slope behavior is angle-based (walk ≤ 50°, slide 50°–80°, wall > 80° with defaults)
 - Slope slide (`character.sliding`) suppresses input and applies downhill velocity; wall slide is transient velocity projection during resolve
 - Sandbox installs CPU collision only — not `installCollisionSystem` (optional GPU alternate)

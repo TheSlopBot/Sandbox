@@ -2,11 +2,11 @@ import { type Registry } from '../engine/registry.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { type Collider } from '../components/collider.ts';
 import { type Transform } from '../components/transform.ts';
+import { type CharacterController, characterBodyToSolver } from '../components/characterController.ts';
 import {
-  type CharacterController,
-  characterBodyToSolver,
-  readCharacterBodyCylinder,
-} from '../components/characterController.ts';
+  collectCharacterCollisionColliders,
+  readCharacterBodyFromCollisionColliders,
+} from '../collision/characterCollisionBody.ts';
 import { type Entity } from '../engine/entity.ts';
 import { type GpuDevice } from '../render/gl/device.ts';
 import { CHARACTER_STATE_FLOATS } from '../render/gl/collisionPack.ts';
@@ -22,7 +22,11 @@ export type CollisionSystemOptions = {
   setSimFlush: (fn: (() => Promise<void>) | null) => void;
 };
 
+const readBodyForEntity = (registry: Registry, e: Entity, t: Transform) =>
+  readCharacterBodyFromCollisionColliders(collectCharacterCollisionColliders(registry, e), t.position);
+
 const applyReadback = (
+  registry: Registry,
   readback: Float32Array,
   entitySnapshot: readonly Entity[],
   count: number,
@@ -33,10 +37,13 @@ const applyReadback = (
     const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
     if (!t || !cc) continue;
 
+    const body = readBodyForEntity(registry, e, t);
+    if (!body) continue;
+
     const base = i * CHARACTER_STATE_FLOATS;
-    const nextX = readback[base]!;
-    const nextY = readback[base + 1]!;
-    const nextZ = readback[base + 2]!;
+    const nextX = readback[base]! - body.centerX;
+    const nextY = readback[base + 1]! - body.centerY;
+    const nextZ = readback[base + 2]! - body.centerZ;
     const radius = readback[base + 6]!;
     const halfHeight = readback[base + 7]!;
 
@@ -89,10 +96,10 @@ export const installCollisionSystem = (
       for (const e of registry.view(COMPONENT_KEYS.character)) {
         const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
         const cc = e.components[COMPONENT_KEYS.character] as CharacterController | undefined;
-        const body = readCharacterBodyCylinder(
-          e.components[COMPONENT_KEYS.collider] as Collider | undefined,
-        );
-        if (!t || !cc || !body) continue;
+        if (!t || !cc) continue;
+
+        const body = readBodyForEntity(registry, e, t);
+        if (!body) continue;
 
         const speed2 =
           cc.velocity[0] * cc.velocity[0] +
@@ -103,7 +110,11 @@ export const installCollisionSystem = (
         const solver = characterBodyToSolver(body);
         entities.push(e);
         inputs.push({
-          pos: t.position,
+          pos: [
+            t.position[0] + body.centerX,
+            t.position[1] + body.centerY,
+            t.position[2] + body.centerZ,
+          ],
           vel: cc.velocity,
           radius: solver.radius,
           halfHeight: solver.halfHeight,
@@ -136,7 +147,7 @@ export const installCollisionSystem = (
     );
     if (count <= 0) return;
 
-    applyReadback(readback, packedEntities, count);
+    applyReadback(registry, readback, packedEntities, count);
     packedCount = 0;
     packedEntities = [];
   });

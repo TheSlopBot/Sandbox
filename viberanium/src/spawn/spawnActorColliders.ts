@@ -1,15 +1,12 @@
 import { type Registry } from '../engine/registry.ts';
 import { type Entity, type EntityId } from '../engine/entity.ts';
-import {
-  type ActorAttachmentDef,
-  type ActorColliderDef,
-} from '../definitions/actors/actorDefinition.ts';
-import { pickActorBodyCylinder } from './attachActorBodyCollider.ts';
-import { createTransform } from '../components/transform.ts';
+import { type ActorColliderDef } from '../definitions/actors/actorDefinition.ts';
+import { createTransform, updateWorldMatrix } from '../components/transform.ts';
 import { createChildOf } from '../components/childOf.ts';
 import { createChildren, addChildId } from '../components/children.ts';
-import { createLocalTransform } from '../components/localTransform.ts';
+import { createLocalTransform, type LocalTransform } from '../components/localTransform.ts';
 import {
+  bakeColliderWorldFromLocal,
   createBoxCollider,
   createCylinderCollider,
   createSphereCollider,
@@ -20,15 +17,20 @@ import { createBoneAttachment, createAttachmentOffset } from '../components/bone
 import { findBoneNodeIndex } from '../assets/gltf/buildMeshDrawsFromRuntimeScene.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { COMBAT_LAYER, COMBAT_MASK } from '../combat/combatLayers.ts';
+import { m4, m4Copy, m4FromTRSQuat, m4Mul } from '../math/mat4.ts';
 import { v3 } from '../math/vec3.ts';
 import { q4 } from '../math/quat.ts';
 
 export type SpawnActorCollidersOpts = {
   attachmentEntityIds?: ReadonlyMap<string, EntityId>;
-  attachments?: readonly ActorAttachmentDef[];
 };
 
-const createHurtboxShape = (def: ActorColliderDef): Collider => {
+const _local = m4();
+const _world = m4();
+const _renderRoot = m4();
+const _boneWorld = m4();
+
+const createActorColliderShape = (def: ActorColliderDef): Collider => {
   const position = v3(0, 0, 0);
   const rotation = q4();
 
@@ -36,9 +38,9 @@ const createHurtboxShape = (def: ActorColliderDef): Collider => {
     return createBoxCollider({
       center: position,
       halfExtents: v3(
-        (def.halfExtents?.[0] ?? 0.25) * def.scale[0],
-        (def.halfExtents?.[1] ?? 0.25) * def.scale[1],
-        (def.halfExtents?.[2] ?? 0.25) * def.scale[2],
+        def.halfExtents?.[0] ?? 0.25,
+        def.halfExtents?.[1] ?? 0.25,
+        def.halfExtents?.[2] ?? 0.25,
       ),
       rotation,
       isStatic: false,
@@ -48,8 +50,8 @@ const createHurtboxShape = (def: ActorColliderDef): Collider => {
   if (def.shape === 'cylinder') {
     return createCylinderCollider({
       center: position,
-      radius: (def.radius ?? 0.25) * def.scale[0],
-      halfHeight: (def.halfHeight ?? 0.5) * def.scale[1],
+      radius: def.radius ?? 0.25,
+      halfHeight: def.halfHeight ?? 0.5,
       rotation,
       isStatic: false,
     });
@@ -57,15 +59,12 @@ const createHurtboxShape = (def: ActorColliderDef): Collider => {
 
   return createSphereCollider({
     center: position,
-    radius: (def.radius ?? 0.25) * Math.max(def.scale[0], def.scale[1], def.scale[2]),
+    radius: def.radius ?? 0.25,
     isStatic: false,
   });
 };
 
-const applyLocalFromDef = (
-  local: ReturnType<typeof createLocalTransform>,
-  def: ActorColliderDef,
-): void => {
+const applyLocalFromDef = (local: LocalTransform, def: ActorColliderDef): void => {
   local.position[0] = def.position[0];
   local.position[1] = def.position[1];
   local.position[2] = def.position[2];
@@ -78,7 +77,40 @@ const applyLocalFromDef = (
   local.scale[2] = def.scale[2];
 };
 
-const spawnBoneHurtbox = (
+const applyOwnerFromDef = (collider: Collider, def: ActorColliderDef, ownerId: EntityId): void => {
+  collider.ownerId = ownerId;
+  if (def.collision !== false) collider.characterCollision = true;
+
+  if (!def.hitbox) return;
+  collider.combatLayer = COMBAT_LAYER.HURTBOX;
+  collider.combatMask = COMBAT_MASK.NONE;
+};
+
+const bakeBoneAttachedWorld = (
+  character: Entity,
+  model: SkeletalModel,
+  boneNodeIndex: number,
+  localOffset: ReturnType<typeof createAttachmentOffset>,
+  t: ReturnType<typeof createTransform>,
+  collider: Collider,
+): void => {
+  const parentT = character.components[COMPONENT_KEYS.transform] as
+    | ReturnType<typeof createTransform>
+    | undefined;
+  const boneNode = model.bodyScene.nodes[boneNodeIndex];
+  if (!parentT || !boneNode) return;
+
+  updateWorldMatrix(parentT);
+  m4Copy(_renderRoot, parentT.world);
+  _renderRoot[13]! += model.visualYOffset;
+  m4Mul(_boneWorld, _renderRoot, boneNode.worldM);
+  m4Mul(_world, _boneWorld, localOffset);
+  for (let i = 0; i < 16; i++) t.world[i] = _world[i]!;
+  t.dirty = false;
+  bakeColliderWorldFromLocal(collider, t.world);
+};
+
+const spawnBoneFollowCollider = (
   registry: Registry,
   character: Entity,
   model: SkeletalModel,
@@ -94,10 +126,8 @@ const spawnBoneHurtbox = (
   const local = createLocalTransform();
   applyLocalFromDef(local, def);
 
-  const collider = createHurtboxShape(def);
-  collider.combatLayer = COMBAT_LAYER.HURTBOX;
-  collider.combatMask = COMBAT_MASK.NONE;
-  collider.ownerId = character.id;
+  const collider = createActorColliderShape(def);
+  applyOwnerFromDef(collider, def, character.id);
   collider.entityId = entity.id;
 
   entity.components[COMPONENT_KEYS.transform] = t;
@@ -110,12 +140,14 @@ const spawnBoneHurtbox = (
   );
   entity.components[COMPONENT_KEYS.collider] = collider;
 
+  bakeBoneAttachedWorld(character, model, boneNodeIndex, localOffset, t, collider);
+
   registry.register(entity);
   addChildId(children, entity.id);
   return entity.id;
 };
 
-const spawnLocalHurtbox = (
+const spawnLocalCollider = (
   registry: Registry,
   parentId: EntityId,
   characterId: EntityId,
@@ -127,16 +159,27 @@ const spawnLocalHurtbox = (
   const local = createLocalTransform();
   applyLocalFromDef(local, def);
 
-  const collider = createHurtboxShape(def);
-  collider.combatLayer = COMBAT_LAYER.HURTBOX;
-  collider.combatMask = COMBAT_MASK.NONE;
-  collider.ownerId = characterId;
+  const collider = createActorColliderShape(def);
+  applyOwnerFromDef(collider, def, characterId);
   collider.entityId = entity.id;
 
   entity.components[COMPONENT_KEYS.transform] = t;
   entity.components[COMPONENT_KEYS.childOf] = createChildOf(parentId);
   entity.components[COMPONENT_KEYS.localTransform] = local;
   entity.components[COMPONENT_KEYS.collider] = collider;
+
+  const parent = registry.get(parentId);
+  const parentT = parent?.components[COMPONENT_KEYS.transform] as
+    | ReturnType<typeof createTransform>
+    | undefined;
+  if (parentT) {
+    updateWorldMatrix(parentT);
+    m4FromTRSQuat(_local, local.position, local.rotation, local.scale);
+    m4Mul(_world, parentT.world, _local);
+    for (let i = 0; i < 16; i++) t.world[i] = _world[i]!;
+    t.dirty = false;
+    bakeColliderWorldFromLocal(collider, t.world);
+  }
 
   registry.register(entity);
   addChildId(children, entity.id);
@@ -155,56 +198,34 @@ export const spawnActorColliders = (
   if (!children) return [];
 
   const model = character.components[COMPONENT_KEYS.skeletalModel] as SkeletalModel | undefined;
-  const bodyDef = pickActorBodyCylinder(colliders);
   const ids: number[] = [];
 
   for (const def of colliders) {
-    if (!def.hitbox) continue;
-    if (bodyDef && def.id === bodyDef.id) continue;
-
     if (def.parent.kind === 'bone') {
       if (!model) continue;
-      ids.push(spawnBoneHurtbox(registry, character, model, children, def, def.parent.boneName));
+      ids.push(spawnBoneFollowCollider(registry, character, model, children, def, def.parent.boneName));
       continue;
     }
 
     if (def.parent.kind === 'character') {
-      ids.push(spawnLocalHurtbox(registry, character.id, character.id, children, def));
+      ids.push(spawnLocalCollider(registry, character.id, character.id, children, def));
       continue;
     }
 
     if (def.parent.kind !== 'attachment') continue;
 
-    const attachmentId = def.parent.attachmentId;
-    const attachmentEntityId = opts.attachmentEntityIds?.get(attachmentId);
-    if (attachmentEntityId !== undefined) {
-      const attachmentEntity = registry.get(attachmentEntityId);
-      const attachmentChildren = attachmentEntity?.components[COMPONENT_KEYS.children] as
-        | ReturnType<typeof createChildren>
-        | undefined;
-      if (attachmentChildren) {
-        ids.push(
-          spawnLocalHurtbox(registry, attachmentEntityId, character.id, attachmentChildren, def),
-        );
-        continue;
-      }
-    }
+    const attachmentEntityId = opts.attachmentEntityIds?.get(def.parent.attachmentId);
+    if (attachmentEntityId === undefined) continue;
 
-    const attachment = opts.attachments?.find((entry) => entry.id === attachmentId);
-    if (attachment && model) {
-      const boneDef: ActorColliderDef = {
-        ...def,
-        parent: { kind: 'bone', boneName: attachment.boneName },
-        position: [
-          attachment.position[0] + def.position[0],
-          attachment.position[1] + def.position[1],
-          attachment.position[2] + def.position[2],
-        ],
-      };
-      ids.push(
-        spawnBoneHurtbox(registry, character, model, children, boneDef, attachment.boneName),
-      );
-    }
+    const attachmentEntity = registry.get(attachmentEntityId);
+    const attachmentChildren = attachmentEntity?.components[COMPONENT_KEYS.children] as
+      | ReturnType<typeof createChildren>
+      | undefined;
+    if (!attachmentChildren) continue;
+
+    ids.push(
+      spawnLocalCollider(registry, attachmentEntityId, character.id, attachmentChildren, def),
+    );
   }
 
   return ids;

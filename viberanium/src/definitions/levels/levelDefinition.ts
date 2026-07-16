@@ -99,7 +99,7 @@ export const DEFAULT_LEVEL_NAV_GRID: LevelNavGridConfig = {
 };
 
 export const DEFAULT_LEVEL_PLAYER_SPAWN: LevelPlayerSpawn = {
-  position: [0, 1.6, 0],
+  position: [0, 0, 0],
   rotation: [0, 0, 0, 1],
 };
 

@@ -12,11 +12,37 @@ import {
   SPACE_RANGER_GLB,
 } from '../assets/kaykit.ts';
 import { type GameActorDefinition } from './actorDefinition.ts';
-import { buildSimpleActor } from './buildSimpleActor.ts';
+import { buildSimpleActor, type SimpleActorAttachment } from './buildSimpleActor.ts';
 
 export type CombatMechVariant = 'primary' | 'alt';
 export type DummyVariant = 'primary' | 'altA' | 'altB' | 'altC';
-export type RobotVariant = 'one' | 'ome';
+
+const HAND_SLOT_PLACEHOLDERS: SimpleActorAttachment[] = [
+  {
+    id: 'rightHandSlot',
+    name: 'Right Hand Slot',
+    boneName: 'hand.r',
+    url: SPACE_RANGER_BLADE,
+    materialPrefix: 'spaceranger_blade',
+    tags: ['slot:rightHand'],
+    placeholder: true,
+    position: [0, 0.1, 0],
+    rotation: [-0.7071067690849304, 0.7071067690849304, 0, 0],
+    scale: [1, 1, 1],
+  },
+  {
+    id: 'leftHandSlot',
+    name: 'Left Hand Slot',
+    boneName: 'hand.l',
+    url: SPACE_RANGER_BLADE,
+    materialPrefix: 'spaceranger_blade',
+    tags: ['slot:leftHand'],
+    placeholder: true,
+    position: [0, 0.1, 0],
+    rotation: [0, 0, -0.7071067690849304, 0.7071067690849304],
+    scale: [1, 1, 1],
+  },
+];
 
 export const SPACE_RANGER_ACTOR: GameActorDefinition = buildSimpleActor(
   'space_ranger',
@@ -26,32 +52,7 @@ export const SPACE_RANGER_ACTOR: GameActorDefinition = buildSimpleActor(
   {
     tags: ['player'],
     aiPackage: 'none',
-    attachments: [
-      {
-        id: 'rightHandSlot',
-        name: 'Right Hand Slot',
-        boneName: 'hand.r',
-        url: SPACE_RANGER_BLADE,
-        materialPrefix: 'spaceranger_blade',
-        tags: ['slot:rightHand'],
-        placeholder: true,
-        position: [0, 0, 0],
-        rotation: [0, 0, 0, 1],
-        scale: [1, 1, 1],
-      },
-      {
-        id: 'leftHandSlot',
-        name: 'Left Hand Slot',
-        boneName: 'hand.l',
-        url: SPACE_RANGER_BLADE,
-        materialPrefix: 'spaceranger_blade',
-        tags: ['slot:leftHand'],
-        placeholder: true,
-        position: [0, 0, 0],
-        rotation: [0, 0, 0, 1],
-        scale: [1, 1, 1],
-      },
-    ],
+    attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
 
@@ -63,24 +64,9 @@ export const ROBOT_ONE_ACTOR: GameActorDefinition = buildSimpleActor(
   {
     tags: ['robot'],
     aiPackage: 'testAi',
+    attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
-
-export const ROBOT_OME_ACTOR: GameActorDefinition = buildSimpleActor(
-  'robot_ome',
-  'Robot Ome',
-  ROBOT_ONE_GLB,
-  'robot_ome',
-  {
-    tags: ['robot'],
-    aiPackage: 'testAi',
-  },
-);
-
-export const ROBOT_ACTORS: Record<RobotVariant, GameActorDefinition> = {
-  one: ROBOT_ONE_ACTOR,
-  ome: ROBOT_OME_ACTOR,
-};
 
 export const COMBAT_MECH_PRIMARY_ACTOR: GameActorDefinition = buildSimpleActor(
   'combat_mech_primary',
@@ -91,6 +77,7 @@ export const COMBAT_MECH_PRIMARY_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['combatMech'],
     aiPackage: 'testAi',
     baseColorTextureUrl: COMBAT_MECH_TEX_PRIMARY,
+    attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
 
@@ -103,6 +90,7 @@ export const COMBAT_MECH_ALT_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['combatMech'],
     aiPackage: 'testAi',
     baseColorTextureUrl: COMBAT_MECH_TEX_ALT,
+    attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
 
@@ -120,6 +108,7 @@ export const DUMMY_PRIMARY_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['dummy'],
     aiPackage: 'testAi',
     baseColorTextureUrl: DUMMY_TEX_PRIMARY,
+    attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
 
@@ -132,6 +121,7 @@ export const DUMMY_ALT_A_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['dummy'],
     aiPackage: 'testAi',
     baseColorTextureUrl: DUMMY_TEX_ALT_A,
+    attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
 
@@ -144,6 +134,7 @@ export const DUMMY_ALT_B_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['dummy'],
     aiPackage: 'testAi',
     baseColorTextureUrl: DUMMY_TEX_ALT_B,
+    attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
 
@@ -156,6 +147,7 @@ export const DUMMY_ALT_C_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['dummy'],
     aiPackage: 'testAi',
     baseColorTextureUrl: DUMMY_TEX_ALT_C,
+    attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
 
@@ -171,7 +163,6 @@ export const DUMMY_ACTOR = DUMMY_PRIMARY_ACTOR;
 export const KAYKIT_ACTORS: readonly GameActorDefinition[] = [
   SPACE_RANGER_ACTOR,
   ROBOT_ONE_ACTOR,
-  ROBOT_OME_ACTOR,
   COMBAT_MECH_PRIMARY_ACTOR,
   COMBAT_MECH_ALT_ACTOR,
   DUMMY_PRIMARY_ACTOR,

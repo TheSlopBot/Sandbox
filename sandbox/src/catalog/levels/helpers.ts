@@ -73,7 +73,7 @@ export const propInstance = (
   scale: [opts.scale ?? 1, opts.scale ?? 1, opts.scale ?? 1],
 });
 
-export const actorInstance = (id: string, indexId: string, x: number, z: number, y = 1.6): LevelActorInstance => ({
+export const actorInstance = (id: string, indexId: string, x: number, z: number, y = 0): LevelActorInstance => ({
   id,
   kind: 'standardActor',
   indexId,
@@ -104,7 +104,7 @@ export const buildCombatMechPerfInstances = (
 
 export const buildRobotPerfInstances = (
   count: number,
-  indexIds: { one: string; ome: string },
+  indexId: string,
   navGrid: LevelNavGridConfig = DEFAULT_NAV_GRID,
   seed = 20260711,
 ): LevelActorInstance[] => {
@@ -113,7 +113,7 @@ export const buildRobotPerfInstances = (
 
   for (let i = 0; i < count; i++) {
     const { x, z } = randomPointInNavGrid(rng, navGrid, 1.5);
-    instances.push(actorInstance(`robot${i}`, i >= count / 2 ? indexIds.ome : indexIds.one, x, z));
+    instances.push(actorInstance(`robot${i}`, indexId, x, z));
   }
 
   return instances;

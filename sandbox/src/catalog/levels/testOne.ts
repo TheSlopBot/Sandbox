@@ -2,7 +2,7 @@ import { type LevelDefinition, type LevelPropInstance } from './levelDefinition.
 import { type LevelBuild } from './levelSeed.ts';
 import { DEFAULT_NAV_GRID, actorInstance, buildDummySpawnInstances, indexById, propInstance, withTestAi } from './helpers.ts';
 import { getPropDefinition } from '../props/registry.ts';
-import { DUMMY_ACTORS, ROBOT_ACTORS } from '../actors/kaykitActors.ts';
+import { DUMMY_ACTORS, ROBOT_ONE_ACTOR } from '../actors/kaykitActors.ts';
 
 const CUBE_SMALL_PLACEMENTS: Array<{ x: number; z: number; yaw?: number }> = [
   { x: -7.5, z: -2.0 },
@@ -49,8 +49,8 @@ const props = [
 ];
 
 const robots = [
-  actorInstance('robot0', ROBOT_ACTORS.one.id, -11, -11),
-  actorInstance('robot1', ROBOT_ACTORS.ome.id, 11, -11),
+  actorInstance('robot0', ROBOT_ONE_ACTOR.id, -11, -11),
+  actorInstance('robot1', ROBOT_ONE_ACTOR.id, 11, -11),
 ];
 
 const dummies = buildDummySpawnInstances(
@@ -75,14 +75,14 @@ const definition: LevelDefinition = {
       getPropDefinition('plank'),
     ]),
     simpleActors: {},
-    standardActors: indexById([ROBOT_ACTORS.one, ROBOT_ACTORS.ome, ...Object.values(DUMMY_ACTORS)]),
+    standardActors: indexById([ROBOT_ONE_ACTOR, ...Object.values(DUMMY_ACTORS)]),
   },
   composition: {
     props,
     actors: [...robots, ...dummies],
     colliders: [],
   },
-  playerSpawn: { position: [0, 1.6, 0], rotation: [0, 0, 0, 1] },
+  playerSpawn: { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
   groundPlane: { position: [0, 0, 0], size: 60, variant: 'blue' },
 };
 

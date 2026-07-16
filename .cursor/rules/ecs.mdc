@@ -42,7 +42,7 @@ Mesh sub-entities are allowed only for static props (`renderGroup`) until props 
 | `animationClipMap` | `clips` keyed by `AnimStateId` — state → retargeted clip |
 | `animationStateMachine` | current state, timers, playback tuning — not on `character` |
 
-`character` is **physics only** (velocity, gravity, `onGround`, `sliding`, `groundNormal`). Body cylinder dims come from an authored actor `collider` (cylinder, typically `parent: { kind: 'character' }`) attached at spawn — not from `character` fields. Animation timing and blend weights live on `animationStateMachine` and per-clip components.
+`character` is **physics only** (velocity, gravity, `onGround`, `sliding`, `groundNormal`). Body dims come from the character's `characterCollision`-flagged `collider` children — spawned by `spawnActorColliders` as bone-attached, character-local, or attachment-local entities (never a collider on the character root itself). Bone-attached physics bodies track **bind-pose** bones relative to the character root (not clip-driven crouch). `collectCharacterCollisionColliders` + `readCharacterBodyFromCollisionColliders` resolve those children into a solver cylinder each physics tick; an actor with **zero** colliders resolves to `null` and is skipped entirely — no physics, no movement. Animation timing and blend weights live on `animationStateMachine` and per-clip components.
 
 ### CharacterController fields
 
@@ -84,7 +84,7 @@ Player and AI characters share movement, physics, collision, and animation syste
 | `testAi` (sandbox) | — (data) | `installTestAiSystem` |
 | `movementIntent` | controller systems | `installMovementSystem` |
 | `character` | movement + physics | physics, yaw (`installCharacterStateSystem`), animation FSM |
-| `collider` (character body) | spawn (`attachActorBodyCollider`) | `readCharacterBodyCylinder` in physics |
+| `collider` (character body/hurtboxes) | spawn (`spawnActorColliders`, bone/character/attachment children) | `collectCharacterCollisionColliders` + `readCharacterBodyFromCollisionColliders` in physics |
 | `animationStateMachine` | `installAnimationFsmSystem`, movement jump | pose system |
 | `animationClipMap` | spawn from character def | pose system |
 | `navGrid` | — (data, `dirty` flag) | `installNavGridSystem` (rebuild when dirty), `installTestAiSystem` |
@@ -130,25 +130,33 @@ CPU cylinder move-and-slide in `viberanium/collision/` — pure math, no registr
 | File | Role |
 |------|------|
 | `collision/characterContact.ts` | Capsule-vs-shape narrowphase, box top queries, footprint overlap |
-| `collision/characterCollision.ts` | Contact classification, floor snap, wall slide, slope slide, `resolveCylinderMoveAndSlide` |
+| `collision/characterCollision.ts` | Contact classification, floor snap (skipped while ascending), wall slide, slope slide, `resolveCylinderMoveAndSlide` |
 | `collision/collisionBroadphase.ts` | 64×64 spatial grid for static colliders |
+| `collision/characterCollisionBody.ts` | Walk a character's `characterCollision` colliders (own + bone/attachment children) into a solver `CharacterBodyCylinder` |
 | `systems/colliderTransformSystem.ts` | Bake `localShape` → world `shape` |
 | `systems/movementSystem.ts` | Intent → velocity; ground-plane projection; blocks input while sliding |
 | `systems/characterPhysicsSystem.ts` | Gravity, substep integrate, broadphase query, resolve, slide speed |
 | `systems/characterStateSystem.ts` | Yaw toward intent — skipped while sliding |
-| `spawn/attachActorBodyCollider.ts` | Dynamic cylinder collider on character entity |
+| `spawn/spawnActorColliders.ts` | Spawns every `ActorColliderDef` as a child entity (bone-attached, character-local, or attachment-local) carrying its own `collider` |
+| `systems/combat/installHitboxFollowSystem.ts` | Bone-attached + nested collider follow: `characterCollision` bodies use bind-pose bone × character root (cached model offset); combat hitboxes/hurtboxes sample animated clips; chain mask excludes collision bodies |
 
 ### Pipeline
 
 ```
 Controllers → movementIntent
+  → hitboxFollow (8): bake bone/nested collider worlds (bind body + animated hitboxes)
   → movementSystem (8): desiredVelocity → velocity; project onto groundNormal when onGround
   → colliderTransformSystem (8): static collider world bake
   → characterPhysicsSystem (9–10): integrate → resolveCylinderMoveAndSlide → onGround/sliding/groundNormal
+  → hitboxFollow (11): re-glue after physics moves the character root
   → characterStateSystem (13): yaw (skipped when sliding)
 ```
 
 Broadphase candidates come from `getNearbyObstacles(registry, character.obstructiveColliderKeys, x, z, radius)`. `markNavGridDirty` also invalidates the collision broadphase.
+
+### Jump while ascending / embedded
+
+`resolveCylinderMoveAndSlide` does **not** ground-plane snap or set `onGround` from walkable floors while `velocity[1] > 0`. Jumping works when the body is flush with or slightly embedded in a floor; upward velocity is preserved. `trySurfaceSnap` stays gated on `vy ≤ 0` or already grounded.
 
 ### Ramps (no dedicated type)
 
@@ -171,7 +179,7 @@ Slope slide starts when landing on or hitting a 50°–80° box face while airbo
 
 ### Ground plane
 
-`readGroundPlaneY(registry)` reads the infinite horizontal floor from the `groundPlane` entity — separate from prop/box colliders. Resolver snaps feet to this Y when below it.
+`readGroundPlaneY(registry)` reads the infinite horizontal floor from the `groundPlane` entity — separate from prop/box colliders. Resolver snaps feet to this Y when below it **and not ascending** (`velocity[1] ≤ 0`).
 
 ## Nav grid
 

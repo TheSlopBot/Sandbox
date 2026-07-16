@@ -122,6 +122,7 @@ export const installColliderDebugSystem = (
       for (const e of registry.view(COMPONENT_KEYS.collider)) {
         const collider = e.components[COMPONENT_KEYS.collider] as Collider | undefined;
         if (!collider) continue;
+        if (e.components[COMPONENT_KEYS.character]) continue;
 
         if (collider.localShape) {
           const t = e.components[COMPONENT_KEYS.transform] as Transform | undefined;
