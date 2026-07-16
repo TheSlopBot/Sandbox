@@ -116,7 +116,7 @@ registry.deregister(entity.id);
 - **Game registry** — persistent entities (render pipeline draw action, scene manager, global input handlers)
 - **Scene registry** — ephemeral; one per active level visit
 - `scene.load()` creates all level content including the nav grid entity
-- `scene.unload()` deregisters **all** entities (including nav grid and ground) — nothing persists on the registry
+- `scene.unload()` disposes skeletal systems (GPU pose pass), then deregisters **all** entities (including nav grid and ground) — nothing persists on the registry
 - `game.setActiveScene(null)` drops the active scene; the `Scene` object is discarded after `switchTo` completes
 - Frame loop runs game registry actions first, then active scene registry actions
 - Construct **level editor** placements use editor tags (`editableTarget`, level placement) without playable `testAi` / player — playable spawn remains sandbox `useLevelScene`

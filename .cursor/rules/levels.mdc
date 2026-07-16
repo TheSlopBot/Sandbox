@@ -71,7 +71,7 @@ Bootstrap seeds `construct.levelLocalStore` from `LEVEL_SEED_DOCUMENTS` when emp
 | `load()` | nav grid, ground (from `groundPlane`), props + level colliders from index, actors from index (+ `testAi` when aiPackage), player at `playerSpawn` |
 
 Rotated box colliders (prop or level `composition.colliders` placements) act as **ramps** — there is no separate ramp type. Steep slopes trigger character slope-slide at runtime; nav grid blocking uses XZ footprint only (no slope-angle awareness).
-| `unload()` | deregisters **all** entities; clears static prop batcher |
+| `unload()` | calls skeletal systems disposer (GPU pose pass); deregisters **all** entities; clears static prop batcher |
 
 ## Prop / actor resolve
 

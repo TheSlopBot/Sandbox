@@ -70,6 +70,7 @@ type GpuPoseState = {
   asset: SkeletonGpuAsset;
   slotIndex: number;
   lodAccum: number;
+  paletteReady: boolean;
 };
 
 type SharedAssetEntry = {
@@ -349,6 +350,7 @@ export const installSkeletalGpuPoseSystem = (
       asset: entry.asset,
       slotIndex: posePass.allocSlot(),
       lodAccum: 0,
+      paletteReady: false,
     };
     stateByModel.set(model, state);
     return state;
@@ -418,6 +420,7 @@ export const installSkeletalGpuPoseSystem = (
       } else {
         state.lodAccum = 0;
       }
+      if (!state.paletteReady) skip = false;
       const castShadow = !origin || d2 <= shadowDist2;
 
       let renderRoot = renderRootByModel.get(model);
@@ -591,6 +594,8 @@ export const installSkeletalGpuPoseSystem = (
       } else {
         entries.push(buildBasePoseEntry(common));
       }
+
+      if (!skip) state.paletteReady = true;
 
       model.poseDirty = false;
     }

@@ -112,13 +112,15 @@ See `.cursor/rules/sandbox-structure.mdc` and `.cursor/rules/construct-structure
 3. `spawnSkeletalCharacter(registry, entity, loaded)` — components + hierarchy children
 4. Game factory adds gameplay components, then `registry.register(entity)`
 
+GPU pose LOD must not skip until the first joint-palette write. Scene owners call the `installSkeletalCharacterSystems` disposer on `unload`.
+
 ### Levels & assets
 
 - Portable shape: indexed `LevelDefinition` in viberanium (`simpleProps` / `standardProps` / `simpleActors` / `standardActors` + props/actors/colliders composition + `playerSpawn` + `groundPlane`)
 - Authoring: Construct `LevelDocument` (`.level`) with groups + `aiPackage` + player spawn + ground plane; shared localStorage key `construct.levelLocalStore`
 - Sandbox: seed store on boot; main menu Load Level opens level modal; Digit1–4 load testOne–testFour; each `switchTo` creates a fresh scene
 - Preload via `collectUrlsFromLevel` (index only)
-- `scene.load()` creates level content; `scene.unload()` destroys everything on the scene registry
+- `scene.load()` creates level content; `scene.unload()` disposes skeletal systems then deregisters everything on the scene registry
 
 See `.cursor/rules/levels.mdc`, `.cursor/rules/sandbox-structure.mdc`, and `.cursor/rules/ecs.mdc` for full patterns.
 

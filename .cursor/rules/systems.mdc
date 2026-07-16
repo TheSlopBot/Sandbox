@@ -120,17 +120,19 @@ Call `markNavGridDirty(registry)` after any change to static scene colliders:
 
 Sandbox `installTestAiSystem` reads the scene nav grid — it does not build or cache its own. Install order: `installNavGridSystem` before `installTestAiSystem` so blocked cells are fresh when `dirty` was set the same frame.
 
-Sandbox `createPlayableScene` installs `installSkeletalCharacterSystems` (not a monolithic animation system).
+Sandbox `createPlayableScene` installs `installSkeletalCharacterSystems` (not a monolithic animation system) and **must** call the returned remover in `unload()` so the GPU pose pass is destroyed (Construct already does this).
 
 ## Skeletal character systems
 
-`installSkeletalCharacterSystems(registry, { device, setPreDrawEncode?, getLodOrigin? })` requires a GPU device and installs hierarchy, FSM, and batched GPU pose only (no CPU pose/mesh/attachment fallback).
+`installSkeletalCharacterSystems(registry, { device, setPreDrawEncode?, getLodOrigin? })` requires a GPU device and installs hierarchy, FSM, and batched GPU pose only (no CPU pose/mesh/attachment fallback). Returns a disposer — scene owners call it on unload.
 
 | Installer | Phase | Writes |
 |-----------|-------|--------|
 | `installTransformHierarchySystem` | update | child `transform.world` from `localTransform` |
 | `installAnimationFsmSystem` | update | `animationStateMachine` state + timers |
 | `installSkeletalGpuPoseSystem` | postUpdate gather; draw encode | GPU joint palettes + mesh/attachment models |
+
+GPU pose LOD may skip recompute for distant characters, but **never** before the first successful palette write (`paletteReady`). Skinned draws use an identity object matrix — an unwritten (zero) palette collapses verts to world origin. Pose slab capacity grows geometrically (`nextPow2`); any slab recreate forces a full rewrite that frame.
 
 Install `installCharacterStateSystem`, `installMovementSystem`, `installColliderTransformSystem`, and `installCharacterPhysicsSystem` separately on the scene registry. Character collision is CPU via `installCharacterPhysicsSystem` (broadphase query + cylinder `resolveCylinderMoveAndSlide`); GPU pose/cull/render stay unchanged.
 

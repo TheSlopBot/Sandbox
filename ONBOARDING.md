@@ -286,6 +286,8 @@ const load = async () => {
 };
 
 const unload = () => {
+  removeSkeletal?.();
+  removeSkeletal = null;
   for (const id of [...registry.all()].map((e) => e.id)) registry.deregister(id);
   deps.staticPropBatcher.clear();
 };
@@ -407,7 +409,7 @@ ActorDefinition / SkeletalCharacterDef
 
 Root entity holds `skeletalModel`, `meshDraws`, `animationClipMap`, `animationStateMachine`. Attachments (helmet, blade) are **child entities**, not orphan mesh entities sharing a `Transform`.
 
-Scene systems: `installSkeletalCharacterSystems` in `createPlayableScene` (hierarchy + FSM + GPU pose).
+Scene systems: `installSkeletalCharacterSystems` in `createPlayableScene` (hierarchy + FSM + GPU pose). Call the returned disposer on `unload` so the pose pass GPU buffers are freed. LOD may skip distant pose updates only after the first palette write.
 
 **How used:** Construct actor mode authors the document; sandbox converts via `actorDefinitionToSkeletalDef` and spawns for play or level NPCs.
 

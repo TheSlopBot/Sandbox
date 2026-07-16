@@ -67,6 +67,15 @@ export type SkeletalPosePass = {
 const FRAME_U32 = 20;
 const MAX_POSE_GROUPS = 8;
 const align256 = (n: number) => (n + 255) & ~255;
+const nextPow2 = (n: number) => {
+  let v = Math.max(1, n - 1);
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  return v + 1;
+};
 
 export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
   const gpu = device.gpu;
@@ -116,6 +125,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
 
   let slotCapacity = 0;
   let nextSlot = 0;
+  let forceRewriteAll = false;
   const freeSlots: number[] = [];
   let instanceBuffer: GPUBuffer | null = null;
   let scratchBuffer: GPUBuffer | null = null;
@@ -152,11 +162,14 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     byAsset.clear();
   };
 
-  const ensureSlotCapacity = (count: number) => {
-    if (count <= slotCapacity && paletteBuffer && meshModels && attachmentModels && scratchBuffer) return;
+  const ensureSlotCapacity = (count: number): boolean => {
+    if (count <= slotCapacity && paletteBuffer && meshModels && attachmentModels && scratchBuffer) {
+      return false;
+    }
 
     destroySlabs();
-    slotCapacity = Math.max(64, count);
+    forceRewriteAll = true;
+    slotCapacity = Math.max(64, nextPow2(count));
     instanceCpu = new Float32Array(slotCapacity * POSE_INSTANCE_FLOATS);
     instanceU32 = new Uint32Array(instanceCpu.buffer);
     instanceBuffer = gpu.createBuffer({
@@ -191,6 +204,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     attachmentJobBytes = new ArrayBuffer(slotCapacity * MAX_ATTACHMENT_MODELS * 144);
     attachmentJobU32 = new Uint32Array(attachmentJobBytes);
     attachmentJobF32 = new Float32Array(attachmentJobBytes);
+    return true;
   };
 
   const allocSlot: SkeletalPosePass['allocSlot'] = () => {
@@ -231,12 +245,12 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
   };
 
   const writeInstance = (
-    instanceIndex: number,
+    floatBase: number,
     entry: PoseDispatchEntry,
     meshStart: number,
     attachStart: number,
   ) => {
-    const base = instanceIndex * POSE_INSTANCE_FLOATS;
+    const base = floatBase;
     instanceCpu.set(entry.renderRoot, base);
     instanceCpu[base + 16] = entry.moveAnimTime;
     instanceCpu[base + 17] = entry.rightAnimTime;
@@ -302,11 +316,13 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     for (const entry of entries) {
       if (entry.slotIndex > maxSlot) maxSlot = entry.slotIndex;
     }
-    ensureSlotCapacity(maxSlot + 1);
+    const slabsGrew = ensureSlotCapacity(maxSlot + 1);
+    const rewriteAll = slabsGrew || forceRewriteAll;
+    forceRewriteAll = false;
 
     byAsset.clear();
     for (const entry of entries) {
-      if (entry.skip) continue;
+      if (entry.skip && !rewriteAll) continue;
       const list = byAsset.get(entry.asset);
       if (list) list.push(entry);
       else byAsset.set(entry.asset, [entry]);
@@ -400,7 +416,7 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
           attachmentJobF32.set(job.attachNodeWorld, baseU + 20);
           attachCursor++;
         }
-        writeInstance(instanceFloatCursor / POSE_INSTANCE_FLOATS + i, entry, meshStart, attachStart);
+        writeInstance(instanceFloatCursor + i * POSE_INSTANCE_FLOATS, entry, meshStart, attachStart);
         const palette = paletteBinding(entry.slotIndex);
         if (entry.skin.paletteGpu !== palette) entry.skin.paletteGpu = palette;
       }

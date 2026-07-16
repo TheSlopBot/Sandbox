@@ -83,7 +83,7 @@ export const createPlayableScene = (
   installColliderTransformSystem(registry);
   installCharacterStateSystem(registry);
   installCameraFollowSystem(registry, deps.pipeline, deps.input);
-  installSkeletalCharacterSystems(registry, {
+  let removeSkeletal: (() => void) | null = installSkeletalCharacterSystems(registry, {
     device: deps.device,
     setPreDrawEncode: deps.pipeline.setPreDrawEncode,
     getLodOrigin: () => deps.pipeline.camera.position,
@@ -136,6 +136,9 @@ export const createPlayableScene = (
   };
 
   const unload = () => {
+    removeSkeletal?.();
+    removeSkeletal = null;
+
     if (!loaded) return;
 
     deps.setSimFlush(null);

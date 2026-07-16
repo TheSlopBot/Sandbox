@@ -64,7 +64,7 @@ The render pipeline collects draw items from:
 3. `groundPlane` on the scene ground entity (dedicated ground shader)
 4. `staticPropBatcher` prepared batches (opaque static props → instanced / indirect draws)
 
-Each `MeshDrawPart` supplies `mesh`, `material`, `model` (world matrix), optional `skin`, and `visible`/`castShadow` flags. GPU pose writes joint palettes and attachment models without CPU joint readback.
+Each `MeshDrawPart` supplies `mesh`, `material`, `model` (world matrix), optional `skin`, and `visible`/`castShadow` flags. GPU pose writes joint palettes and attachment models without CPU joint readback. Skinned forward/shadow draws bind the joint palette and use an **identity** object matrix — world placement lives in the palette, so never draw a skinned mesh before its first pose compute.
 
 Runtime visibility: set `part.visible = false` or `renderable.visible = false`. Runtime material swap: replace `part.material` or `material.baseColorTex`.
 
@@ -75,5 +75,7 @@ Opaque non-batched items are sorted by material/mesh affinity. Transparent items
 ## Sync rules
 
 - Skinning / bone attachments: GPU-only between compute pose and draw
+- Pose LOD may reuse the last palette; first write and post-realloc rewrite are mandatory (`paletteReady` / force-rewrite on slab grow)
+- Pose instance CPU packing must use absolute float offsets (`cursor + i * stride`), never `cursor / stride` — 256-byte group alignment is not a multiple of the 48-float instance stride
 - Character bodies: CPU broadphase + `resolveCylinderMoveAndSlide` (sandbox default). Optional GPU resolve (`installCollisionSystem`) has no slope sliding — do not use both on the same scene registry.
 - Never require per-frame full joint-tree readback for rendering

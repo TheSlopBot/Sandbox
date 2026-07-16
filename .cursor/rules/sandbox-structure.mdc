@@ -70,7 +70,7 @@ New enemies follow `entities/enemies/spider/` with `createSpider.ts`, `component
 
 ## Scenes rule
 
-- `scenes/common/createPlayableScene.ts` — installs scene systems once; `load()` / `unload()` lifecycle
+- `scenes/common/createPlayableScene.ts` — installs scene systems once; `load()` / `unload()` lifecycle (unload must dispose `installSkeletalCharacterSystems`)
 - `scenes/common/useLevelScene.ts` — maps indexed `LevelDefinition` + aiPackages → playable scene
 - `scenes/common/prop.ts` — re-export engine `instantiateProp`
 - `entities/ground/spawnGround.ts` — ground entity with `groundPlane` component
