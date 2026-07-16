@@ -5,6 +5,7 @@ import {
   createCharacterController,
   createCameraFollow,
   createMovementIntent,
+  createMovementImpulse,
   spawnActorColliders,
   type TextureCache,
   type GltfCache,
@@ -47,6 +48,7 @@ export const createPlayer = async (
   entity.components[COMPONENT_KEYS.transform] = charT;
   entity.components[COMPONENT_KEYS.character] = createCharacterController();
   entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
+  entity.components[COMPONENT_KEYS.movementImpulse] = createMovementImpulse();
   entity.components[COMPONENT_KEYS.cameraFollow] = createCameraFollow();
   entity.components[GAME_COMPONENT_KEYS.playerController] = createPlayerController();
 

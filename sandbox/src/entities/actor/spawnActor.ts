@@ -4,6 +4,7 @@ import {
   createTransform,
   createCharacterController,
   createMovementIntent,
+  createMovementImpulse,
   spawnActorColliders,
   type TextureCache,
   type GltfCache,
@@ -47,6 +48,7 @@ export const spawnActor = async (
   entity.components[COMPONENT_KEYS.transform] = charT;
   entity.components[COMPONENT_KEYS.character] = createCharacterController();
   entity.components[COMPONENT_KEYS.movementIntent] = createMovementIntent();
+  entity.components[COMPONENT_KEYS.movementImpulse] = createMovementImpulse();
 
   if (opts.extraComponents) {
     for (const [key, value] of Object.entries(opts.extraComponents)) {

@@ -92,6 +92,11 @@ export {
 } from './components/characterController.ts';
 export { createCameraFollow, type CameraFollow } from './components/cameraFollow.ts';
 export { createMovementIntent, type MovementIntent } from './components/movementIntent.ts';
+export {
+  createMovementImpulse,
+  addMovementImpulse,
+  type MovementImpulse,
+} from './components/movementImpulse.ts';
 export { createNavGrid, type NavGridComponent, type NavGridOpts } from './components/navGrid.ts';
 export { createSkeletalModel, type SkeletalModel } from './components/skeletalModel.ts';
 export { createMeshDraws, type MeshDraws, type MeshDrawPart, type GpuModelSource } from './components/meshDraws.ts';

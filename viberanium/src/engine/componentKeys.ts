@@ -3,6 +3,7 @@ export const COMPONENT_KEYS = {
   collider: 'collider',
   character: 'character',
   movementIntent: 'movementIntent',
+  movementImpulse: 'movementImpulse',
   navGrid: 'navGrid',
   skeletalModel: 'skeletalModel',
   meshDraws: 'meshDraws',
