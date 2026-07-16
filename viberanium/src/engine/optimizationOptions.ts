@@ -135,43 +135,76 @@ const adapterInfoText = (adapter?: GPUAdapter | null): string => {
 const isFallbackAdapter = (adapter?: GPUAdapter | null): boolean =>
   !!adapter && 'isFallbackAdapter' in adapter && !!(adapter as GPUAdapter & { isFallbackAdapter?: boolean }).isFallbackAdapter;
 
+const isSoftwareAdapter = (text: string): boolean =>
+  /swiftshader|llvmpipe|softpipe|lavapipe|microsoft basic render/.test(text);
+
+const isAppleGpu = (text: string, isSafari: boolean, isMac: boolean): boolean =>
+  /apple|metal/.test(text) || (isSafari && isMac);
+
+const isDiscreteGpu = (text: string): boolean =>
+  /nvidia|geforce|rtx|gtx|quadro|tesla|titan/.test(text) ||
+  /radeon\s*rx|radeon\s*pro|radeon\s*vega\s*(?:56|64)|radeon\s*vii|firepro|instinct/.test(text) ||
+  /arc\s*(?:a|b)\d{2,}|intel\s*arc\s*(?:a|b)\d/.test(text);
+
+const isHighResourceDiscrete = (text: string): boolean => {
+  if (/rtx\s*(?:2050|2060|3050|4050)/.test(text)) return false;
+  if (/rtx\s*(?:30|40|50)\d{2}/.test(text)) return true;
+  if (/rtx\s*a\d{4}/.test(text)) return true;
+  if (/gtx\s*(?:1080|1070)\s*ti|gtx\s*1080\b/.test(text)) return true;
+  if (/radeon\s*rx\s*(?:6[7-9]\d{2}|7[6-9]\d{2}|7[89]00|9\d{3})/.test(text)) return true;
+  if (/radeon\s*pro\s*w\d{4}|radeon\s*vii|vega\s*(?:56|64)/.test(text)) return true;
+  if (/arc\s*(?:a7\d{2}|b\d{2,})/.test(text)) return true;
+  if (/quadro\s*(?:rtx|gv100)|tesla|titan\s*(?:rtx|v|xp)/.test(text)) return true;
+  return false;
+};
+
+const isCapableIntegrated = (text: string): boolean =>
+  /iris|xe\s*graphics|arc\s*graphics/.test(text) ||
+  /uhd\s*(?:graphics\s*)?(?:7\d{2}|[89]\d{2})\b/.test(text) ||
+  /radeon\s*(?:6[89]0m|7[3468]0m|8[0469]0m)/.test(text) ||
+  /gfx1[01]\d{2}|rdna[2-4]/.test(text) ||
+  /adreno\s*(?:[6-9]\d{2}|1\d{3})/.test(text) ||
+  /mali[- ]?g[7-9]|mali[- ]?g1\d|xclipse/.test(text);
+
+const isLowSkewIntegrated = (text: string): boolean => {
+  if (isCapableIntegrated(text)) return false;
+  return (
+    /hd graphics/.test(text) ||
+    /uhd graphics|uhd\s*\d{3}/.test(text) ||
+    /radeon\s*vega\s*(?:3|6|8|11)\b/.test(text) ||
+    /mali[- ]?[t4-6]|mali[- ]?g[3-5]|adreno\s*[3-5]\d{2}/.test(text) ||
+    /powervr|videocore/.test(text)
+  );
+};
+
+const isIntegratedGpu = (text: string): boolean =>
+  isCapableIntegrated(text) ||
+  isLowSkewIntegrated(text) ||
+  /intel/.test(text) ||
+  /uhd|iris|hd graphics|xe\s*graphics|arc\s*graphics/.test(text) ||
+  /radeon\s*graphics|radeon\s*\d{3}m|radeon\s*vega\s*(?:3|8|11)|graphics.*radeon/.test(text) ||
+  /mali|xclipse|adreno|powervr/.test(text);
+
 export const detectPreferredQualityPreset = (adapter?: GPUAdapter | null): RenderQualityPresetId => {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua);
   const isMac = /Mac/i.test(ua);
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(ua);
   const text = adapterInfoText(adapter);
 
-  if (isFallbackAdapter(adapter)) return 'low';
+  if (isFallbackAdapter(adapter) || isSoftwareAdapter(text)) return 'low';
 
-  const appleGpu =
-    /apple|metal/.test(text) ||
-    (isSafari && isMac);
+  if (isAppleGpu(text, isSafari, isMac)) return 'medium';
 
-  if (appleGpu) return 'medium';
-
-  const discrete =
-    /nvidia|geforce|rtx|gtx|quadro|tesla/.test(text) ||
-    /radeon\s*rx|radeon\s*pro|radeon\s*vega\s*(?:56|64)|radeon\s*vii|firepro|instinct/.test(text) ||
-    /arc\s*(?:a|b)\d|intel\s*arc/.test(text) ||
-    /adreno\s*(?:7|8)\d{2}/.test(text);
-
-  if (discrete) {
-    const highEnd =
-      /rtx\s*(?:30|40|50)\d{2}|rtx\s*a\d|gtx\s*16\d{2}|gtx\s*1080/.test(text) ||
-      /radeon\s*rx\s*(?:6|7|8|9)\d{3}|radeon\s*pro\s*w\d/.test(text) ||
-      /arc\s*(?:a7|a770|b\d)/.test(text);
-    return highEnd ? 'ultra' : 'high';
+  if (isDiscreteGpu(text)) {
+    return isHighResourceDiscrete(text) ? 'ultra' : 'high';
   }
 
-  const integrated =
-    /intel/.test(text) ||
-    /uhd|iris|hd graphics/.test(text) ||
-    /radeon\s*graphics|radeon\s*\d{3}m|radeon\s*vega\s*(?:3|8|11)|graphics.*radeon/.test(text) ||
-    /mali|xclipse|adreno/.test(text);
+  if (isLowSkewIntegrated(text)) return 'low';
 
-  if (integrated) return 'medium';
+  if (isCapableIntegrated(text) || isIntegratedGpu(text)) return 'medium';
 
-  if (isSafari || /android/i.test(ua) || /mobile/i.test(ua)) return 'medium';
+  if (isSafari || isMobile) return 'medium';
 
   return 'high';
 };
