@@ -19,6 +19,7 @@ import {
   type ActorColliderShape,
   type ActorDocument,
   type ActorDocumentAttachment,
+  type ActorDocumentClips,
   type ActorDocumentColliderParent,
   type ActorEditorSelection,
   applyActorName,
@@ -26,6 +27,7 @@ import {
   defaultActorCollider,
   identityAttachmentLocal,
 } from '../catalog/actors/actorDocument.ts';
+import { KAYKIT_MEDIUM_CLIPS } from '../catalog/manifest/kaykitMediumDefaults.ts';
 import {
   clearActorEditorEntities,
   ensureActorOriginMarker,
@@ -316,6 +318,22 @@ export const renameActor = (
 
 export const updateActorTags = (state: ConstructSessionState, tags: string[]): ActorDocument => {
   state.actorDocument = { ...state.actorDocument, tags: [...tags] };
+  notifyActorDoc(state);
+  return state.actorDocument;
+};
+
+export const updateActorClips = (
+  state: ConstructSessionState,
+  partial: Partial<ActorDocumentClips>,
+): ActorDocument => {
+  const base: ActorDocumentClips = state.actorDocument.clips
+    ? { ...state.actorDocument.clips }
+    : { ...KAYKIT_MEDIUM_CLIPS };
+
+  state.actorDocument = {
+    ...state.actorDocument,
+    clips: { ...base, ...partial },
+  };
   notifyActorDoc(state);
   return state.actorDocument;
 };

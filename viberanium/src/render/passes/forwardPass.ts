@@ -535,11 +535,12 @@ export const createForwardPass = (
     const writeItemObject = (item: DrawItem, index: number) => {
       const cutoff =
         item.material.alphaMode === 'MASK' ? (item.material.alphaCutoff ?? 0.5) : -1;
+      const colorFactor = item.colorFactor ?? item.material.baseColorFactor;
       if (item.skin || item.gpuModel) {
-        writeObject(index, IDENTITY_MODEL, item.material.baseColorFactor, cutoff);
+        writeObject(index, IDENTITY_MODEL, colorFactor, cutoff);
         return;
       }
-      writeObject(index, item.model, item.material.baseColorFactor, cutoff);
+      writeObject(index, item.model, colorFactor, cutoff);
     };
 
     if (ground && groundObjectIndex >= 0) {

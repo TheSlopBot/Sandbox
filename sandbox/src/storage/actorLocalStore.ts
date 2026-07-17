@@ -108,6 +108,31 @@ const migrateSeedWalkBackAnim = (
   };
 };
 
+const migrateSeedCombatClips = (
+  existing: ActorSeedDocument,
+  seed: ActorSeedDocument,
+): ActorSeedDocument | null => {
+  const seedHit = seed.clips?.hit;
+  const seedDeath = seed.clips?.death;
+  const seedDeathPose = seed.clips?.deathPose;
+  if (!seedHit || !seedDeath || !seedDeathPose || !existing.clips) return null;
+
+  const needsHit = existing.clips.hit !== seedHit;
+  const needsDeath = existing.clips.death !== seedDeath;
+  const needsDeathPose = existing.clips.deathPose !== seedDeathPose;
+  if (!needsHit && !needsDeath && !needsDeathPose) return null;
+
+  return {
+    ...existing,
+    clips: {
+      ...existing.clips,
+      ...(needsHit ? { hit: seedHit } : {}),
+      ...(needsDeath ? { death: seedDeath } : {}),
+      ...(needsDeathPose ? { deathPose: seedDeathPose } : {}),
+    },
+  };
+};
+
 const migrateSeedDocument = (
   existing: ActorSeedDocument,
   seed: ActorSeedDocument,
@@ -117,6 +142,8 @@ const migrateSeedDocument = (
   if (body) next = body;
   const walk = migrateSeedWalkBackAnim(next ?? existing, seed);
   if (walk) next = walk;
+  const combat = migrateSeedCombatClips(next ?? existing, seed);
+  if (combat) next = combat;
   return next;
 };
 

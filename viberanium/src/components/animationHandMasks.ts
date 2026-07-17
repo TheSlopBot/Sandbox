@@ -2,6 +2,7 @@ import { type RuntimeScene } from '../assets/gltf/runtime.ts';
 
 export type AnimationHandMasks = {
   lowerBodyMask: Uint32Array;
+  upperBodyMask: Uint32Array;
   rightArmMask: Uint32Array;
   leftArmMask: Uint32Array;
   spineNodeIndex: number;
@@ -57,6 +58,7 @@ export const buildAnimationHandMasks = (
   const rightArmMask = new Uint32Array(maskWords);
   const leftArmMask = new Uint32Array(maskWords);
   const lowerBodyMask = new Uint32Array(maskWords);
+  const upperBodyMask = new Uint32Array(maskWords);
 
   const rightRoot = findNodeIndex(scene.nodes, opts.rightArmRootBone ?? DEFAULT_RIGHT_ARM_ROOT);
   const leftRoot = findNodeIndex(scene.nodes, opts.leftArmRootBone ?? DEFAULT_LEFT_ARM_ROOT);
@@ -65,6 +67,7 @@ export const buildAnimationHandMasks = (
 
   collectSubtree(scene.nodes, rightRoot, rightArmMask);
   collectSubtree(scene.nodes, leftRoot, leftArmMask);
+  collectSubtree(scene.nodes, spineNodeIndex, upperBodyMask);
 
   for (let i = 0; i < nodeCount; i++) {
     if (hasBit(rightArmMask, i) || hasBit(leftArmMask, i)) continue;
@@ -73,6 +76,7 @@ export const buildAnimationHandMasks = (
 
   return {
     lowerBodyMask,
+    upperBodyMask,
     rightArmMask,
     leftArmMask,
     spineNodeIndex: spineNodeIndex >= 0 ? spineNodeIndex : 0,

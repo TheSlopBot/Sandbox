@@ -19,6 +19,7 @@ import { loadSkeletalCharacter } from '../actor/loadSkeletalCharacter.ts';
 import { spawnSkeletalCharacter } from '../actor/spawnSkeletalCharacter.ts';
 import { createPlayerController } from './components/playerController.ts';
 import { attachCombatActor } from '../combat/attachCombatActor.ts';
+import { wireFullBodyClips } from '../combat/wireFullBodyClips.ts';
 import { getWeaponDef } from '../../catalog/weapons/registry.ts';
 import { equipWeapon } from '../combat/equipWeapon.ts';
 
@@ -64,6 +65,7 @@ export const createPlayer = async (
     attachmentEntityIds,
   });
   attachCombatActor(entity, playerActor);
+  wireFullBodyClips(entity, loaded);
 
   registry.register(entity);
 

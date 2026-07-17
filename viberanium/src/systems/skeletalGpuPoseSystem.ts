@@ -26,7 +26,7 @@ import {
 } from '../components/animationHandMasks.ts';
 import { type AnimationAimOffset } from '../components/animationAimOffset.ts';
 import { type AnimationPoseOverlay } from '../components/animationPoseOverlay.ts';
-import { type AnimationFullBody } from '../components/animationFullBody.ts';
+import { type AnimationFullBody, type FullBodyClipId } from '../components/animationFullBody.ts';
 import { type EquipmentSlots } from '../components/equipmentSlots.ts';
 import {
   DEFAULT_ENGINE_OPTIMIZATION,
@@ -52,6 +52,7 @@ import {
 import {
   clipStateIndex,
   GPU_MOVEMENT_CLIP_COUNT,
+  GPU_FULL_BODY_CLIP_COUNT,
 } from '../assets/gltf/packClipsForGpu.ts';
 import { type Entity } from '../engine/entity.ts';
 import { type RuntimeScene, type RuntimeSkin } from '../assets/gltf/runtime.ts';
@@ -75,7 +76,7 @@ type GpuPoseState = {
 type SharedAssetEntry = {
   asset: SkeletonGpuAsset;
   bankKeys: Map<string, number>;
-  bankClips: AnimClip[];
+  bankClips: (AnimClip | null)[];
   movementClipMap: AnimationClipMap;
   scene: RuntimeScene;
   skin: RuntimeSkin;
@@ -107,6 +108,7 @@ type PoseEntryCommon = {
   moveClipIndex: number;
   moveLoop: boolean;
   fullBodyClipIndex: number;
+  fullBodyAnimTime: number;
   torsoYawRad: number;
   headYawRad: number;
   spineNodeIndex: number;
@@ -152,6 +154,17 @@ const buildBasePoseEntry = (common: PoseEntryCommon): PoseDispatchEntry => ({
   layerMode: 0,
 });
 
+const buildHitUpperBlendEntry = (common: PoseEntryCommon): PoseDispatchEntry => ({
+  ...common,
+  rightAnimTime: common.moveAnimTime,
+  rightClipIndex: common.moveClipIndex,
+  rightLoop: common.moveLoop,
+  leftAnimTime: common.moveAnimTime,
+  leftClipIndex: common.moveClipIndex,
+  leftLoop: common.moveLoop,
+  layerMode: 2,
+});
+
 const buildLayeredPoseEntry = (
   common: PoseEntryCommon,
   rightFsm: RightHandStateMachine | undefined,
@@ -194,6 +207,17 @@ const buildLayeredPoseEntry = (
   };
 };
 
+const FULL_BODY_CLIP_IDS: readonly FullBodyClipId[] = ['hit', 'death', 'deathPose'];
+
+const ensureFullBodyBankSlots = (entry: SharedAssetEntry): void => {
+  while (entry.bankClips.length < GPU_FULL_BODY_CLIP_COUNT) {
+    entry.bankClips.push(null);
+  }
+};
+
+const bankEntriesOf = (entry: SharedAssetEntry) =>
+  entry.bankClips.map((clip) => ({ clip }));
+
 export const installSkeletalGpuPoseSystem = (
   registry: Registry,
   options: SkeletalGpuPoseOptions,
@@ -206,9 +230,6 @@ export const installSkeletalGpuPoseSystem = (
   const sharedAssets = new WeakMap<Gltf, SharedAssetEntry>();
   const pending: PendingPose[] = [];
   const entries: PoseDispatchEntry[] = [];
-
-  const bankEntriesOf = (entry: SharedAssetEntry) =>
-    entry.bankClips.map((clip) => ({ clip }));
 
   const rewriteShared = (entry: SharedAssetEntry): void => {
     rewriteSkeletonGpuAsset(
@@ -224,6 +245,36 @@ export const installSkeletalGpuPoseSystem = (
     );
   };
 
+  const registerFullBodyClips = (
+    entry: SharedAssetEntry,
+    fullBody: AnimationFullBody | undefined,
+  ): boolean => {
+    if (!fullBody) return false;
+
+    ensureFullBodyBankSlots(entry);
+    let grew = false;
+
+    for (let i = 0; i < FULL_BODY_CLIP_IDS.length; i++) {
+      const clipId = FULL_BODY_CLIP_IDS[i]!;
+      const anim = fullBody.clips[clipId];
+      if (!anim) continue;
+
+      const gpuIndex = GPU_MOVEMENT_CLIP_COUNT + i;
+      const key = `fullBody:${clipId}`;
+
+      if (!entry.bankKeys.has(key)) {
+        entry.bankClips[i] = anim.clip;
+        entry.bankKeys.set(key, gpuIndex);
+        grew = true;
+      }
+
+      fullBody.gpuIndices[clipId] = gpuIndex;
+      fullBody.durations[clipId] = entry.bankClips[i]?.duration ?? anim.clip.duration;
+    }
+
+    return grew;
+  };
+
   const registerHandClips = (
     entry: SharedAssetEntry,
     rightHandClipMap: RightHandClipMap | undefined,
@@ -232,6 +283,8 @@ export const installSkeletalGpuPoseSystem = (
     leftSourceId: string,
   ): boolean => {
     let grew = false;
+
+    ensureFullBodyBankSlots(entry);
 
     if (rightHandClipMap) {
       for (const clipId of RIGHT_HAND_CLIP_IDS) {
@@ -301,10 +354,20 @@ export const installSkeletalGpuPoseSystem = (
     return entry;
   };
 
+  const fullBodyNeedsBank = (fullBody: AnimationFullBody | undefined): boolean => {
+    if (!fullBody) return false;
+    return (
+      fullBody.gpuIndices.hit < 0 ||
+      fullBody.gpuIndices.death < 0 ||
+      fullBody.gpuIndices.deathPose < 0
+    );
+  };
+
   const ensureState = (
     model: SkeletalModel,
     skin: SkinInstance,
     clipMap: AnimationClipMap,
+    fullBody: AnimationFullBody | undefined,
     rightHandClipMap: RightHandClipMap | undefined,
     leftHandClipMap: LeftHandClipMap | undefined,
     handMasks: AnimationHandMasks | undefined,
@@ -319,6 +382,7 @@ export const installSkeletalGpuPoseSystem = (
       entry.skin = skin.skin;
       entry.rootNodeIndex = skin.rootNodeIndex;
       if (handMasks) entry.handMasks = handMasks;
+      registerFullBodyClips(entry, fullBody);
       registerHandClips(
         entry,
         rightHandClipMap,
@@ -328,15 +392,21 @@ export const installSkeletalGpuPoseSystem = (
       );
       rewriteShared(entry);
       model.clipsDirty = false;
-    } else if (rightHandClipMap || leftHandClipMap) {
-      const grew = registerHandClips(
-        entry,
-        rightHandClipMap,
-        leftHandClipMap,
-        rightSourceId,
-        leftSourceId,
-      );
-      if (grew) rewriteShared(entry);
+    } else {
+      const fullBodyGrew = fullBodyNeedsBank(fullBody)
+        ? registerFullBodyClips(entry, fullBody)
+        : false;
+      const handGrew =
+        rightHandClipMap || leftHandClipMap
+          ? registerHandClips(
+              entry,
+              rightHandClipMap,
+              leftHandClipMap,
+              rightSourceId,
+              leftSourceId,
+            )
+          : false;
+      if (fullBodyGrew || handGrew) rewriteShared(entry);
     }
 
     let state = stateByModel.get(model);
@@ -392,6 +462,9 @@ export const installSkeletalGpuPoseSystem = (
         | AnimationHandMasks
         | undefined;
       const equipment = e.components[COMPONENT_KEYS.equipmentSlots] as EquipmentSlots | undefined;
+      const fullBody = e.components[COMPONENT_KEYS.animationFullBody] as
+        | AnimationFullBody
+        | undefined;
       const hasHandEquipment = hasAnyHandEquipment(equipment);
       const rightSourceId = equipment?.right.equippedId ?? 'none';
       const leftSourceId = equipment?.left.equippedId ?? 'none';
@@ -402,6 +475,7 @@ export const installSkeletalGpuPoseSystem = (
         model,
         skin,
         clipMap,
+        fullBody,
         hasHandEquipment ? rightHandClipMap : undefined,
         hasHandEquipment ? leftHandClipMap : undefined,
         handMasks,
@@ -410,7 +484,9 @@ export const installSkeletalGpuPoseSystem = (
       );
       const interval = origin ? skeletonLodUpdateInterval(dist, optimization.skeletonLod) : 1;
       let skip = false;
-      if (interval === 0) {
+      if (fullBody?.frozen && state.paletteReady) {
+        skip = true;
+      } else if (interval === 0) {
         skip = true;
       } else if (interval > 1) {
         state.lodAccum += 1;
@@ -556,6 +632,16 @@ export const installSkeletalGpuPoseSystem = (
         | AnimationHandMasks
         | undefined;
 
+      const fullBodyActive =
+        fullBody?.active != null && fullBody.gpuIndices[fullBody.active] >= 0
+          ? fullBody.active
+          : null;
+      const fullBodyGpuIndex =
+        fullBodyActive != null && fullBody
+          ? fullBody.gpuIndices[fullBodyActive]
+          : FULL_BODY_CLIP_DISABLED;
+      const hitUpperBlend = fullBodyActive === 'hit';
+
       const common: PoseEntryCommon = {
         asset: state.asset,
         slotIndex: state.slotIndex,
@@ -564,8 +650,8 @@ export const installSkeletalGpuPoseSystem = (
         moveAnimTime: moveTime,
         moveClipIndex: moveClip,
         moveLoop,
-        fullBodyClipIndex:
-          fullBody?.active != null ? clipStateIndex('idle') : FULL_BODY_CLIP_DISABLED,
+        fullBodyClipIndex: fullBodyGpuIndex,
+        fullBodyAnimTime: fullBodyActive != null && fullBody ? fullBody.animTime : 0,
         torsoYawRad:
           (aim?.enabled ? (aim.torsoYawRad ?? 0) : 0) + (overlay?.spineYawRad ?? 0),
         headYawRad:
@@ -577,7 +663,9 @@ export const installSkeletalGpuPoseSystem = (
         attachmentJobs,
       };
 
-      if (hasHandEquipment) {
+      if (hitUpperBlend) {
+        entries.push(buildHitUpperBlendEntry(common));
+      } else if (hasHandEquipment) {
         const rightFsm = item.entity.components[COMPONENT_KEYS.rightHandStateMachine] as
           | RightHandStateMachine
           | undefined;

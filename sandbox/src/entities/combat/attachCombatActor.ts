@@ -42,7 +42,7 @@ export const attachCombatActor = (
   actor: ActorDefinition,
   opts: { health?: number } = {},
 ): void => {
-  entity.components[COMPONENT_KEYS.health] = createHealth(opts.health ?? 100);
+  entity.components[COMPONENT_KEYS.health] = createHealth(opts.health ?? 10);
   entity.components[COMPONENT_KEYS.combatIntent] = createCombatIntent();
   entity.components[COMPONENT_KEYS.equipmentSlots] = createEquipmentSlots(
     collectPlaceholders(actor),

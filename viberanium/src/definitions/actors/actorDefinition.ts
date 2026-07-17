@@ -59,6 +59,9 @@ export type ActorDefinition = {
     jumpStart: string;
     jumpIdle: string;
     jumpLand: string;
+    hit: string;
+    death: string;
+    deathPose: string;
   };
   baseColorTextureUrl?: string;
   visualYOffset?: number;

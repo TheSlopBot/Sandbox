@@ -26,6 +26,10 @@ struct BatchFrame {
   rightArmMaskOffset: u32,
   leftArmMaskOffset: u32,
   clipCount: u32,
+  upperBodyMaskOffset: u32,
+  _padFrame0: u32,
+  _padFrame1: u32,
+  _padFrame2: u32,
 };
 
 struct PoseInstance {
@@ -50,7 +54,7 @@ struct PoseInstance {
   layerMode: u32,
   headYawRad: f32,
   headNodeIndex: u32,
-  _pad0: u32,
+  fullBodyAnimTime: f32,
   _pad1: u32,
   _pad2: u32,
   _pad3: u32,
@@ -405,6 +409,23 @@ fn resolveLayeredPose(inst: PoseInstance) {
   resolveHierarchyAndOutputs(inst);
 }
 
+fn resolveHitUpperBlend(inst: PoseInstance) {
+  activeAnimTime = inst.moveAnimTime;
+  activeClipIndex = inst.moveClipIndex;
+  activeLoop = inst.moveLoop;
+  activeUseBoneMask = 0u;
+  sampleClip();
+
+  activeAnimTime = inst.fullBodyAnimTime;
+  activeClipIndex = inst.fullBodyClipIndex;
+  activeLoop = 0u;
+  activeUseBoneMask = 1u;
+  activeBoneMaskOffset = frame.upperBodyMaskOffset;
+  sampleClip();
+
+  resolveHierarchyAndOutputs(inst);
+}
+
 fn resolveOne(inst: PoseInstance) {
   scratchBase = inst.slotIndex * frame.scratchStride;
   paletteBase = inst.slotIndex * MAX_JOINTS;
@@ -421,7 +442,12 @@ fn resolveOne(inst: PoseInstance) {
   }
 
   if (inst.fullBodyClipIndex != FULL_BODY_DISABLED) {
-    activeAnimTime = inst.moveAnimTime;
+    if (inst.layerMode == 2u) {
+      resolveHitUpperBlend(inst);
+      return;
+    }
+
+    activeAnimTime = inst.fullBodyAnimTime;
     activeClipIndex = inst.fullBodyClipIndex;
     activeLoop = 0u;
     activeUseBoneMask = 0u;

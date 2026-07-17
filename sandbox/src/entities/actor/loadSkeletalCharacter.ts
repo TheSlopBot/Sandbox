@@ -58,6 +58,9 @@ export type SkeletalCharacterLoad = {
     jumpStart: AnimationClip;
     jumpIdle: AnimationClip;
     jumpLand: AnimationClip;
+    hit: AnimationClip;
+    death: AnimationClip;
+    deathPose: AnimationClip;
   };
   attachments: LoadedAttachment[];
 };
@@ -145,6 +148,9 @@ export const loadSkeletalCharacter = async (
     jumpStart: createAnimationClip(pickClip(moveClips, def.clips.jumpStart)),
     jumpIdle: createAnimationClip(pickClip(moveClips, def.clips.jumpIdle)),
     jumpLand: createAnimationClip(pickClip(moveClips, def.clips.jumpLand)),
+    hit: createAnimationClip(pickClip(idleClips, def.clips.hit)),
+    death: createAnimationClip(pickClip(idleClips, def.clips.death)),
+    deathPose: createAnimationClip(pickClip(idleClips, def.clips.deathPose)),
   };
 
   const meshDraws = buildMeshDrawsFromRuntimeScene(deps.device, bodyScene, bodyMats, {

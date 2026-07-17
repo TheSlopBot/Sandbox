@@ -62,6 +62,9 @@ export type ActorDocumentClips = {
   jumpStart: string;
   jumpIdle: string;
   jumpLand: string;
+  hit: string;
+  death: string;
+  deathPose: string;
 };
 
 export type ActorDocument = {
@@ -270,6 +273,12 @@ const normalizeClips = (raw: unknown): ActorDocumentClips | null => {
     jumpStart: clips.jumpStart,
     jumpIdle: clips.jumpIdle,
     jumpLand: clips.jumpLand,
+    hit: typeof clips.hit === 'string' ? clips.hit : 'hit_a',
+    death: typeof clips.death === 'string' ? clips.death : 'death_a',
+    deathPose:
+      typeof clips.deathPose === 'string' && clips.deathPose !== 'death_pose_a'
+        ? clips.deathPose
+        : 'death_a_pose',
   };
 };
 

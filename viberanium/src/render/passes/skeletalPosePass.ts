@@ -41,11 +41,12 @@ export type PoseDispatchEntry = {
   leftClipIndex: number;
   leftLoop: boolean;
   fullBodyClipIndex: number;
+  fullBodyAnimTime: number;
   torsoYawRad: number;
   headYawRad: number;
   spineNodeIndex: number;
   headNodeIndex: number;
-  layerMode: 0 | 1;
+  layerMode: 0 | 1 | 2;
   skip: boolean;
   meshJobs: readonly PoseMeshJob[];
   attachmentJobs: readonly PoseAttachmentJob[];
@@ -64,7 +65,7 @@ export type SkeletalPosePass = {
   destroy: () => void;
 };
 
-const FRAME_U32 = 20;
+const FRAME_U32 = 24;
 const MAX_POSE_GROUPS = 8;
 const align256 = (n: number) => (n + 255) & ~255;
 const nextPow2 = (n: number) => {
@@ -272,7 +273,8 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
     instanceU32[base + 33] = entry.layerMode;
     instanceCpu[base + 34] = entry.headYawRad;
     instanceU32[base + 35] = entry.headNodeIndex;
-    for (let i = 36; i < POSE_INSTANCE_FLOATS; i++) instanceU32[base + i] = 0;
+    instanceCpu[base + 36] = entry.fullBodyAnimTime;
+    for (let i = 37; i < POSE_INSTANCE_FLOATS; i++) instanceU32[base + i] = 0;
   };
 
   const createGroupBindGroup = (
@@ -489,6 +491,10 @@ export const createSkeletalPosePass = (device: GpuDevice): SkeletalPosePass => {
       frameU32[17] = asset.offsets.rightArmMaskOffset;
       frameU32[18] = asset.offsets.leftArmMaskOffset;
       frameU32[19] = asset.clipCount;
+      frameU32[20] = asset.offsets.upperBodyMaskOffset;
+      frameU32[21] = 0;
+      frameU32[22] = 0;
+      frameU32[23] = 0;
       gpu.queue.writeBuffer(frameBuf, 0, frameU32);
 
       const instanceSize = Math.max(POSE_INSTANCE_STRIDE, group.length * POSE_INSTANCE_STRIDE);

@@ -27,6 +27,7 @@ export type SkeletonGpuOffsets = {
   clipValuesOffset: number;
   animatedMaskOffset: number;
   lowerBodyMaskOffset: number;
+  upperBodyMaskOffset: number;
   rightArmMaskOffset: number;
   leftArmMaskOffset: number;
   maskWords: number;
@@ -135,6 +136,8 @@ export const buildSkeletonBlob = (
   cursor += clips.animatedMask.length;
   const lowerBodyMaskOffset = cursor;
   cursor += maskWords;
+  const upperBodyMaskOffset = cursor;
+  cursor += maskWords;
   const rightArmMaskOffset = cursor;
   cursor += maskWords;
   const leftArmMaskOffset = cursor;
@@ -179,9 +182,11 @@ export const buildSkeletonBlob = (
   words.set(clips.animatedMask, animatedMaskOffset);
 
   const lower = opts.handMasks?.lowerBodyMask ?? emptyMask(maskWords);
+  const upper = opts.handMasks?.upperBodyMask ?? emptyMask(maskWords);
   const right = opts.handMasks?.rightArmMask ?? emptyMask(maskWords);
   const left = opts.handMasks?.leftArmMask ?? emptyMask(maskWords);
   words.set(lower.subarray(0, maskWords), lowerBodyMaskOffset);
+  words.set(upper.subarray(0, maskWords), upperBodyMaskOffset);
   words.set(right.subarray(0, maskWords), rightArmMaskOffset);
   words.set(left.subarray(0, maskWords), leftArmMaskOffset);
 
@@ -202,6 +207,7 @@ export const buildSkeletonBlob = (
       clipValuesOffset,
       animatedMaskOffset,
       lowerBodyMaskOffset,
+      upperBodyMaskOffset,
       rightArmMaskOffset,
       leftArmMaskOffset,
       maskWords,

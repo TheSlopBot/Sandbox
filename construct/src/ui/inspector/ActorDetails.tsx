@@ -3,12 +3,13 @@ import {
   type ActorAiPackage,
   type ActorDocument,
   type ActorDocumentAttachment,
+  type ActorDocumentClips,
   type ActorDocumentCollider,
   type ActorEditorSelection,
   attachmentListLabel,
   collectDocumentTags,
 } from '../../catalog/actors/actorDocument.ts';
-import type { KaykitTextureVariant } from '../../catalog/manifest/kaykitManifest.ts';
+import type { KaykitManifestEntry, KaykitTextureVariant } from '../../catalog/manifest/kaykitManifest.ts';
 import { createEulerQuat, quatToEulerDegrees } from './euler.ts';
 import { TagList } from './TagList.tsx';
 import { AxisRow, DetailsHeader } from './shared.tsx';
@@ -17,8 +18,10 @@ export type ActorDetailsProps = {
   doc: ActorDocument;
   selection: ActorEditorSelection;
   textureVariants: KaykitTextureVariant[];
+  animPacks: KaykitManifestEntry[];
   onRenameActor: () => void;
   onActorTagsChange: (tags: string[]) => void;
+  onActorClipsChange: (partial: Partial<ActorDocumentClips>) => void;
   onAiPackageChange: (aiPackage: ActorAiPackage) => void;
   onCharacterVariantChange: (url: string | null) => void;
   onAttachmentRename: (id: string, name: string) => void;
@@ -75,12 +78,77 @@ const colliderParentLabel = (doc: ActorDocument, collider: ActorDocumentCollider
   return attachment ? attachmentListLabel(attachment) : collider.parent.attachmentId;
 };
 
+const matchManifestUrl = (entryUrl: string, stored: string): boolean => {
+  if (entryUrl === stored) return true;
+
+  const prefix = import.meta.env.BASE_URL;
+  const relative = stored.startsWith(prefix) ? stored.slice(prefix.length) : stored;
+
+  return entryUrl === relative;
+};
+
+const resolveGeneralClipNames = (
+  doc: ActorDocument,
+  animPacks: KaykitManifestEntry[],
+): string[] => {
+  const generalGlb = doc.animPack?.generalGlb;
+  if (!generalGlb) return [];
+
+  const pack = animPacks.find((p) => matchManifestUrl(p.url, generalGlb)) ?? null;
+
+  return [...(pack?.clipNames ?? [])].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  );
+};
+
+const ClipNameRow = ({
+  label,
+  value,
+  clipNames,
+  disabled,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  clipNames: string[];
+  disabled: boolean;
+  onCommit: (next: string) => void;
+}) => {
+  const known = clipNames.includes(value);
+
+  return (
+    <div className="construct-detailsAnimRow construct-detailsAnimRow--clipOnly">
+      <span>{label}</span>
+      <select
+        className="construct-detailsSelect"
+        disabled={disabled || clipNames.length === 0}
+        value={value}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (!next) return;
+
+          onCommit(next);
+        }}
+      >
+        {!known ? <option value={value}>{value || '(none)'}</option> : null}
+        {clipNames.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
 export const ActorDetails = ({
   doc,
   selection,
   textureVariants,
+  animPacks,
   onRenameActor,
   onActorTagsChange,
+  onActorClipsChange,
   onAiPackageChange,
   onCharacterVariantChange,
   onAttachmentRename,
@@ -136,6 +204,11 @@ export const ActorDetails = ({
   if (selection.kind === 'actor') {
     const canSwitchTexture = textureVariants.length > 0;
     const activeVariantUrl = doc.character?.textureVariantUrl ?? null;
+    const clipNames = resolveGeneralClipNames(doc, animPacks);
+    const hit = doc.clips?.hit ?? 'hit_a';
+    const death = doc.clips?.death ?? 'death_a';
+    const deathPose = doc.clips?.deathPose ?? 'death_a_pose';
+    const clipsDisabled = !doc.animPack?.generalGlb;
 
     return (
       <div className="construct-inspector">
@@ -171,6 +244,30 @@ export const ActorDetails = ({
               <option value="none">None</option>
               <option value="testAi">testAi</option>
             </select>
+          </div>
+          <div className="construct-detailsSection">
+            <div className="construct-detailsSectionTitle">Animations</div>
+            <ClipNameRow
+              label="Hit"
+              value={hit}
+              clipNames={clipNames}
+              disabled={clipsDisabled}
+              onCommit={(next) => onActorClipsChange({ hit: next })}
+            />
+            <ClipNameRow
+              label="Death"
+              value={death}
+              clipNames={clipNames}
+              disabled={clipsDisabled}
+              onCommit={(next) => onActorClipsChange({ death: next })}
+            />
+            <ClipNameRow
+              label="Death pose"
+              value={deathPose}
+              clipNames={clipNames}
+              disabled={clipsDisabled}
+              onCommit={(next) => onActorClipsChange({ deathPose: next })}
+            />
           </div>
           <TagList
             title="Actor tags"

@@ -424,11 +424,18 @@ export const EquipmentDetails = ({
               onCommit={(v) => onStatsChange({ damage: v ?? 0 })}
             />
             {doc.kind === 'melee' ? (
-              <HitWindowSlider
-                start={doc.stats.hitWindowStart}
-                end={doc.stats.hitWindowEnd}
-                onChange={onStatsChange}
-              />
+              <>
+                <NumberField
+                  label="Attack speed"
+                  value={doc.stats.attackSpeed}
+                  onCommit={(v) => onStatsChange({ attackSpeed: v })}
+                />
+                <HitWindowSlider
+                  start={doc.stats.hitWindowStart}
+                  end={doc.stats.hitWindowEnd}
+                  onChange={onStatsChange}
+                />
+              </>
             ) : null}
             {doc.kind === 'ranged' ? (
               <NumberField

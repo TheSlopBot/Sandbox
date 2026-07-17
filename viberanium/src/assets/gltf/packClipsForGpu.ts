@@ -30,6 +30,8 @@ export const GPU_LEFT_HAND_CLIP_ORDER: readonly LeftHandStateId[] = [
 
 export const GPU_CLIP_STATE_ORDER = GPU_MOVEMENT_CLIP_ORDER;
 export const GPU_MOVEMENT_CLIP_COUNT = GPU_MOVEMENT_CLIP_ORDER.length;
+export const GPU_FULL_BODY_CLIP_COUNT = 3;
+export const GPU_FULL_BODY_CLIP_IDS = ['hit', 'death', 'deathPose'] as const;
 
 export const clipStateIndex = (state: AnimStateId): number => {
   const idx = GPU_MOVEMENT_CLIP_ORDER.indexOf(state);

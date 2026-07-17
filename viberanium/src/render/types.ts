@@ -31,6 +31,7 @@ export type DrawItem = {
   gpuModel?: DrawItemGpuModel;
   castShadow: boolean;
   overlay?: boolean;
+  colorFactor?: [number, number, number, number];
 };
 
 export type Camera = {

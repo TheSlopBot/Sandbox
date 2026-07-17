@@ -2,6 +2,7 @@ export { useRegistry, type Registry } from './engine/registry.ts';
 export { useGame, type Game } from './engine/game.ts';
 export { useScene, type Scene } from './engine/scene.ts';
 export { createEntity, type Entity, type EntityId } from './engine/entity.ts';
+export { deregisterEntityTree } from './engine/deregisterEntityTree.ts';
 export { COMPONENT_KEYS, type ComponentKey } from './engine/componentKeys.ts';
 export {
   createEngineOptimizationOptions,
@@ -325,7 +326,7 @@ export {
   createAnimationPoseOverlay,
   type AnimationPoseOverlay,
 } from './components/animationPoseOverlay.ts';
-export { createAnimationFullBody, type AnimationFullBody } from './components/animationFullBody.ts';
+export { createAnimationFullBody, type AnimationFullBody, type FullBodyClipId } from './components/animationFullBody.ts';
 export { createDestructible, type Destructible } from './components/destructible.ts';
 
 export {
@@ -350,6 +351,7 @@ export { attachWeaponHitbox, detachWeaponHitbox } from './spawn/combat/attachWea
 export { installProjectileSystem } from './systems/combat/installProjectileSystem.ts';
 export { installCombatResolveSystem, type CombatResolveDeps } from './systems/combat/installCombatResolveSystem.ts';
 export { installHealthSystem, type HealthSystemHooks } from './systems/combat/installHealthSystem.ts';
+export { installFullBodyAnimationSystem } from './systems/combat/installFullBodyAnimationSystem.ts';
 export { installHitboxFollowSystem } from './systems/combat/installHitboxFollowSystem.ts';
 export {
   installRightHandAnimationFsmSystem,

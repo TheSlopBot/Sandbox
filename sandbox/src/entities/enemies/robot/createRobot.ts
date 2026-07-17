@@ -33,6 +33,7 @@ export const createRobot = async (
       y: opts.y,
       z: opts.z,
       colliders: ROBOT_ONE_ACTOR.colliders,
+      combatActor: ROBOT_ONE_ACTOR,
       extraComponents: {
         [GAME_COMPONENT_KEYS.testAi]: createTestAi(opts),
         [GAME_COMPONENT_KEYS.robot]: createRobotComponent(),

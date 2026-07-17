@@ -203,6 +203,12 @@ const toActorDefinition = (raw: unknown): ActorDefinition => {
       jumpStart: doc.clips.jumpStart,
       jumpIdle: doc.clips.jumpIdle,
       jumpLand: doc.clips.jumpLand,
+      hit: typeof doc.clips.hit === 'string' ? doc.clips.hit : 'hit_a',
+      death: typeof doc.clips.death === 'string' ? doc.clips.death : 'death_a',
+      deathPose:
+        typeof doc.clips.deathPose === 'string' && doc.clips.deathPose !== 'death_pose_a'
+          ? doc.clips.deathPose
+          : 'death_a_pose',
     },
     baseColorTextureUrl: typeof doc.baseColorTextureUrl === 'string' ? doc.baseColorTextureUrl : undefined,
     visualYOffset: typeof doc.visualYOffset === 'number' ? doc.visualYOffset : undefined,

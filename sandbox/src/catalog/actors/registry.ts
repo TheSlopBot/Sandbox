@@ -6,14 +6,17 @@ export const ACTOR_CATALOG: Record<string, GameActorDefinition> = Object.fromEnt
   KAYKIT_ACTORS.map((def) => [def.id, def]),
 );
 
-const mergeMissingWalkBackAnim = (
+const mergeMissingCatalogClips = (
   local: GameActorDefinition,
   catalog: GameActorDefinition,
 ): GameActorDefinition => {
   const needsAdvanced =
     !local.animPack.movementAdvancedGlb && !!catalog.animPack.movementAdvancedGlb;
   const needsWalkBack = !local.clips.walkBack && !!catalog.clips.walkBack;
-  if (!needsAdvanced && !needsWalkBack) return local;
+  const needsHit = !local.clips.hit && !!catalog.clips.hit;
+  const needsDeath = !local.clips.death && !!catalog.clips.death;
+  const needsDeathPose = !local.clips.deathPose && !!catalog.clips.deathPose;
+  if (!needsAdvanced && !needsWalkBack && !needsHit && !needsDeath && !needsDeathPose) return local;
 
   return {
     ...local,
@@ -24,6 +27,9 @@ const mergeMissingWalkBackAnim = (
     clips: {
       ...local.clips,
       ...(needsWalkBack ? { walkBack: catalog.clips.walkBack } : {}),
+      ...(needsHit ? { hit: catalog.clips.hit } : {}),
+      ...(needsDeath ? { death: catalog.clips.death } : {}),
+      ...(needsDeathPose ? { deathPose: catalog.clips.deathPose } : {}),
     },
   };
 };
@@ -34,7 +40,7 @@ export const resolveActorDefinition = (id: string): GameActorDefinition | null =
   if (!local && !catalog) return null;
   if (!local) return catalog ?? null;
   if (!catalog) return local;
-  return mergeMissingWalkBackAnim(local, catalog);
+  return mergeMissingCatalogClips(local, catalog);
 };
 
 export const getActorDefinition = (id: string): GameActorDefinition => {

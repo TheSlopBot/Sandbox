@@ -28,6 +28,9 @@ export type SkeletalCharacterDef = {
     jumpStart: AnimClipRef;
     jumpIdle: AnimClipRef;
     jumpLand: AnimClipRef;
+    hit: AnimClipRef;
+    death: AnimClipRef;
+    deathPose: AnimClipRef;
   };
   attachments?: BoneAttachmentDef[];
 };

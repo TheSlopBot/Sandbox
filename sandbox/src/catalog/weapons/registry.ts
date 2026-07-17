@@ -1,4 +1,5 @@
 import { SPACE_RANGER_BLADE, ANIM_GENERAL_GLB, ANIM_COMBAT_MELEE_GLB } from '../assets/kaykit.ts';
+import { resolveLocalEquipment } from '../../storage/equipmentLocalStore.ts';
 import { type WeaponDefinition } from 'viberanium';
 
 const identity = {
@@ -9,7 +10,7 @@ const identity = {
 
 export const RANGER_BLADE_WEAPON: WeaponDefinition = {
   id: 'ranger_blade',
-  displayName: 'Ranger Blade',
+  displayName: 'Space Ranger Blade',
   kind: 'melee',
   slotTags: ['slot:rightHand'],
   mesh: {
@@ -24,15 +25,16 @@ export const RANGER_BLADE_WEAPON: WeaponDefinition = {
       role: 'weapon',
       shape: 'box',
       halfExtents: [0.5, 0.5, 0.5],
-      position: [0, 0.9, 0],
+      position: [0.6, 0.9, 0],
       rotation: [0, 0, 0, 1],
-      scale: [0.3, 1.2, 0.1],
+      scale: [1.9, 1.2, 0.1],
     },
   ],
   stats: {
-    damage: 10,
+    damage: 4,
     hitWindowStart: 0.2,
     hitWindowEnd: 0.8,
+    attackSpeed: 2,
   },
   torsoYawCurve: {
     windUpEnd: 0.12,
@@ -120,4 +122,14 @@ export const WEAPON_CATALOG: Record<string, WeaponDefinition> = {
   [SHIELD_WEAPON.id]: SHIELD_WEAPON,
 };
 
-export const getWeaponDef = (id: string): WeaponDefinition | undefined => WEAPON_CATALOG[id];
+export const getWeaponDef = (id: string): WeaponDefinition | undefined => {
+  const local = resolveLocalEquipment(id);
+  const catalog = WEAPON_CATALOG[id];
+  if (!local) return catalog;
+  if (!catalog) return local;
+
+  return {
+    ...local,
+    torsoYawCurve: local.torsoYawCurve ?? catalog.torsoYawCurve,
+  };
+};

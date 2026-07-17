@@ -177,7 +177,7 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
     setStatus,
   });
 
-  const equipmentAnimPacks = useMemo(() => {
+  const animPacks = useMemo(() => {
     if (!manifest) return [];
 
     const seen = new Set<string>();
@@ -899,6 +899,7 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
               doc={actorDoc}
               selection={actorSelection}
               textureVariants={actorDetailVariants}
+              animPacks={animPacks}
               onRenameActor={onRenameDocument}
               {...actorInspectorActions}
             />
@@ -919,7 +920,7 @@ export const ConstructApp = ({ active, onOpenSandbox }: ConstructAppProps) => {
             <EquipmentDetails
               doc={equipmentDoc}
               selection={equipmentSelection}
-              animPacks={equipmentAnimPacks}
+              animPacks={animPacks}
               onRenameEquipment={onRenameDocument}
               {...equipmentInspectorActions}
             />

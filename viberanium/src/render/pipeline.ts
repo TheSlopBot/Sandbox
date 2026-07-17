@@ -1,4 +1,5 @@
 import { type Registry } from '../engine/registry.ts';
+import { type Entity } from '../engine/entity.ts';
 import { COMPONENT_KEYS } from '../engine/componentKeys.ts';
 import { createDevice, type GpuDevice } from './gl/device.ts';
 import { createForwardPass } from './passes/forwardPass.ts';
@@ -10,6 +11,8 @@ import { type Transform, updateWorldMatrix } from '../components/transform.ts';
 import { type Renderable } from '../components/renderable.ts';
 import { type MeshDraws } from '../components/meshDraws.ts';
 import { type GroundPlane } from '../components/groundPlane.ts';
+import { type Health } from '../components/health.ts';
+import { type ChildOf } from '../components/childOf.ts';
 import { type Mat4, m4, m4LookAt, m4Mul, m4Ortho, m4Perspective } from '../math/mat4.ts';
 import { type Vec3, v3, v3Copy, v3Normalize, v3Set } from '../math/vec3.ts';
 import {
@@ -202,6 +205,24 @@ export const installRenderPipeline = async (
     const shadowDist2 = optimization.shadowCullDist * optimization.shadowCullDist;
     const entityRegistry = getEntityRegistry();
 
+    const resolveFlashTint = (
+      entity: Entity,
+    ): [number, number, number, number] | undefined => {
+      let health = entity.components[COMPONENT_KEYS.health] as Health | undefined;
+      if (!health) {
+        const childOf = entity.components[COMPONENT_KEYS.childOf] as ChildOf | undefined;
+        if (childOf) {
+          const parent = entityRegistry.get(childOf.parentId);
+          health = parent?.components[COMPONENT_KEYS.health] as Health | undefined;
+        }
+      }
+      if (health && health.flashRemaining > 0) {
+        const t = health.flashRemaining / 0.2;
+        return t > 0.5 ? [2, 0.15, 0.15, 1] : [2, 2, 2, 1];
+      }
+      return undefined;
+    };
+
     const pushDrawItem = (
       mesh: Mesh,
       material: Material,
@@ -210,6 +231,7 @@ export const installRenderPipeline = async (
       castShadow: boolean,
       overlay = false,
       gpuModel?: DrawItem['gpuModel'],
+      colorFactor?: [number, number, number, number],
     ) => {
       const x = model[12];
       const y = model[13];
@@ -245,6 +267,7 @@ export const installRenderPipeline = async (
       item.gpuModel = gpuModel;
       item.castShadow = inLightFrustum;
       item.overlay = overlay;
+      item.colorFactor = colorFactor;
 
       if (inCameraFrustum) {
         if (overlay) overlayItems.push(item);
@@ -257,6 +280,8 @@ export const installRenderPipeline = async (
     for (const e of entityRegistry.view(COMPONENT_KEYS.meshDraws)) {
       const meshDraws = e.components[COMPONENT_KEYS.meshDraws] as MeshDraws | undefined;
       if (!meshDraws) continue;
+
+      const flashTint = resolveFlashTint(e);
 
       for (const part of meshDraws.parts) {
         if (part.visible === false) continue;
@@ -276,6 +301,7 @@ export const installRenderPipeline = async (
           part.castShadow !== false,
           false,
           part.gpuModel,
+          flashTint,
         );
       }
     }

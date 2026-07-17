@@ -25,6 +25,7 @@ export const stepRightHandFsm = (
     aimHeld: boolean;
     releasePressed: boolean;
     isRanged: boolean;
+    attackSpeed?: number;
   },
 ): void => {
   if (!opts.hasWeapon) {
@@ -36,7 +37,8 @@ export const stepRightHandFsm = (
   fsm.animTime += dt;
 
   if (fsm.current === 'attack') {
-    fsm.stateTime += dt;
+    const attackSpeed = opts.isRanged ? 1 : Math.max(1e-4, opts.attackSpeed ?? 1);
+    fsm.stateTime += dt * attackSpeed;
     if (fsm.stateTime >= fsm.attackDuration) {
       if (opts.isRanged) {
         fsm.current = 'reload';

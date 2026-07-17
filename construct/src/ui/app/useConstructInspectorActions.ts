@@ -1,7 +1,7 @@
 import { type RefObject } from 'react';
 import { type LevelGroundVariant } from 'viberanium';
 import { type PropDocument } from '../../catalog/props/propDocument.ts';
-import { type ActorAiPackage, type ActorDocument, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
+import { type ActorAiPackage, type ActorDocument, type ActorDocumentClips, type ActorEditorSelection } from '../../catalog/actors/actorDocument.ts';
 import {
   type EquipmentDocument,
   type EquipmentDocumentProjectile,
@@ -83,6 +83,10 @@ export const useConstructInspectorActions = ({
   const actorInspectorActions = {
     onActorTagsChange: (tags: string[]) => {
       const doc = sessionRef.current?.updateActorTags(tags);
+      if (doc) setActorDoc(cloneActorDoc(doc));
+    },
+    onActorClipsChange: (partial: Partial<ActorDocumentClips>) => {
+      const doc = sessionRef.current?.updateActorClips(partial);
       if (doc) setActorDoc(cloneActorDoc(doc));
     },
     onAiPackageChange: (aiPackage: ActorAiPackage) => {

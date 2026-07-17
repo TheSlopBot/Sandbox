@@ -40,6 +40,7 @@ export const installRightHandAnimationFsmSystem = (registry: Registry) => {
         aimHeld: intent?.aimHeld ?? false,
         releasePressed: intent?.releasePressed ?? false,
         isRanged: weapon?.kind === 'ranged',
+        attackSpeed: weapon?.attackSpeed,
       });
     }
   }, 11);

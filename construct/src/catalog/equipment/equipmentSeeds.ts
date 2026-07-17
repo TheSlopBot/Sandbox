@@ -9,7 +9,7 @@ const ANIM_COMBAT_MELEE_GLB = `${KAYKIT_BASE}/KayKit Character Animations 1.1/An
 export const EQUIPMENT_SEED_DOCUMENTS: EquipmentDocument[] = [
   {
     version: 1,
-    id: 'space_ranger_blade',
+    id: 'ranger_blade',
     displayName: 'Space Ranger Blade',
     kind: 'melee',
     slotTags: ['slot:rightHand'],
@@ -27,15 +27,16 @@ export const EQUIPMENT_SEED_DOCUMENTS: EquipmentDocument[] = [
         role: 'weapon',
         shape: 'box',
         halfExtents: [0.5, 0.5, 0.5],
-        position: [0, 0.9, 0],
+        position: [0.6, 0.9, 0],
         rotation: [0, 0, 0, 1],
-        scale: [0.3, 1.2, 0.1],
+        scale: [1.9, 1.2, 0.1],
       },
     ],
     stats: {
-      damage: 10,
+      damage: 4,
       hitWindowStart: 0.2,
       hitWindowEnd: 0.8,
+      attackSpeed: 2,
     },
     clips: {
       attack: {

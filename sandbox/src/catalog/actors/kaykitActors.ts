@@ -11,8 +11,14 @@ import {
   SPACE_RANGER_BLADE,
   SPACE_RANGER_GLB,
 } from '../assets/kaykit.ts';
+import { DEFAULT_CHARACTER_BODY_CYLINDER, DEFAULT_CHARACTER_HURTBOX } from 'viberanium';
 import { type GameActorDefinition } from './actorDefinition.ts';
 import { buildSimpleActor, type SimpleActorAttachment } from './buildSimpleActor.ts';
+
+const DEFAULT_CHARACTER_COLLIDERS = [
+  { ...DEFAULT_CHARACTER_BODY_CYLINDER },
+  { ...DEFAULT_CHARACTER_HURTBOX },
+];
 
 export type CombatMechVariant = 'primary' | 'alt';
 export type DummyVariant = 'primary' | 'altA' | 'altB' | 'altC';
@@ -52,6 +58,7 @@ export const SPACE_RANGER_ACTOR: GameActorDefinition = buildSimpleActor(
   {
     tags: ['player'],
     aiPackage: 'none',
+    colliders: DEFAULT_CHARACTER_COLLIDERS,
     attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
@@ -64,6 +71,7 @@ export const ROBOT_ONE_ACTOR: GameActorDefinition = buildSimpleActor(
   {
     tags: ['robot'],
     aiPackage: 'testAi',
+    colliders: DEFAULT_CHARACTER_COLLIDERS,
     attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
@@ -77,6 +85,7 @@ export const COMBAT_MECH_PRIMARY_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['combatMech'],
     aiPackage: 'testAi',
     baseColorTextureUrl: COMBAT_MECH_TEX_PRIMARY,
+    colliders: DEFAULT_CHARACTER_COLLIDERS,
     attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
@@ -90,6 +99,7 @@ export const COMBAT_MECH_ALT_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['combatMech'],
     aiPackage: 'testAi',
     baseColorTextureUrl: COMBAT_MECH_TEX_ALT,
+    colliders: DEFAULT_CHARACTER_COLLIDERS,
     attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
@@ -108,6 +118,7 @@ export const DUMMY_PRIMARY_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['dummy'],
     aiPackage: 'testAi',
     baseColorTextureUrl: DUMMY_TEX_PRIMARY,
+    colliders: DEFAULT_CHARACTER_COLLIDERS,
     attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
@@ -121,6 +132,7 @@ export const DUMMY_ALT_A_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['dummy'],
     aiPackage: 'testAi',
     baseColorTextureUrl: DUMMY_TEX_ALT_A,
+    colliders: DEFAULT_CHARACTER_COLLIDERS,
     attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
@@ -134,6 +146,7 @@ export const DUMMY_ALT_B_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['dummy'],
     aiPackage: 'testAi',
     baseColorTextureUrl: DUMMY_TEX_ALT_B,
+    colliders: DEFAULT_CHARACTER_COLLIDERS,
     attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );
@@ -147,6 +160,7 @@ export const DUMMY_ALT_C_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['dummy'],
     aiPackage: 'testAi',
     baseColorTextureUrl: DUMMY_TEX_ALT_C,
+    colliders: DEFAULT_CHARACTER_COLLIDERS,
     attachments: HAND_SLOT_PLACEHOLDERS,
   },
 );

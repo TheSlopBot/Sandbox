@@ -41,6 +41,7 @@ export type WeaponDefinition = {
     damage: number;
     hitWindowStart?: number;
     hitWindowEnd?: number;
+    attackSpeed?: number;
     fireRate?: number;
     blockAngleDeg?: number;
   };

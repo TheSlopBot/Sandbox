@@ -216,6 +216,7 @@ export const equipWeapon = async (
     damage: weapon.stats.damage,
     hitWindowStart: weapon.stats.hitWindowStart,
     hitWindowEnd: weapon.stats.hitWindowEnd,
+    attackSpeed: weapon.stats.attackSpeed,
     fireRate: weapon.stats.fireRate,
     projectileSpeed: weapon.projectile?.speed,
     blockAngleDeg: weapon.stats.blockAngleDeg,

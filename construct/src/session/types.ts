@@ -19,6 +19,7 @@ import {
   type ActorAiPackage,
   type ActorColliderShape,
   type ActorDocument,
+  type ActorDocumentClips,
   type ActorDocumentColliderParent,
   type ActorEditorSelection,
   createEmptyActorDocument,
@@ -109,6 +110,7 @@ export type ConstructSession = {
   selectActor: (sel: ActorEditorSelection) => void;
   renameActor: (name: string) => ActorDocument;
   updateActorTags: (tags: string[]) => ActorDocument;
+  updateActorClips: (partial: Partial<ActorDocumentClips>) => ActorDocument;
   updateCharacterTextureVariant: (variantUrl: string | null) => Promise<ActorDocument>;
   setAiPackage: (aiPackage: ActorAiPackage) => ActorDocument;
   updateAttachmentName: (attachmentId: string, name: string) => ActorDocument;

@@ -7,6 +7,7 @@ import {
   installProjectileSystem,
   installCombatResolveSystem,
   installHealthSystem,
+  installFullBodyAnimationSystem,
   installHitboxFollowSystem,
   installRightHandAnimationFsmSystem,
   installLeftHandAnimationFsmSystem,
@@ -20,6 +21,7 @@ import {
 } from 'viberanium';
 import { getWeaponDef } from '../../../catalog/weapons/registry.ts';
 import { installPlayerCombatInputSystem } from './installPlayerCombatInputSystem.ts';
+import { installActorDeathStripSystem } from './installActorDeathStripSystem.ts';
 
 const explodeBarrel = (entityId: number, registry: Registry) => {
   const entity = registry.get(entityId);
@@ -75,5 +77,7 @@ export const installCombatSystems = (
       if (hookId === 'explosiveBarrel') explodeBarrel(entityId, reg);
     },
   });
+  installFullBodyAnimationSystem(registry);
+  installActorDeathStripSystem(registry);
   installHitboxFollowSystem(registry);
 };

@@ -721,6 +721,10 @@
   font-size: 12px;
 }
 
+.construct-detailsAnimRow--clipOnly {
+  grid-template-columns: 72px 1fr;
+}
+
 .construct-detailsAnimRow > span:first-child {
   color: rgba(217, 226, 234, 0.65);
 }

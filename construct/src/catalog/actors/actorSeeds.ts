@@ -1,4 +1,13 @@
-import { buildSimpleActor } from 'viberanium';
+import {
+  buildSimpleActor,
+  DEFAULT_CHARACTER_BODY_CYLINDER,
+  DEFAULT_CHARACTER_HURTBOX,
+} from 'viberanium';
+
+const DEFAULT_CHARACTER_COLLIDERS = [
+  { ...DEFAULT_CHARACTER_BODY_CYLINDER },
+  { ...DEFAULT_CHARACTER_HURTBOX },
+];
 import { KAYKIT_MEDIUM_ANIM_PACK, KAYKIT_MEDIUM_CLIPS } from '../manifest/kaykitMediumDefaults.ts';
 import { fromActorDefinition, type ActorDocument } from './actorDocument.ts';
 
@@ -53,6 +62,7 @@ export const ACTOR_SEED_DOCUMENTS: ActorDocument[] = [
     buildSimpleActor('space_ranger', 'Space Ranger', SPACE_RANGER_GLB, 'spaceranger_body', {
       ...withKaykitAnim,
       tags: ['player'],
+      colliders: DEFAULT_CHARACTER_COLLIDERS,
       attachments: HAND_SLOT_PLACEHOLDERS,
     }),
     'none',
@@ -61,6 +71,7 @@ export const ACTOR_SEED_DOCUMENTS: ActorDocument[] = [
     buildSimpleActor('robot_one', 'Robot One', ROBOT_ONE_GLB, 'robot_one', {
       ...withKaykitAnim,
       tags: ['robot'],
+      colliders: DEFAULT_CHARACTER_COLLIDERS,
       attachments: HAND_SLOT_PLACEHOLDERS,
     }),
     'testAi',
@@ -70,6 +81,7 @@ export const ACTOR_SEED_DOCUMENTS: ActorDocument[] = [
       ...withKaykitAnim,
       tags: ['combatMech'],
       baseColorTextureUrl: COMBAT_MECH_TEX_PRIMARY,
+      colliders: DEFAULT_CHARACTER_COLLIDERS,
       attachments: HAND_SLOT_PLACEHOLDERS,
     }),
     'testAi',
@@ -79,6 +91,7 @@ export const ACTOR_SEED_DOCUMENTS: ActorDocument[] = [
       ...withKaykitAnim,
       tags: ['combatMech'],
       baseColorTextureUrl: COMBAT_MECH_TEX_ALT,
+      colliders: DEFAULT_CHARACTER_COLLIDERS,
       attachments: HAND_SLOT_PLACEHOLDERS,
     }),
     'testAi',
@@ -88,6 +101,7 @@ export const ACTOR_SEED_DOCUMENTS: ActorDocument[] = [
       ...withKaykitAnim,
       tags: ['dummy'],
       baseColorTextureUrl: DUMMY_TEX_PRIMARY,
+      colliders: DEFAULT_CHARACTER_COLLIDERS,
       attachments: HAND_SLOT_PLACEHOLDERS,
     }),
     'testAi',
@@ -97,6 +111,7 @@ export const ACTOR_SEED_DOCUMENTS: ActorDocument[] = [
       ...withKaykitAnim,
       tags: ['dummy'],
       baseColorTextureUrl: DUMMY_TEX_ALT_A,
+      colliders: DEFAULT_CHARACTER_COLLIDERS,
       attachments: HAND_SLOT_PLACEHOLDERS,
     }),
     'testAi',
@@ -106,6 +121,7 @@ export const ACTOR_SEED_DOCUMENTS: ActorDocument[] = [
       ...withKaykitAnim,
       tags: ['dummy'],
       baseColorTextureUrl: DUMMY_TEX_ALT_B,
+      colliders: DEFAULT_CHARACTER_COLLIDERS,
       attachments: HAND_SLOT_PLACEHOLDERS,
     }),
     'testAi',
@@ -115,6 +131,7 @@ export const ACTOR_SEED_DOCUMENTS: ActorDocument[] = [
       ...withKaykitAnim,
       tags: ['dummy'],
       baseColorTextureUrl: DUMMY_TEX_ALT_C,
+      colliders: DEFAULT_CHARACTER_COLLIDERS,
       attachments: HAND_SLOT_PLACEHOLDERS,
     }),
     'testAi',

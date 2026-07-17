@@ -39,6 +39,7 @@ export const createDummyNpc = async (
       y: opts.y,
       z: opts.z,
       colliders: actor.colliders,
+      combatActor: actor,
       extraComponents: {
         [GAME_COMPONENT_KEYS.testAi]: createTestAi(opts),
         [GAME_COMPONENT_KEYS.dummy]: createDummyComponent(variant),

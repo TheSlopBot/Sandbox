@@ -11,6 +11,7 @@ export type Weapon = {
   damage: number;
   hitWindowStart: number;
   hitWindowEnd: number;
+  attackSpeed: number;
   fireRate: number;
   projectileSpeed: number;
   blockAngleDeg: number;
@@ -27,6 +28,7 @@ export const createWeapon = (opts: {
   damage?: number;
   hitWindowStart?: number;
   hitWindowEnd?: number;
+  attackSpeed?: number;
   fireRate?: number;
   projectileSpeed?: number;
   blockAngleDeg?: number;
@@ -39,6 +41,7 @@ export const createWeapon = (opts: {
   damage: opts.damage ?? 10,
   hitWindowStart: opts.hitWindowStart ?? 0.2,
   hitWindowEnd: opts.hitWindowEnd ?? 0.55,
+  attackSpeed: opts.attackSpeed ?? 1,
   fireRate: opts.fireRate ?? 0.35,
   projectileSpeed: opts.projectileSpeed ?? 28,
   blockAngleDeg: opts.blockAngleDeg ?? 90,

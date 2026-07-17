@@ -13,4 +13,7 @@ export const KAYKIT_MEDIUM_CLIPS = {
   jumpStart: 'jump_start',
   jumpIdle: 'jump_idle',
   jumpLand: 'jump_land',
+  hit: 'hit_a',
+  death: 'death_a',
+  deathPose: 'death_a_pose',
 };

@@ -49,6 +49,7 @@ export type EquipmentDocument = {
     damage: number;
     hitWindowStart?: number;
     hitWindowEnd?: number;
+    attackSpeed?: number;
     fireRate?: number;
     blockAngleDeg?: number;
   };
@@ -97,7 +98,7 @@ export const createEmptyEquipmentDocument = (): EquipmentDocument => ({
     scale: [1, 1, 1],
   },
   colliders: [],
-  stats: { damage: 10 },
+  stats: { damage: 10, attackSpeed: 1 },
   clips: {},
 });
 
@@ -218,6 +219,7 @@ const normalizeEquipmentObject = (data: unknown): EquipmentDocument | null => {
       damage: typeof stats.damage === 'number' ? stats.damage : 10,
       hitWindowStart: typeof stats.hitWindowStart === 'number' ? stats.hitWindowStart : undefined,
       hitWindowEnd: typeof stats.hitWindowEnd === 'number' ? stats.hitWindowEnd : undefined,
+      attackSpeed: typeof stats.attackSpeed === 'number' ? stats.attackSpeed : undefined,
       fireRate: typeof stats.fireRate === 'number' ? stats.fireRate : undefined,
       blockAngleDeg: typeof stats.blockAngleDeg === 'number' ? stats.blockAngleDeg : undefined,
     },

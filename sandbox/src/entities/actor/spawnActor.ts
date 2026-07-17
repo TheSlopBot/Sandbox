@@ -18,6 +18,7 @@ import { type SkeletalCharacterDef } from '../../catalog/characters/characterDef
 import { loadSkeletalCharacter } from './loadSkeletalCharacter.ts';
 import { spawnSkeletalCharacter } from './spawnSkeletalCharacter.ts';
 import { attachCombatActor } from '../combat/attachCombatActor.ts';
+import { wireFullBodyClips } from '../combat/wireFullBodyClips.ts';
 
 export type SpawnActorOpts = {
   x: number;
@@ -73,6 +74,7 @@ export const spawnActor = async (
 
   if (opts.combatActor) {
     attachCombatActor(entity, opts.combatActor);
+    wireFullBodyClips(entity, loaded);
   }
 
   const cc = entity.components[COMPONENT_KEYS.character] as CharacterController;
