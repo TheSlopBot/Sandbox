@@ -1,5 +1,8 @@
 import { type Vec3, v3 } from '../math/vec3.ts';
 
+const DEFAULT_GROUND_DRAG = 10;
+const DEFAULT_AIR_DRAG = 8;
+
 export type MovementImpulse = {
   velocity: Vec3;
   groundDrag: number;
@@ -11,8 +14,8 @@ export const createMovementImpulse = (opts?: {
   airDrag?: number;
 }): MovementImpulse => ({
   velocity: v3(),
-  groundDrag: opts?.groundDrag ?? 6,
-  airDrag: opts?.airDrag ?? 4,
+  groundDrag: opts?.groundDrag ?? DEFAULT_GROUND_DRAG,
+  airDrag: opts?.airDrag ?? DEFAULT_AIR_DRAG,
 });
 
 export const addMovementImpulse = (

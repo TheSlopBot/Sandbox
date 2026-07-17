@@ -7,7 +7,7 @@ import { type AnimationStateMachine } from '../components/animationStateMachine.
 
 const COYOTE_SEC = 0.16;
 const JUMP_BUFFER_SEC = 0.12;
-const IMPULSE_STOP_SPEED = 0.25;
+const IMPULSE_STOP_SPEED = 1.0;
 
 const foldImpulseIntoIntent = (
   intent: MovementIntent,
