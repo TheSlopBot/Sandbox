@@ -25,10 +25,10 @@ Lower `order` runs first within a phase. Reserve bands:
 | 7 | update | transform hierarchy (`installTransformHierarchySystem`) |
 | 8 | update | hitbox/body follow (`installHitboxFollowSystem` resample), collider world bake (`installColliderTransformSystem`), movement (intent → velocity, jump → FSM; blocks input while sliding) |
 | 9–10 | update | CPU character physics (`installCharacterPhysicsSystem`: broadphase@9, integrate + `resolveCylinderMoveAndSlide`@10) |
-| 11 | update | hitbox/body follow again (`installHitboxFollowSystem` without resample — re-glue after physics moves the root) |
-| 12 | update | animation FSM (`installAnimationFsmSystem`) |
+| 11 | update | hitbox/body follow again (`installHitboxFollowSystem` without resample); combat resolve / projectiles / health (`installCombatResolveSystem`, `installProjectileSystem`, `installHealthSystem`) |
+| 12 | update | animation FSM (`installAnimationFsmSystem`); full-body hit/death (`installFullBodyAnimationSystem`); sandbox death strip (`installActorDeathStripSystem`); hand FSMs / aim / overlay |
 | 13 | update | character yaw (`installCharacterStateSystem`; skipped while `character.sliding`) |
-| 0 | postUpdate | camera follow; GPU skeletal pose gather (`installSkeletalGpuPoseSystem`) |
+| 0 | postUpdate | camera follow; GPU skeletal pose gather (`installSkeletalGpuPoseSystem` — hit upper-body blend, death exclusive, frozen corpses) |
 | 0 | draw | render pipeline (pose encode + cull + forward) |
 | 0 | commit | input.commitFrame() |
 | 100 | commit | dt capture |
@@ -134,6 +134,8 @@ Sandbox `createPlayableScene` installs `installSkeletalCharacterSystems` (not a 
 | `installSkeletalGpuPoseSystem` | postUpdate gather; draw encode | GPU joint palettes + mesh/attachment models |
 
 GPU pose LOD may skip recompute for distant characters, but **never** before the first successful palette write (`paletteReady`). Skinned draws use an identity object matrix — an unwritten (zero) palette collapses verts to world origin. Pose slab capacity grows geometrically (`nextPow2`); any slab recreate forces a full rewrite that frame.
+
+`animationFullBody`: hit uses upper-body blend (movement then spine-subtree overwrite); death/deathPose are exclusive full-body; `frozen` skips palette rewrite (corpses). Full-body clips share one GPU bank per body GLTF — register once. Details: `.cursor/rules/combat.mdc`.
 
 Install `installCharacterStateSystem`, `installMovementSystem`, `installColliderTransformSystem`, and `installCharacterPhysicsSystem` separately on the scene registry. Character collision is CPU via `installCharacterPhysicsSystem` (broadphase query + cylinder `resolveCylinderMoveAndSlide`); GPU pose/cull/render stay unchanged.
 

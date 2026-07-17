@@ -24,6 +24,7 @@ sandbox/src/
 ├── entities/               # factories, components, systems
 │   ├── actor/              # shared skeletal spawn pipeline
 │   ├── player/             # createPlayer, playerController, input system
+│   ├── combat/             # attachCombatActor, equipWeapon, installCombatSystems, death strip
 │   ├── enemies/            # robot, combatMech, dummy + testAi
 │   └── ground/             # spawnGround — groundPlane entity
 ├── scenes/
@@ -64,6 +65,7 @@ Engine `COMPONENT_KEYS` stays in `viberanium`. Sandbox-specific keys live in `ca
 |--------|------|
 | `entities/actor/` | `loadSkeletalCharacter`, `spawnSkeletalCharacter`, `spawnActor` |
 | `entities/player/` | `createPlayer`, player components + `installPlayerInputSystem` |
+| `entities/combat/` | `attachCombatActor`, `equipWeapon`, `wireFullBodyClips`, `installCombatSystems`, death strip |
 | `entities/enemies/<kind>/` | `createRobot`, `createCombatMech`, … + shared `components/`, `systems/` |
 
 New enemies follow `entities/enemies/spider/` with `createSpider.ts`, `components/`, `systems/`.

@@ -41,6 +41,8 @@ Mesh sub-entities are allowed only for static props (`renderGroup`) until props 
 | `meshDraws` | GPU mesh parts on the same entity as `skeletalModel` |
 | `animationClipMap` | `clips` keyed by `AnimStateId` — state → retargeted clip |
 | `animationStateMachine` | current state, timers, playback tuning — not on `character` |
+| `animationFullBody` | combat oneshot: `hit` / `death` / `deathPose`, timers, `frozen`, GPU indices — see `.cursor/rules/combat.mdc` |
+| `health` | `current`, `max`, `dead`, `flashRemaining` |
 
 `character` is **physics only** (velocity, gravity, `onGround`, `sliding`, `groundNormal`). Body dims come from the character's `characterCollision`-flagged `collider` children — spawned by `spawnActorColliders` as bone-attached, character-local, or attachment-local entities (never a collider on the character root itself). Bone-attached physics bodies track **bind-pose** bones relative to the character root (not clip-driven crouch). `collectCharacterCollisionColliders` + `readCharacterBodyFromCollisionColliders` resolve those children into a solver cylinder each physics tick; an actor with **zero** colliders resolves to `null` and is skipped entirely — no physics, no movement. Animation timing and blend weights live on `animationStateMachine` and per-clip components.
 
@@ -149,8 +151,12 @@ Controllers → movementIntent
   → colliderTransformSystem (8): static collider world bake
   → characterPhysicsSystem (9–10): integrate → resolveCylinderMoveAndSlide → onGround/sliding/groundNormal
   → hitboxFollow (11): re-glue after physics moves the character root
+  → combat resolve / health (11): damageApplied → HP + flash + fullBody hit/death
+  → animation FSM + fullBody + death strip (12)
   → characterStateSystem (13): yaw (skipped when sliding)
 ```
+
+Combat hit/death/corpse details: `.cursor/rules/combat.mdc`.
 
 Broadphase candidates come from `getNearbyObstacles(registry, character.obstructiveColliderKeys, x, z, radius)`. `markNavGridDirty` also invalidates the collision broadphase.
 

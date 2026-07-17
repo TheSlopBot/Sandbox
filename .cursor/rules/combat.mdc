@@ -1,0 +1,103 @@
+---
+description: Combat — hitboxes, health, hit/death full-body anims, flash, corpses
+globs: viberanium/src/combat/**,viberanium/src/systems/combat/**,viberanium/src/components/health.ts,viberanium/src/components/animationFullBody.ts,viberanium/src/components/weapon.ts,viberanium/src/components/combatIntent.ts,viberanium/src/systems/skeletalGpuPoseSystem.ts,viberanium/src/systems/animationFsmSystem.ts,sandbox/src/entities/combat/**,sandbox/src/catalog/actors/**,sandbox/src/catalog/weapons/**,construct/src/catalog/actors/**,construct/src/ui/inspector/ActorDetails.tsx
+alwaysApply: false
+---
+
+# Combat, hit, health, and death
+
+Event-driven combat: resolve pushes `CombatEvent`s; health and full-body systems react. Actors keep corpses; destructibles still despawn.
+
+## End-to-end flow
+
+```
+Player/AI combatIntent
+  → hand FSMs (attack / aim / block / reload)
+  → installCombatResolveSystem / installProjectileSystem
+       melee hit-window or projectile overlaps HURTBOX / SHIELD
+       pushCombatEvent({ damageApplied | blocked })
+  → installHealthSystem (order 11)
+       subtract HP; always flash
+       alive → animationFullBody.active = 'hit'
+       lethal + destructible → dead + flash → later died → despawn
+       lethal + actor (fullBody) → dead + active = 'death' (no despawn)
+  → installFullBodyAnimationSystem (12)
+       hit done → active = null
+       death done → active = 'deathPose' → frozen (hold t=0)
+  → installActorDeathStripSystem (sandbox, 12)
+       on death/deathPose: remove testAi / playerController; zero motion
+  → skeletalGpuPoseSystem (postUpdate)
+       hit: movement full body, then overwrite spine subtree with hit clip
+       death / deathPose: exclusive full-body clip; frozen skips palette rewrite
+  → render: health.flashRemaining → red/white tint
+```
+
+## Layers and resolve
+
+| Role | Source | Layer |
+|------|--------|-------|
+| Hurtbox | Actor collider `hitbox: true` → `COMBAT_LAYER.HURTBOX` | HURTBOX |
+| Weapon hitbox | Ephemeral child during melee hit window / shield | HITBOX / SHIELD |
+| Projectile | Sphere on projectile entity | PROJECTILE |
+
+Key paths: `viberanium/src/combat/` (layers, broadphase, contact, events), `installCombatResolveSystem`, `installProjectileSystem`, `attachWeaponHitbox`, `spawnActorColliders`.
+
+## Health (`installHealthSystem`)
+
+Component: `{ current, max, dead, flashRemaining }`.
+
+- Ignore `damageApplied` when `current <= 0`.
+- Always set `flashRemaining` on damage (including lethal).
+- Non-lethal + `animationFullBody` → `active = 'hit'` (reset timers).
+- Lethal + `destructible` → `dead`; after flash ends → `died` → hook + `deregisterEntityTree` + nav dirty.
+- Lethal + actor with `animationFullBody` → `dead` + `active = 'death'`; **never** emit `died` / despawn.
+- Lethal without fullBody (non-destructible) → flash then `died` → despawn (legacy).
+
+## Full-body oneshot (`animationFullBody`)
+
+```ts
+active: 'hit' | 'death' | 'deathPose' | null
+frozen: boolean
+gpuIndices / durations / clips  // clips wired at spawn; GPU bank once per shared GLTF
+```
+
+| Phase | Pose | FSM |
+|-------|------|-----|
+| `hit` | Layer mode 2: sample movement, overwrite **spine subtree** (upper body) with hit | Runs normally |
+| `death` | Exclusive full-body death clip | Skipped |
+| `deathPose` + `frozen` | Hold death pose at t=0; skip palette rewrite | Skipped |
+
+Do **not** remove `animationStateMachine` for corpses — freeze via `frozen` so the pose gather path stays one branch.
+
+### GPU bank (perf)
+
+Full-body clips register into the **shared** skeleton asset bank once per body GLTF (`fullBody:hit|death|deathPose` at indices after the 6 movement clips). Later actors only copy `gpuIndices`. Never rewrite the bank because `AnimationClip` object identity differs across entities — that caused `packClipsForGpu` every frame at scale.
+
+## Actor clips (defs + Construct)
+
+Required on `ActorDefinition` / `ActorDocument` / `SkeletalCharacterDef` clips (from `animPack.generalGlb`):
+
+| Field | Kaykit default (Rig_Medium_General) |
+|-------|-------------------------------------|
+| `hit` | `hit_a` → `Hit_A` |
+| `death` | `death_a` → `Death_A` |
+| `deathPose` | `death_a_pose` → `Death_A_Pose` (not `death_pose_a`) |
+
+Construct actor root **Animations** section edits these three clip names. Load via `loadSkeletalCharacter` + `wireFullBodyClips` after `attachCombatActor`.
+
+## Sandbox wiring
+
+| Piece | Role |
+|-------|------|
+| `attachCombatActor` | health, intent, slots, hand FSMs, `animationFullBody`, masks |
+| `wireFullBodyClips` | copies loaded hit/death/deathPose onto fullBody |
+| `installCombatSystems` | resolve, health, fullBody, death strip, hitbox follow, hands, aim/overlay |
+| `installActorDeathStripSystem` | strips `testAi` / `playerController`; zeros velocity + movement intent |
+
+## Forbidden
+
+- Despawning actors on death (corpses until level unload)
+- Expanding locomotion `AnimStateId` for hit/death — use `animationFullBody`
+- Removing `animationStateMachine` to freeze corpses
+- Per-entity full-body GPU bank rewrites on shared GLTFs
+- Engine systems importing sandbox `GAME_COMPONENT_KEYS` (strip stays in sandbox)

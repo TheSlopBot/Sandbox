@@ -58,6 +58,14 @@ Code must be self-documenting through names and types. Do not add `//` inline co
 - Slope slide (`character.sliding`) suppresses input and applies downhill velocity; wall slide is transient velocity projection during resolve
 - Sandbox installs CPU collision only — not `installCollisionSystem` (optional GPU alternate)
 
+### Combat / hit / death
+
+See `.cursor/rules/combat.mdc` for the full flow. Summary:
+
+- Hitbox → hurtbox → `damageApplied` → health subtract + flash → `animationFullBody` hit (upper-body blend) or death → deathPose freeze (corpses); destructibles still despawn
+- Actor clips `hit` / `death` / `deathPose` from `generalGlb` (Kaykit: `Hit_A`, `Death_A`, `Death_A_Pose`); authored in Construct actor Animations
+- Full-body GPU bank is shared per body GLTF — register once; never rewrite on per-entity clip object identity
+
 ---
 
 ## Module layout
@@ -68,8 +76,9 @@ viberanium/src/
   math/         vec3, mat4, quat
   input/        createInput
   collision/    characterContact, characterCollision, broadphase — pure math, no registry
-  components/   shared component types (hierarchy, meshDraws, animation, …)
-  systems/      install*System processors
+  combat/       layers, broadphase, contact, events
+  components/   shared component types (hierarchy, meshDraws, animation, health, …)
+  systems/      install*System processors (incl. systems/combat/)
   navigation/   A* pathfinding helpers
   assets/       loaders (gltf/)
   definitions/  portable Actor/Prop/Skeletal/Level defs + pure helpers (no app coupling)
@@ -78,8 +87,8 @@ viberanium/src/
   index.ts      package public API (barrel — only permitted index.ts)
 
 sandbox/src/
-  catalog/      assets, animations, characters, props, levels, keys, ui
-  entities/     actor/, player/, enemies/, ground/
+  catalog/      assets, animations, characters, props, levels, keys, ui, weapons/equipment
+  entities/     actor/, player/, combat/, enemies/, ground/
   scenes/common/  createPlayableScene, useLevelScene, prop re-export
   storage/      levelLocalStore (shared with construct)
   globals/      bootstrap, sceneManager
@@ -110,11 +119,11 @@ See `.cursor/rules/sandbox-structure.mdc` and `.cursor/rules/construct-structure
 ### Skeletal characters
 
 1. Define assets via `ActorDefinition` / `SkeletalCharacterDef` (engine types; sandbox kaykit wrappers in `catalog/`)
-2. `loadSkeletalCharacter(deps, def)` in `entities/actor/` — returns model, meshDraws, clips, attachment data
+2. `loadSkeletalCharacter(deps, def)` in `entities/actor/` — returns model, meshDraws, clips (including hit/death/deathPose), attachment data
 3. `spawnSkeletalCharacter(registry, entity, loaded)` — components + hierarchy children
-4. Game factory adds gameplay components, then `registry.register(entity)`
+4. Game factory adds gameplay components (`attachCombatActor` + `wireFullBodyClips` when combat), then `registry.register(entity)`
 
-GPU pose LOD must not skip until the first joint-palette write. Scene owners call the `installSkeletalCharacterSystems` disposer on `unload`.
+GPU pose LOD must not skip until the first joint-palette write. Scene owners call the `installSkeletalCharacterSystems` disposer on `unload`. Hit/death pose layering and corpse freeze: `.cursor/rules/combat.mdc`.
 
 ### Levels & assets
 

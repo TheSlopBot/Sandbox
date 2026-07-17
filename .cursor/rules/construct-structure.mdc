@@ -63,6 +63,7 @@ construct/src/
 - Explorer: unified tree with **Simple** (props/actors from manifest), **Standard** (local `.prop`/`.actor`), and **Colliders**; bottom **Import** for `.prop`/`.actor`. `+` places at orbit target.
 - Elements: Level → Ground Plane → Player Spawn → Props/Actors (Simple|Standard when non-empty) → Colliders → Groups. Empty subgroups hidden. Ctrl multi-select; group select selects members.
 - Details: rename; simple variants; actor `aiPackage`; Group / Delete footer; ground plane and player spawn non-deletable (ground: move+scale only; player spawn: move+yaw only).
+- Actor tool Animations (actor root): Hit / Death / Death pose clip names from `animPack.generalGlb` (defaults `hit_a`, `death_a`, `death_a_pose` → Kaykit `Hit_A` / `Death_A` / `Death_A_Pose`).
 - Preview HUD: status + Show colliders (prop/actor/level); Show bones (actor only).
 - Gizmos: instance / group root / temp multi-select pivot; world move; TRS relative to level origin; scale collider-only or ground plane; actors/player spawn yaw-only rotate; ground plane no rotate.
 - Rotated box colliders (prop parts or level collider placements) serve as **ramps** at runtime — no dedicated ramp type; slope walk/slide behavior is angle-based in the CPU collision resolver.
