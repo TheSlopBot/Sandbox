@@ -295,8 +295,10 @@ export {
 export {
   createRightHandStateMachine,
   stepRightHandFsm,
+  handCapsForWeaponKind,
   type RightHandStateMachine,
   type RightHandStateId,
+  type RightHandEquipmentCaps,
 } from './components/rightHandStateMachine.ts';
 export {
   createLeftHandStateMachine,

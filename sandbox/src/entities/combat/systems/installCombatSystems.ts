@@ -71,7 +71,12 @@ export const installCombatSystems = (
   installCombatFacingSystem(registry);
   installAnimationAimOffsetSystem(registry);
   installAnimationPoseOverlaySystem(registry, { getWeaponDef });
-  installCombatResolveSystem(registry, { getWeaponDef });
+  installCombatResolveSystem(registry, {
+    getWeaponDef,
+    device: deps.device,
+    textures: deps.textures,
+    gltfCache: deps.gltfCache,
+  });
   installHealthSystem(registry, {
     onDestructible: (hookId, entityId, reg) => {
       if (hookId === 'explosiveBarrel') explodeBarrel(entityId, reg);

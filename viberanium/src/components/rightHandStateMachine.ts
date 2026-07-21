@@ -1,5 +1,13 @@
 export type RightHandStateId = 'none' | 'idleHold' | 'aim' | 'attack' | 'reload';
 
+export type RightHandEquipmentCaps = {
+  canAim: boolean;
+  attackOnPrimary: boolean;
+  reloadAfterAttack: boolean;
+  attackSpeedScales: boolean;
+  holdIdleAtEnd: boolean;
+};
+
 export type RightHandStateMachine = {
   current: RightHandStateId;
   stateTime: number;
@@ -16,6 +24,30 @@ export const createRightHandStateMachine = (): RightHandStateMachine => ({
   reloadDuration: 0.5,
 });
 
+export const handCapsForWeaponKind = (
+  kind: 'melee' | 'gun' | 'shield' | 'projectile' | undefined,
+): RightHandEquipmentCaps => {
+  if (kind === 'gun') {
+    return {
+      canAim: false,
+      attackOnPrimary: false,
+      reloadAfterAttack: false,
+      attackSpeedScales: false,
+      holdIdleAtEnd: true,
+    };
+  }
+
+  return {
+    canAim: false,
+    attackOnPrimary: true,
+    reloadAfterAttack: false,
+    attackSpeedScales: true,
+    holdIdleAtEnd: false,
+  };
+};
+
+const GUN_IDLE_END_TIME = 1e6;
+
 export const stepRightHandFsm = (
   fsm: RightHandStateMachine,
   dt: number,
@@ -23,8 +55,7 @@ export const stepRightHandFsm = (
     hasWeapon: boolean;
     attackPressed: boolean;
     aimHeld: boolean;
-    releasePressed: boolean;
-    isRanged: boolean;
+    caps: RightHandEquipmentCaps;
     attackSpeed?: number;
   },
 ): void => {
@@ -34,17 +65,26 @@ export const stepRightHandFsm = (
     return;
   }
 
+  if (opts.caps.holdIdleAtEnd) {
+    fsm.current = 'idleHold';
+    fsm.stateTime = 0;
+    fsm.animTime = GUN_IDLE_END_TIME;
+    return;
+  }
+
   fsm.animTime += dt;
 
   if (fsm.current === 'attack') {
-    const attackSpeed = opts.isRanged ? 1 : Math.max(1e-4, opts.attackSpeed ?? 1);
+    const attackSpeed = opts.caps.attackSpeedScales
+      ? Math.max(1e-4, opts.attackSpeed ?? 1)
+      : 1;
     fsm.stateTime += dt * attackSpeed;
     if (fsm.stateTime >= fsm.attackDuration) {
-      if (opts.isRanged) {
+      if (opts.caps.reloadAfterAttack) {
         fsm.current = 'reload';
         fsm.stateTime = 0;
       } else {
-        fsm.current = opts.aimHeld && opts.isRanged ? 'aim' : 'idleHold';
+        fsm.current = opts.caps.canAim && opts.aimHeld ? 'aim' : 'idleHold';
         fsm.stateTime = 0;
       }
     }
@@ -54,25 +94,19 @@ export const stepRightHandFsm = (
   if (fsm.current === 'reload') {
     fsm.stateTime += dt;
     if (fsm.stateTime >= fsm.reloadDuration) {
-      fsm.current = opts.aimHeld ? 'aim' : 'idleHold';
+      fsm.current = opts.caps.canAim && opts.aimHeld ? 'aim' : 'idleHold';
       fsm.stateTime = 0;
     }
     return;
   }
 
-  if (opts.isRanged && opts.releasePressed && opts.aimHeld) {
+  if (opts.caps.attackOnPrimary && opts.attackPressed) {
     fsm.current = 'attack';
     fsm.stateTime = 0;
     return;
   }
 
-  if (!opts.isRanged && opts.attackPressed) {
-    fsm.current = 'attack';
-    fsm.stateTime = 0;
-    return;
-  }
-
-  if (opts.isRanged && opts.aimHeld) {
+  if (opts.caps.canAim && opts.aimHeld) {
     fsm.current = 'aim';
     return;
   }

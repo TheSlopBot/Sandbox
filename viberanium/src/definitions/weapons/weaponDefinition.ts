@@ -1,4 +1,4 @@
-export type WeaponKind = 'melee' | 'ranged' | 'shield';
+export type WeaponKind = 'melee' | 'gun' | 'shield' | 'projectile';
 
 export type WeaponColliderDef = {
   role: 'weapon' | 'shield';
@@ -32,10 +32,11 @@ export type WeaponDefinition = {
   };
   colliders: WeaponColliderDef[];
   projectile?: {
-    shape: 'sphere';
-    radius: number;
+    equipmentId?: string;
+    shape?: 'sphere';
+    radius?: number;
     localOffset: [number, number, number];
-    speed: number;
+    speed?: number;
   };
   stats: {
     damage: number;
@@ -44,6 +45,7 @@ export type WeaponDefinition = {
     attackSpeed?: number;
     fireRate?: number;
     blockAngleDeg?: number;
+    moveSpeed?: number;
   };
   torsoYawCurve?: {
     windUpEnd: number;

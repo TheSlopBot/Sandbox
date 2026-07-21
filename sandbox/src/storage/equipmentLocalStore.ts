@@ -87,9 +87,38 @@ const migrateLegacyRangerBladeId = (store: EquipmentLocalStoreData): boolean => 
   return true;
 };
 
+const migrateSpaceRangerBulletProjectile = (store: EquipmentLocalStoreData): boolean => {
+  const entry = store.entries['space_ranger_bullet'];
+  if (!entry) return false;
+
+  const doc = entry.document;
+  const needsKind = doc.kind !== 'projectile';
+  const needsSlot = !doc.slotTags.includes('slot:projectile');
+  const needsSpeed = doc.stats.moveSpeed !== 25;
+  if (!needsKind && !needsSlot && !needsSpeed) return false;
+
+  const document: EquipmentSeedDocument = {
+    ...doc,
+    kind: 'projectile',
+    slotTags: needsSlot ? ['slot:projectile'] : [...doc.slotTags],
+    stats: {
+      ...doc.stats,
+      damage: 0,
+      moveSpeed: 25,
+    },
+  };
+  store.entries['space_ranger_bullet'] = {
+    ...entry,
+    updatedAt: Date.now(),
+    document,
+  };
+  return true;
+};
+
 export const seedLocalEquipmentIfEmpty = (documents: readonly EquipmentSeedDocument[]) => {
   const store = readStore();
   let wrote = migrateLegacyRangerBladeId(store);
+  wrote = migrateSpaceRangerBulletProjectile(store) || wrote;
 
   for (const document of documents) {
     if (store.entries[document.id]) continue;

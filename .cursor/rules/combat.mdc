@@ -38,7 +38,9 @@ Player/AI combatIntent
 |------|--------|-------|
 | Hurtbox | Actor collider `hitbox: true` → `COMBAT_LAYER.HURTBOX` | HURTBOX |
 | Weapon hitbox | Ephemeral child during melee hit window / shield | HITBOX / SHIELD |
-| Projectile | Sphere on projectile entity | PROJECTILE |
+| Projectile | Spawned from gun `projectile.equipmentId` (mesh + collider) | PROJECTILE |
+
+Weapon `kind`: `melee` | `gun` | `shield`. One `COMPONENT_KEYS.weapon` + kind discriminant. Hand FSM uses caps (`canAim`, `attackOnPrimary`, `reloadAfterAttack`) — LMB `attackPressed` swings and fires. Digit1/Digit2 equip loadout; no KeyR release.
 
 Key paths: `viberanium/src/combat/` (layers, broadphase, contact, events), `installCombatResolveSystem`, `installProjectileSystem`, `attachWeaponHitbox`, `spawnActorColliders`.
 

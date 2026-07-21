@@ -1,8 +1,8 @@
 export type CombatIntent = {
   attackPressed: boolean;
   aimHeld: boolean;
-  releasePressed: boolean;
   aimYawRad: number;
+  aimPitchRad: number;
   walkingBackwards: boolean;
   equipMeleePressed: boolean;
   equipRangedPressed: boolean;
@@ -13,8 +13,8 @@ export type CombatIntent = {
 export const createCombatIntent = (): CombatIntent => ({
   attackPressed: false,
   aimHeld: false,
-  releasePressed: false,
   aimYawRad: 0,
+  aimPitchRad: 0,
   walkingBackwards: false,
   equipMeleePressed: false,
   equipRangedPressed: false,
@@ -24,7 +24,6 @@ export const createCombatIntent = (): CombatIntent => ({
 
 export const clearCombatIntentEdges = (intent: CombatIntent): void => {
   intent.attackPressed = false;
-  intent.releasePressed = false;
   intent.equipMeleePressed = false;
   intent.equipRangedPressed = false;
   intent.toggleShieldPressed = false;

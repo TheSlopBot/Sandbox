@@ -28,6 +28,7 @@ import { type AnimationAimOffset } from '../components/animationAimOffset.ts';
 import { type AnimationPoseOverlay } from '../components/animationPoseOverlay.ts';
 import { type AnimationFullBody, type FullBodyClipId } from '../components/animationFullBody.ts';
 import { type EquipmentSlots } from '../components/equipmentSlots.ts';
+import { type Weapon } from '../components/weapon.ts';
 import {
   DEFAULT_ENGINE_OPTIMIZATION,
   type EngineOptimizationOptions,
@@ -127,7 +128,10 @@ const distSqXZ = (ax: number, az: number, bx: number, bz: number) => {
 const isLoopingState = (state: AnimStateId) =>
   state === 'idle' || state === 'run' || state === 'walkBack' || state === 'jumpAir';
 
-const isRightHandLooping = (state: string) => state === 'idleHold' || state === 'aim';
+const isRightHandLooping = (state: string, gunEquipped: boolean) => {
+  if (gunEquipped && state === 'idleHold') return false;
+  return state === 'idleHold' || state === 'aim';
+};
 
 const isLeftHandLooping = (state: string) => state === 'idleHold' || state === 'block';
 
@@ -171,6 +175,7 @@ const buildLayeredPoseEntry = (
   leftFsm: LeftHandStateMachine | undefined,
   rightHandClipMap: RightHandClipMap | undefined,
   leftHandClipMap: LeftHandClipMap | undefined,
+  gunEquipped: boolean,
 ): PoseDispatchEntry => {
   const rightState = rightFsm?.current ?? 'none';
   const leftState = leftFsm?.current ?? 'none';
@@ -190,10 +195,12 @@ const buildLayeredPoseEntry = (
       : rightFsm
         ? rightState === 'attack' || rightState === 'reload'
           ? rightFsm.stateTime
-          : rightFsm.animTime
+          : gunEquipped && rightState === 'idleHold'
+            ? 1e6
+            : rightFsm.animTime
         : 0,
     rightClipIndex: rightUsesMove ? common.moveClipIndex : (rightGpu ?? common.moveClipIndex),
-    rightLoop: rightUsesMove ? common.moveLoop : isRightHandLooping(rightState),
+    rightLoop: rightUsesMove ? common.moveLoop : isRightHandLooping(rightState, gunEquipped),
     leftAnimTime: leftUsesMove
       ? common.moveAnimTime
       : leftFsm
@@ -672,8 +679,24 @@ export const installSkeletalGpuPoseSystem = (
         const leftFsm = item.entity.components[COMPONENT_KEYS.leftHandStateMachine] as
           | LeftHandStateMachine
           | undefined;
+        const equipment = item.entity.components[COMPONENT_KEYS.equipmentSlots] as
+          | EquipmentSlots
+          | undefined;
+        let gunEquipped = false;
+        if (equipment?.right.entityId !== null && equipment?.right.entityId !== undefined) {
+          const weaponEntity = registry.get(equipment.right.entityId);
+          const weapon = weaponEntity?.components[COMPONENT_KEYS.weapon] as Weapon | undefined;
+          gunEquipped = weapon?.kind === 'gun';
+        }
         entries.push(
-          buildLayeredPoseEntry(common, rightFsm, leftFsm, rightHandClipMap, leftHandClipMap),
+          buildLayeredPoseEntry(
+            common,
+            rightFsm,
+            leftFsm,
+            rightHandClipMap,
+            leftHandClipMap,
+            gunEquipped,
+          ),
         );
       } else {
         entries.push(buildBasePoseEntry(common));

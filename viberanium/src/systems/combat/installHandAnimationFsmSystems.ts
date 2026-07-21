@@ -6,6 +6,7 @@ import { type Weapon } from '../../components/weapon.ts';
 import {
   createRightHandStateMachine,
   stepRightHandFsm,
+  handCapsForWeaponKind,
   type RightHandStateMachine,
 } from '../../components/rightHandStateMachine.ts';
 import {
@@ -38,8 +39,7 @@ export const installRightHandAnimationFsmSystem = (registry: Registry) => {
         hasWeapon: !!weapon && weapon.kind !== 'shield',
         attackPressed: intent?.attackPressed ?? false,
         aimHeld: intent?.aimHeld ?? false,
-        releasePressed: intent?.releasePressed ?? false,
-        isRanged: weapon?.kind === 'ranged',
+        caps: handCapsForWeaponKind(weapon?.kind),
         attackSpeed: weapon?.attackSpeed,
       });
     }

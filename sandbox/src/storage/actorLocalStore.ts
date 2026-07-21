@@ -133,6 +133,30 @@ const migrateSeedCombatClips = (
   };
 };
 
+const rightHandPlaceholderTagKey = (attachments: ActorSeedDocument['attachments']): string =>
+  attachments
+    .filter((a) => a.placeholder && a.tags.includes('slot:rightHand'))
+    .map((a) => [...a.tags].sort().join(','))
+    .sort()
+    .join('|');
+
+const migrateSeedHandPlaceholders = (
+  existing: ActorSeedDocument,
+  seed: ActorSeedDocument,
+): ActorSeedDocument | null => {
+  const seedHasPistol = seed.attachments.some((a) => a.tags.includes('pistol'));
+  const existingHasPistol = existing.attachments.some((a) => a.tags.includes('pistol'));
+  const tagSetsDiffer =
+    rightHandPlaceholderTagKey(seed.attachments) !== rightHandPlaceholderTagKey(existing.attachments);
+
+  if (!(seedHasPistol && !existingHasPistol) && !tagSetsDiffer) return null;
+
+  return {
+    ...existing,
+    attachments: seed.attachments.map((a) => ({ ...a, tags: [...a.tags] })),
+  };
+};
+
 const migrateSeedDocument = (
   existing: ActorSeedDocument,
   seed: ActorSeedDocument,
@@ -144,6 +168,8 @@ const migrateSeedDocument = (
   if (walk) next = walk;
   const combat = migrateSeedCombatClips(next ?? existing, seed);
   if (combat) next = combat;
+  const placeholders = migrateSeedHandPlaceholders(next ?? existing, seed);
+  if (placeholders) next = placeholders;
   return next;
 };
 

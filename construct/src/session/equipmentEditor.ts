@@ -330,22 +330,34 @@ export const updateEquipmentKind = (
   const shouldResetSlots = isOnlyDefaultSlotTags(prev.slotTags, prev.kind);
   let projectile = prev.projectile;
 
-  if (kind !== 'ranged') {
+  if (kind !== 'gun') {
     projectile = undefined;
   } else if (!projectile) {
     projectile = {
-      shape: 'sphere',
-      radius: 0.15,
       localOffset: [0, 0.2, 0.4],
-      speed: 20,
+      equipmentId: '',
     };
   }
+
+  const nextStats =
+    kind === 'projectile'
+      ? {
+          damage: 0,
+          moveSpeed: prev.stats.moveSpeed ?? 25,
+        }
+      : kind === 'gun'
+        ? {
+            damage: prev.stats.damage,
+            fireRate: prev.stats.fireRate ?? 0.35,
+          }
+        : { ...prev.stats };
 
   state.equipmentDocument = {
     ...prev,
     kind,
     slotTags: shouldResetSlots ? defaultSlotTagsForKind(kind) : [...prev.slotTags],
     projectile,
+    stats: nextStats,
   };
   notifyEquipmentDoc(state);
   return state.equipmentDocument;

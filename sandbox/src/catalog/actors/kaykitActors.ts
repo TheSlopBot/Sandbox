@@ -7,6 +7,7 @@ import {
   DUMMY_TEX_ALT_B,
   DUMMY_TEX_ALT_C,
   DUMMY_TEX_PRIMARY,
+  GUN_PISTOL,
   ROBOT_ONE_GLB,
   SPACE_RANGER_BLADE,
   SPACE_RANGER_GLB,
@@ -50,6 +51,33 @@ const HAND_SLOT_PLACEHOLDERS: SimpleActorAttachment[] = [
   },
 ];
 
+const SPACE_RANGER_ATTACHMENTS: SimpleActorAttachment[] = [
+  {
+    id: 'rightHandSlot',
+    name: 'Right Hand Sword',
+    boneName: 'hand.r',
+    url: SPACE_RANGER_BLADE,
+    materialPrefix: 'spaceranger_blade',
+    tags: ['slot:rightHand', 'sword'],
+    placeholder: true,
+    position: [0, 0.1, 0],
+    rotation: [-0.7071067690849304, 0.7071067690849304, 0, 0],
+    scale: [1, 1, 1],
+  },
+  {
+    id: 'rightHandPistol',
+    name: 'Right Hand Pistol',
+    boneName: 'hand.r',
+    url: GUN_PISTOL,
+    materialPrefix: 'attachment',
+    tags: ['slot:rightHand', 'pistol'],
+    placeholder: true,
+    position: [-0.09670040011405945, 0.17103421688079834, 0],
+    rotation: [0.5, -0.5, -0.5, -0.5],
+    scale: [1, 1, 1],
+  },
+];
+
 export const SPACE_RANGER_ACTOR: GameActorDefinition = buildSimpleActor(
   'space_ranger',
   'Space Ranger',
@@ -59,7 +87,7 @@ export const SPACE_RANGER_ACTOR: GameActorDefinition = buildSimpleActor(
     tags: ['player'],
     aiPackage: 'none',
     colliders: DEFAULT_CHARACTER_COLLIDERS,
-    attachments: HAND_SLOT_PLACEHOLDERS,
+    attachments: SPACE_RANGER_ATTACHMENTS,
   },
 );
 

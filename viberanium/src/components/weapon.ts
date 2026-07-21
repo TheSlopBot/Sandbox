@@ -1,4 +1,4 @@
-export type WeaponKind = 'melee' | 'ranged' | 'shield';
+export type WeaponKind = 'melee' | 'gun' | 'shield' | 'projectile';
 
 export type WeaponRuntimeState = 'idle' | 'attacking' | 'aiming' | 'reloading' | 'blocking';
 
@@ -43,7 +43,7 @@ export const createWeapon = (opts: {
   hitWindowEnd: opts.hitWindowEnd ?? 0.55,
   attackSpeed: opts.attackSpeed ?? 1,
   fireRate: opts.fireRate ?? 0.35,
-  projectileSpeed: opts.projectileSpeed ?? 28,
+  projectileSpeed: opts.projectileSpeed ?? 25,
   blockAngleDeg: opts.blockAngleDeg ?? 90,
   hitConsumed: new Set(),
   swingOrigin: [0, 0, 0],

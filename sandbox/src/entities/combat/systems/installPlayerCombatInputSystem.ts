@@ -23,8 +23,11 @@ export const installPlayerCombatInputSystem = (
 ) => {
   registry.addAction('update', () => {
     let camYaw = 0;
+    let camPitch = 0;
     for (const e of registry.view(COMPONENT_KEYS.cameraFollow)) {
-      camYaw = (e.components[COMPONENT_KEYS.cameraFollow] as CameraFollow).yawRad;
+      const cam = e.components[COMPONENT_KEYS.cameraFollow] as CameraFollow;
+      camYaw = cam.yawRad;
+      camPitch = cam.pitchRad;
       break;
     }
 
@@ -35,17 +38,22 @@ export const installPlayerCombatInputSystem = (
 
       clearCombatIntentEdges(intent);
       intent.aimYawRad = camYaw + Math.PI;
+      intent.aimPitchRad = camPitch;
       intent.aimHeld = input.mouseDown(2);
       intent.attackPressed = input.mousePressed(0);
-      intent.releasePressed = input.pressed('KeyR');
       intent.equipMeleePressed = input.pressed('Digit1');
-      intent.equipRangedPressed = false;
+      intent.equipRangedPressed = input.pressed('Digit2');
       intent.toggleShieldPressed = false;
       intent.stowRightPressed = input.pressed('KeyZ');
 
       if (intent.equipMeleePressed) {
         const blade = getWeaponDef('ranger_blade');
         if (blade) void equipWeapon(registry, device, textures, gltfCache, e, blade);
+      }
+
+      if (intent.equipRangedPressed) {
+        const pistol = getWeaponDef('space_ranger_pistol');
+        if (pistol) void equipWeapon(registry, device, textures, gltfCache, e, pistol);
       }
 
       if (intent.stowRightPressed) stowRightWeapon(registry, e);

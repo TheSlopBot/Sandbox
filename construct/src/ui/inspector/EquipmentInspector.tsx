@@ -73,7 +73,7 @@ export const EquipmentInspector = ({
               </div>
             ))
           )}
-          {doc.kind === 'ranged' ? (
+          {doc.kind === 'gun' ? (
             <div
               className="construct-elementsRow"
               style={{ paddingLeft: 16 }}

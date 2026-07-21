@@ -37,6 +37,7 @@ import {
 } from 'viberanium';
 import { EQUIPMENT_SLOT_TAGS } from '../../catalog/keys/equipment.ts';
 import { pickClip } from '../actor/pickClip.ts';
+import { getWeaponDef } from '../../catalog/weapons/registry.ts';
 
 const IDENTITY_ROTATION: [number, number, number, number] = [0, 0, 0, 1];
 
@@ -154,15 +155,28 @@ export const equipWeapon = async (
 
   const hand = handForWeapon(weapon);
   if (!hand) return false;
+  if (weapon.kind === 'projectile') return false;
 
-  const placeholder =
-    slots.placeholders.find((p) => p.slotTags.some((tag) => weapon.slotTags.includes(tag))) ??
-    null;
+  let placeholder: (typeof slots.placeholders)[number] | null = null;
+  let bestScore = 0;
+  for (const p of slots.placeholders) {
+    const score = weapon.slotTags.filter((t) => p.slotTags.includes(t)).length;
+    if (score > bestScore) {
+      bestScore = score;
+      placeholder = p;
+    }
+  }
+  if (bestScore <= 0) placeholder = null;
   const boneName = placeholder?.boneName ?? (hand === 'right' ? 'hand.r' : 'hand.l');
   const boneNodeIndex = findBoneNodeIndex(model.bodyScene.nodes, boneName);
   if (boneNodeIndex < 0) return false;
 
   unequipSlot(registry, wielder, slots, hand);
+
+  if (weapon.kind === 'gun' && weapon.projectile?.equipmentId) {
+    const bullet = getWeaponDef(weapon.projectile.equipmentId);
+    if (bullet?.mesh.url) await gltfCache.getOrLoad(bullet.mesh.url);
+  }
 
   const loaded = await gltfCache.getOrLoad(weapon.mesh.url);
   const attachScene = getOrBuildRuntimeScene(loaded);
@@ -218,7 +232,6 @@ export const equipWeapon = async (
     hitWindowEnd: weapon.stats.hitWindowEnd,
     attackSpeed: weapon.stats.attackSpeed,
     fireRate: weapon.stats.fireRate,
-    projectileSpeed: weapon.projectile?.speed,
     blockAngleDeg: weapon.stats.blockAngleDeg,
   });
 

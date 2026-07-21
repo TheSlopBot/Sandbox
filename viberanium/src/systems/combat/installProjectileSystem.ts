@@ -1,6 +1,6 @@
 import { type Registry } from '../../engine/registry.ts';
 import { COMPONENT_KEYS } from '../../engine/componentKeys.ts';
-import { type Transform, updateWorldMatrix } from '../../components/transform.ts';
+import { type Transform } from '../../components/transform.ts';
 import { type Collider, bakeColliderWorldFromLocal } from '../../components/collider.ts';
 import { type Projectile } from '../../components/projectile.ts';
 import { COMBAT_LAYER } from '../../combat/combatLayers.ts';
@@ -10,7 +10,7 @@ import {
 } from '../../combat/combatBroadphase.ts';
 import { sweptSphereHitsAabb } from '../../combat/combatContact.ts';
 import { pushCombatEvent } from '../../combat/combatEvents.ts';
-import { isPhysicsLayer } from '../../combat/combatLayers.ts';
+import { orientTransformAlongVelocity } from '../../combat/orientTransformAlongVelocity.ts';
 
 const MAX_STEP = 1 / 120;
 
@@ -19,9 +19,7 @@ export const installProjectileSystem = (registry: Registry) => {
     const allColliders = registry.getComponentsByName(COMPONENT_KEYS.collider) as Collider[];
     rebuildCombatBroadphase(allColliders);
 
-    const staticPhysics = allColliders.filter(
-      (c) => c.isStatic && isPhysicsLayer(c.combatLayer),
-    );
+    const staticPhysics = allColliders.filter((c) => c.isStatic);
 
     const toRemove: number[] = [];
 
@@ -39,12 +37,17 @@ export const installProjectileSystem = (registry: Registry) => {
         const dx = projectile.velocity[0] * step;
         const dy = projectile.velocity[1] * step;
         const dz = projectile.velocity[2] * step;
-        const speed = Math.hypot(dx, dy, dz) || 1;
-        const ndx = dx / speed;
-        const ndy = dy / speed;
-        const ndz = dz / speed;
+        const stepDist = Math.hypot(dx, dy, dz);
+        if (stepDist < 1e-12) {
+          remaining -= step;
+          continue;
+        }
 
-        let earliest = step;
+        const ndx = dx / stepDist;
+        const ndy = dy / stepDist;
+        const ndz = dz / stepDist;
+
+        let earliest = stepDist;
         for (const obstacle of staticPhysics) {
           const tHit = sweptSphereHitsAabb(
             t.position[0],
@@ -60,7 +63,7 @@ export const installProjectileSystem = (registry: Registry) => {
             obstacle.aabb.max[0],
             obstacle.aabb.max[1],
             obstacle.aabb.max[2],
-            speed,
+            stepDist,
           );
           if (tHit >= 0 && tHit < earliest) {
             earliest = tHit;
@@ -71,13 +74,19 @@ export const installProjectileSystem = (registry: Registry) => {
         t.position[0] += ndx * earliest;
         t.position[1] += ndy * earliest;
         t.position[2] += ndz * earliest;
-        t.dirty = true;
-        updateWorldMatrix(t);
+        orientTransformAlongVelocity(t, projectile.velocity);
         if (collider.localShape) bakeColliderWorldFromLocal(collider, t.world);
         else {
           collider.shape.center[0] = t.position[0];
           collider.shape.center[1] = t.position[1];
           collider.shape.center[2] = t.position[2];
+          const hx = projectile.radius;
+          collider.aabb.min[0] = t.position[0] - hx;
+          collider.aabb.min[1] = t.position[1] - hx;
+          collider.aabb.min[2] = t.position[2] - hx;
+          collider.aabb.max[0] = t.position[0] + hx;
+          collider.aabb.max[1] = t.position[1] + hx;
+          collider.aabb.max[2] = t.position[2] + hx;
         }
 
         remaining -= step;
@@ -110,8 +119,12 @@ export const installProjectileSystem = (registry: Registry) => {
         }
       }
 
-      projectile.lifetime -= ctx.dt;
-      if (hit || projectile.lifetime <= 0) toRemove.push(e.id);
+      const dxo = t.position[0] - projectile.origin[0];
+      const dyo = t.position[1] - projectile.origin[1];
+      const dzo = t.position[2] - projectile.origin[2];
+      const traveledSq = dxo * dxo + dyo * dyo + dzo * dzo;
+      const maxDist = projectile.maxDistance;
+      if (hit || traveledSq >= maxDist * maxDist) toRemove.push(e.id);
     }
 
     for (const id of toRemove) registry.deregister(id);

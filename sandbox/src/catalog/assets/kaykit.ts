@@ -6,6 +6,9 @@ const RESOURCE_GLTF = `${KAYKIT}/KayKit Resource Bits 1.0/Assets/gltf`;
 export const CUBE_SMALL = `${PROTOTYPE_GLTF}/Cube_Prototype_Small.gltf`;
 export const CUBE_LARGE = `${PROTOTYPE_GLTF}/Cube_Prototype_Large_B.gltf`;
 
+export const GUN_PISTOL = `${PROTOTYPE_GLTF}/Gun_Pistol.gltf`;
+export const BULLET = `${PROTOTYPE_GLTF}/Bullet.gltf`;
+
 export const BARREL_A = `${PROTOTYPE_GLTF}/Barrel_A.gltf`;
 export const BOX_A = `${PROTOTYPE_GLTF}/Box_A.gltf`;
 export const BOX_C = `${PROTOTYPE_GLTF}/Box_C.gltf`;

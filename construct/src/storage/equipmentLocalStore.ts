@@ -38,8 +38,31 @@ const migrateLegacyRangerBladeId = () => {
   store.remove(LEGACY_RANGER_BLADE_ID);
 };
 
+const migrateSpaceRangerBulletProjectile = () => {
+  const entry = store.get('space_ranger_bullet');
+  if (!entry) return;
+
+  const doc = entry.document;
+  const needsKind = doc.kind !== 'projectile';
+  const needsSlot = !doc.slotTags.includes('slot:projectile');
+  const needsSpeed = doc.stats.moveSpeed !== 25;
+  if (!needsKind && !needsSlot && !needsSpeed) return;
+
+  saveLocalEquipment({
+    ...doc,
+    kind: 'projectile',
+    slotTags: needsSlot ? ['slot:projectile'] : [...doc.slotTags],
+    stats: {
+      ...doc.stats,
+      damage: 0,
+      moveSpeed: 25,
+    },
+  });
+};
+
 export const seedLocalEquipmentIfEmpty = (documents: readonly EquipmentDocument[]) => {
   migrateLegacyRangerBladeId();
+  migrateSpaceRangerBulletProjectile();
   for (const document of documents) {
     if (!store.get(document.id)) saveLocalEquipment(document);
   }

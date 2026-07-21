@@ -19,10 +19,11 @@ export type EquipmentDocumentCollider = {
 };
 
 export type EquipmentDocumentProjectile = {
-  shape: 'sphere';
-  radius: number;
+  equipmentId?: string;
+  shape?: 'sphere';
+  radius?: number;
   localOffset: [number, number, number];
-  speed: number;
+  speed?: number;
 };
 
 export type EquipmentClipBinding = {
@@ -34,7 +35,7 @@ export type EquipmentDocument = {
   version: 1;
   id: string;
   displayName: string;
-  kind: 'melee' | 'ranged' | 'shield';
+  kind: 'melee' | 'gun' | 'shield' | 'projectile';
   slotTags: string[];
   mesh: {
     url: string;
@@ -52,6 +53,7 @@ export type EquipmentDocument = {
     attackSpeed?: number;
     fireRate?: number;
     blockAngleDeg?: number;
+    moveSpeed?: number;
   };
   clips: {
     attack?: EquipmentClipBinding;
@@ -77,10 +79,11 @@ export type EquipmentLocalListItem = {
   displayName: string;
 };
 
-export const EQUIPMENT_SLOT_TAGS = ['slot:rightHand', 'slot:leftHand'] as const;
+export const EQUIPMENT_SLOT_TAGS = ['slot:rightHand', 'slot:leftHand', 'slot:projectile'] as const;
 
 export const defaultSlotTagsForKind = (kind: EquipmentDocument['kind']): string[] => {
   if (kind === 'shield') return ['slot:leftHand'];
+  if (kind === 'projectile') return ['slot:projectile'];
   return ['slot:rightHand'];
 };
 
@@ -155,7 +158,16 @@ const normalizeEquipmentObject = (data: unknown): EquipmentDocument | null => {
   if (doc.version !== 1 || typeof doc.id !== 'string' || typeof doc.displayName !== 'string') {
     return null;
   }
-  if (doc.kind !== 'melee' && doc.kind !== 'ranged' && doc.kind !== 'shield') return null;
+  const rawKind = (doc as { kind?: string }).kind;
+  const kindRaw = rawKind === 'ranged' ? 'gun' : rawKind;
+  if (
+    kindRaw !== 'melee' &&
+    kindRaw !== 'gun' &&
+    kindRaw !== 'shield' &&
+    kindRaw !== 'projectile'
+  ) {
+    return null;
+  }
   if (!doc.mesh || typeof doc.mesh !== 'object' || !Array.isArray(doc.colliders) || !doc.stats || !doc.clips) {
     return null;
   }
@@ -172,7 +184,7 @@ const normalizeEquipmentObject = (data: unknown): EquipmentDocument | null => {
 
   const slotTags = Array.isArray(doc.slotTags)
     ? doc.slotTags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0).map((t) => t.trim())
-    : defaultSlotTagsForKind(doc.kind);
+    : defaultSlotTagsForKind(kindRaw);
 
   const stats = doc.stats as Partial<EquipmentDocument['stats']>;
   const rawClips = doc.clips as Record<string, unknown>;
@@ -180,13 +192,22 @@ const normalizeEquipmentObject = (data: unknown): EquipmentDocument | null => {
   let projectile: EquipmentDocumentProjectile | undefined;
   if (doc.projectile && typeof doc.projectile === 'object') {
     const p = doc.projectile as Partial<EquipmentDocumentProjectile>;
-    if (p.shape === 'sphere' && typeof p.radius === 'number' && typeof p.speed === 'number' && isVec3(p.localOffset)) {
+    if (isVec3(p.localOffset)) {
       projectile = {
-        shape: 'sphere',
-        radius: p.radius,
         localOffset: p.localOffset,
-        speed: p.speed,
       };
+      if (typeof p.speed === 'number') {
+        projectile.speed = p.speed;
+      }
+      if (typeof p.equipmentId === 'string' && p.equipmentId.trim()) {
+        projectile.equipmentId = p.equipmentId.trim();
+      }
+      if (p.shape === 'sphere') {
+        projectile.shape = 'sphere';
+      }
+      if (typeof p.radius === 'number') {
+        projectile.radius = p.radius;
+      }
     }
   }
 
@@ -204,8 +225,8 @@ const normalizeEquipmentObject = (data: unknown): EquipmentDocument | null => {
     version: 1,
     id: doc.id,
     displayName: doc.displayName,
-    kind: doc.kind,
-    slotTags: slotTags.length > 0 ? slotTags : defaultSlotTagsForKind(doc.kind),
+    kind: kindRaw,
+    slotTags: slotTags.length > 0 ? slotTags : defaultSlotTagsForKind(kindRaw),
     mesh: {
       url: mesh.url,
       materialPrefix: typeof mesh.materialPrefix === 'string' ? mesh.materialPrefix : '',
@@ -216,12 +237,13 @@ const normalizeEquipmentObject = (data: unknown): EquipmentDocument | null => {
     colliders,
     projectile,
     stats: {
-      damage: typeof stats.damage === 'number' ? stats.damage : 10,
+      damage: typeof stats.damage === 'number' ? stats.damage : kindRaw === 'projectile' ? 0 : 10,
       hitWindowStart: typeof stats.hitWindowStart === 'number' ? stats.hitWindowStart : undefined,
       hitWindowEnd: typeof stats.hitWindowEnd === 'number' ? stats.hitWindowEnd : undefined,
       attackSpeed: typeof stats.attackSpeed === 'number' ? stats.attackSpeed : undefined,
       fireRate: typeof stats.fireRate === 'number' ? stats.fireRate : undefined,
       blockAngleDeg: typeof stats.blockAngleDeg === 'number' ? stats.blockAngleDeg : undefined,
+      moveSpeed: typeof stats.moveSpeed === 'number' ? stats.moveSpeed : undefined,
     },
     clips: {
       attack: normalizeClipBinding(rawClips.attack, defaultPackUrl),

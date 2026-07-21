@@ -394,8 +394,9 @@ export const EquipmentDetails = ({
               onChange={(e) => onKindChange(e.target.value as EquipmentDocument['kind'])}
             >
               <option value="melee">Melee</option>
-              <option value="ranged">Ranged</option>
+              <option value="gun">Gun</option>
               <option value="shield">Shield</option>
+              <option value="projectile">Projectile</option>
             </select>
           </label>
           <div className="construct-detailsSection">
@@ -418,11 +419,13 @@ export const EquipmentDetails = ({
           </div>
           <div className="construct-detailsSection">
             <div className="construct-detailsSectionTitle">Stats</div>
-            <NumberField
-              label="Damage"
-              value={doc.stats.damage}
-              onCommit={(v) => onStatsChange({ damage: v ?? 0 })}
-            />
+            {doc.kind !== 'projectile' ? (
+              <NumberField
+                label="Damage"
+                value={doc.stats.damage}
+                onCommit={(v) => onStatsChange({ damage: v ?? 0 })}
+              />
+            ) : null}
             {doc.kind === 'melee' ? (
               <>
                 <NumberField
@@ -437,7 +440,7 @@ export const EquipmentDetails = ({
                 />
               </>
             ) : null}
-            {doc.kind === 'ranged' ? (
+            {doc.kind === 'gun' ? (
               <NumberField
                 label="Fire rate"
                 value={doc.stats.fireRate}
@@ -451,10 +454,49 @@ export const EquipmentDetails = ({
                 onCommit={(v) => onStatsChange({ blockAngleDeg: v })}
               />
             ) : null}
+            {doc.kind === 'projectile' ? (
+              <NumberField
+                label="Move speed"
+                value={doc.stats.moveSpeed}
+                onCommit={(v) => onStatsChange({ moveSpeed: v ?? 25 })}
+              />
+            ) : null}
           </div>
+          {doc.kind === 'gun' ? (
+            <div className="construct-detailsSection">
+              <div className="construct-detailsSectionTitle">Projectile</div>
+              <label className="construct-detailsField">
+                <span>Equipment ID</span>
+                <input
+                  className="construct-detailsInput"
+                  value={doc.projectile?.equipmentId ?? ''}
+                  onChange={(e) => {
+                    const equipmentId = e.target.value.trim();
+                    const base = doc.projectile ?? {
+                      localOffset: [0, 0.2, 0.4] as [number, number, number],
+                    };
+                    onProjectileChange({
+                      ...base,
+                      equipmentId: equipmentId || undefined,
+                    });
+                  }}
+                />
+              </label>
+              {doc.projectile ? (
+                <AxisRow
+                  label="Muzzle offset"
+                  values={doc.projectile.localOffset}
+                  onCommit={(localOffset) =>
+                    onProjectileChange({ ...doc.projectile!, localOffset })
+                  }
+                />
+              ) : null}
+            </div>
+          ) : null}
+          {doc.kind !== 'projectile' ? (
           <div className="construct-detailsSection">
             <div className="construct-detailsSectionTitle">Animations</div>
-            {doc.kind === 'melee' || doc.kind === 'ranged' ? (
+            {doc.kind === 'melee' || doc.kind === 'gun' ? (
               <AnimationClipRow
                 label="Attack"
                 value={doc.clips.attack}
@@ -462,7 +504,7 @@ export const EquipmentDetails = ({
                 onCommit={(v) => onClipsChange({ attack: v })}
               />
             ) : null}
-            {doc.kind === 'ranged' ? (
+            {doc.kind === 'gun' ? (
               <>
                 <AnimationClipRow
                   label="Aim"
@@ -493,6 +535,7 @@ export const EquipmentDetails = ({
               onCommit={(v) => onClipsChange({ idleHold: v })}
             />
           </div>
+          ) : null}
         </div>
       </div>
     );
@@ -619,44 +662,31 @@ export const EquipmentDetails = ({
 
   if (selection.kind === 'projectile') {
     const projectile = doc.projectile ?? {
-      shape: 'sphere' as const,
-      radius: 0.15,
       localOffset: [0, 0.2, 0.4] as [number, number, number],
-      speed: 20,
     };
 
     return (
       <div className="construct-inspector">
         {header}
         <div className="construct-inspectorBody construct-detailsBody">
-          <div className="construct-detailsField">
-            <span>Shape</span>
-            <span className="construct-detailsReadonly">sphere</span>
-          </div>
-          <NumberField
-            label="Radius"
-            value={projectile.radius}
-            onCommit={(v) =>
-              onProjectileChange({
-                ...projectile,
-                radius: v ?? projectile.radius,
-              })
-            }
-          />
+          <label className="construct-detailsField">
+            <span>Equipment ID</span>
+            <input
+              className="construct-detailsInput"
+              value={projectile.equipmentId ?? ''}
+              onChange={(e) => {
+                const equipmentId = e.target.value.trim();
+                onProjectileChange({
+                  ...projectile,
+                  equipmentId: equipmentId || undefined,
+                });
+              }}
+            />
+          </label>
           <AxisRow
-            label="Local offset"
+            label="Muzzle offset"
             values={projectile.localOffset}
             onCommit={(localOffset) => onProjectileChange({ ...projectile, localOffset })}
-          />
-          <NumberField
-            label="Speed"
-            value={projectile.speed}
-            onCommit={(v) =>
-              onProjectileChange({
-                ...projectile,
-                speed: v ?? projectile.speed,
-              })
-            }
           />
         </div>
       </div>
